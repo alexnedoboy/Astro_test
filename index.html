@@ -938,22 +938,7 @@ function drawAspects(g, planets, asc) {
       const diff = angDiff(planets[i].longitude, planets[j].longitude);
       for (const asp of ASPECTS) {
         if (Math.abs(diff - asp.angle) <= asp.orb) {
-          if (asp.type === 'conj') {
-            // Small ellipse on the inner circle boundary, under the planets
-            let l1 = planets[i].longitude, l2 = planets[j].longitude;
-            if (Math.abs(l1 - l2) > 180) { if (l1 < l2) l1 += 360; else l2 += 360; }
-            const midLon = ((l1 + l2) / 2) % 360;
-            const midA = lonToRad(midLon, asc);
-            const center = polar(midA, R_INNER);
-            const spanRad = diff * Math.PI / 180;
-            const rx = Math.max(10, spanRad * R_INNER / 2 + 8);
-            const rotDeg = midA * 180 / Math.PI + 90;
-            g.appendChild(el('ellipse', {
-              cx: center.x, cy: center.y, rx, ry: 6,
-              transform: `rotate(${rotDeg}, ${center.x}, ${center.y})`,
-              fill: 'none', stroke: asp.color, 'stroke-width': 1.5,
-            }));
-          } else {
+          if (asp.type !== 'conj') {
             const pi = polar(lonToRad(planets[i].longitude, asc), R_INNER);
             const pj = polar(lonToRad(planets[j].longitude, asc), R_INNER);
             const attrs = { stroke: asp.color, 'stroke-width': asp.width, opacity: '0.6' };
@@ -972,77 +957,48 @@ function drawAspects(g, planets, asc) {
   }
 }
 
-// ── Planet grouping helper ────────────────────────────────────────────────────
-// Groups planets within CLUSTER_DEG of each other (by longitude).
-// Returns array of groups; each group is array of planet objects.
-function groupPlanets(planets, clusterDeg) {
-  const sorted = [...planets].sort((a, b) => a.longitude - b.longitude);
-  const groups = [];
-  let cur = [sorted[0]];
-  for (let i = 1; i < sorted.length; i++) {
-    // Angular gap respecting wrap-around
-    let gap = sorted[i].longitude - cur[cur.length - 1].longitude;
-    if (gap > 180) gap -= 360;
-    if (Math.abs(gap) <= clusterDeg) {
-      cur.push(sorted[i]);
-    } else {
-      groups.push(cur);
-      cur = [sorted[i]];
-    }
-  }
-  groups.push(cur);
-  return groups;
-}
-
 // ── Planets ───────────────────────────────────────────────────────────────────
 
 function drawPlanets(g, planets, asc) {
-  const CLUSTER_DEG = 10;  // group planets within 10° of each other
-  const STEP_DEG    = 1;   // angular step between glyphs in a group
+  const CLUSTER_DEG = 8;   // planets within 8° go into same radial stack
+  const STEP_R      = 22;  // radial step toward zodiac ring per stacked planet
 
-  const groups = groupPlanets(planets, CLUSTER_DEG);
-
-  for (const grp of groups) {
-    // Mid-longitude of the group (for centering glyphs)
-    let lons = grp.map(p => p.longitude);
-    // Unwrap if group straddles 0°/360°
-    if (Math.max(...lons) - Math.min(...lons) > 180)
-      lons = lons.map(l => l < 180 ? l + 360 : l);
-    const midLon = lons.reduce((s, l) => s + l, 0) / lons.length;
-    const midA   = lonToRad(midLon % 360, asc);
-
-    // Glyph angles: spread symmetrically around midA
-    // lonToRad inverts direction, so step must be negative as i increases
-    const n = grp.length;
-    const startOffset = +((n - 1) / 2) * STEP_DEG * Math.PI / 180;
-
-    grp.forEach((p, i) => {
-      const glyphA  = midA + startOffset - i * STEP_DEG * Math.PI / 180;
-      const actualA = lonToRad(p.longitude, asc);
-
-      // Dot on inner circle at exact longitude
-      const dot = polar(actualA, R_INNER);
-      g.appendChild(circ(dot.x, dot.y, 2.5, { fill: '#666', stroke: 'none' }));
-
-      // Glyph at spread angle, fixed radius
-      const pos = polar(glyphA, R_PLANET);
-      const deg = Math.floor(p.longitude % 30);
-      const t   = el('text', {
-        x: pos.x, y: pos.y,
-        'font-size': 21, fill: '#111',
-        'text-anchor': 'middle', 'dominant-baseline': 'central',
-      });
-      t.appendChild(el('tspan', {}, p.glyph));
-      t.appendChild(el('tspan', { dy: '-7', 'font-size': '10', fill: '#333' }, String(deg)));
-      g.appendChild(t);
-
-      if (p.retrograde) {
-        g.appendChild(txt(pos.x + 13, pos.y + 5, 'R', {
-          'font-size': 8, fill: '#bb1111', 'font-style': 'italic',
-        }));
-      }
-    });
+  // Sort by longitude, assign radial level within close groups
+  const sorted = [...planets].sort((a, b) => a.longitude - b.longitude);
+  const levels = new Array(sorted.length).fill(0);
+  for (let i = 1; i < sorted.length; i++) {
+    let gap = sorted[i].longitude - sorted[i - 1].longitude;
+    if (gap > 180) gap -= 360;
+    if (Math.abs(gap) <= CLUSTER_DEG) {
+      levels[i] = levels[i - 1] + 1;
+    }
   }
+
+  sorted.forEach((p, i) => {
+    const a   = lonToRad(p.longitude, asc);
+    const r   = R_PLANET + levels[i] * STEP_R;  // stack toward ring
+    const pos = polar(a, r);
+
+    // Dot on inner circle at exact longitude
+    const dot = polar(a, R_INNER);
+    g.appendChild(circ(dot.x, dot.y, 2.5, { fill: '#666', stroke: 'none' }));
+
+    const deg = Math.floor(p.longitude % 30);
+    const t   = el('text', {
+      x: pos.x, y: pos.y,
+      'font-size': 21, fill: '#111',
+      'text-anchor': 'middle', 'dominant-baseline': 'central',
+    });
+    t.appendChild(el('tspan', {}, p.glyph));
+    t.appendChild(el('tspan', { dy: '-7', 'font-size': '10', fill: '#333' }, String(deg)));
+    g.appendChild(t);
+
+    if (p.retrograde) {
+      g.appendChild(txt(pos.x + 13, pos.y + 5, 'R', {
+        'font-size': 8, fill: '#bb1111', 'font-style': 'italic',
+      }));
+    }
+  });
 }
 
 // ── Conjunction clusters (blue ellipses) ─────────────────────────────────────
@@ -1224,48 +1180,41 @@ function renderBiwheel(natal, transit, cusps, asc) {
 }
 
 function drawBiwheelPlanets(g, planets, asc, rBase, rDot) {
-  const CLUSTER_DEG = 10;
-  const STEP_DEG    = 11;
+  const CLUSTER_DEG = 8;
+  const STEP_R      = 18;  // radial step toward zodiac ring per stacked planet
 
-  const groups = groupPlanets(planets, CLUSTER_DEG);
-
-  for (const grp of groups) {
-    let lons = grp.map(p => p.longitude);
-    if (Math.max(...lons) - Math.min(...lons) > 180)
-      lons = lons.map(l => l < 180 ? l + 360 : l);
-    const midLon = lons.reduce((s, l) => s + l, 0) / lons.length;
-    const midA   = lonToRad(midLon % 360, asc);
-    const n      = grp.length;
-    // lonToRad inverts direction (180-lon), so higher lon → smaller SVG angle
-    // We must go in the negative direction as longitude increases
-    const startOffset = +((n - 1) / 2) * STEP_DEG * Math.PI / 180;
-
-    grp.forEach((p, i) => {
-      const glyphA  = midA + startOffset - i * STEP_DEG * Math.PI / 180;
-      const actualA = lonToRad(p.longitude, asc);
-
-      // Dot at actual longitude on ring boundary
-      const dot = polar(actualA, rDot);
-      g.appendChild(circ(dot.x, dot.y, 2, { fill: '#9aaa00', stroke: 'none' }));
-
-      const pos = polar(glyphA, rBase);
-      const deg = Math.floor(p.longitude % 30);
-      const t = el('text', {
-        x: pos.x, y: pos.y,
-        'font-size': 17, fill: '#111',
-        'text-anchor': 'middle', 'dominant-baseline': 'central',
-      });
-      t.appendChild(el('tspan', {}, p.glyph));
-      t.appendChild(el('tspan', { dy: '-6', 'font-size': '9', fill: '#333' }, String(deg)));
-      g.appendChild(t);
-
-      if (p.retrograde) {
-        g.appendChild(txt(pos.x + 10, pos.y + 3, 'R', {
-          'font-size': 7, fill: '#bb1111', 'font-style': 'italic',
-        }));
-      }
-    });
+  const sorted = [...planets].sort((a, b) => a.longitude - b.longitude);
+  const levels = new Array(sorted.length).fill(0);
+  for (let i = 1; i < sorted.length; i++) {
+    let gap = sorted[i].longitude - sorted[i - 1].longitude;
+    if (gap > 180) gap -= 360;
+    if (Math.abs(gap) <= CLUSTER_DEG) levels[i] = levels[i - 1] + 1;
   }
+
+  sorted.forEach((p, i) => {
+    const a   = lonToRad(p.longitude, asc);
+    const r   = rBase + levels[i] * STEP_R;
+    const pos = polar(a, r);
+
+    const dot = polar(a, rDot);
+    g.appendChild(circ(dot.x, dot.y, 2, { fill: '#9aaa00', stroke: 'none' }));
+
+    const deg = Math.floor(p.longitude % 30);
+    const t = el('text', {
+      x: pos.x, y: pos.y,
+      'font-size': 17, fill: '#111',
+      'text-anchor': 'middle', 'dominant-baseline': 'central',
+    });
+    t.appendChild(el('tspan', {}, p.glyph));
+    t.appendChild(el('tspan', { dy: '-6', 'font-size': '9', fill: '#333' }, String(deg)));
+    g.appendChild(t);
+
+    if (p.retrograde) {
+      g.appendChild(txt(pos.x + 10, pos.y + 3, 'R', {
+        'font-size': 7, fill: '#bb1111', 'font-style': 'italic',
+      }));
+    }
+  });
 }
 
 function drawTransitAspects(g, natal, transit, asc) {
@@ -1274,21 +1223,7 @@ function drawTransitAspects(g, natal, transit, asc) {
       const diff = angDiff(tr.longitude, na.longitude);
       for (const asp of ASPECTS) {
         if (Math.abs(diff - asp.angle) <= asp.orb) {
-          if (asp.type === 'conj') {
-            let l1 = tr.longitude, l2 = na.longitude;
-            if (Math.abs(l1 - l2) > 180) { if (l1 < l2) l1 += 360; else l2 += 360; }
-            const midLon = ((l1 + l2) / 2) % 360;
-            const midA = lonToRad(midLon, asc);
-            const center = polar(midA, R_DIVIDER);
-            const spanRad = diff * Math.PI / 180;
-            const rx = Math.max(8, spanRad * R_DIVIDER / 2 + 6);
-            const rotDeg = midA * 180 / Math.PI + 90;
-            g.appendChild(el('ellipse', {
-              cx: center.x, cy: center.y, rx, ry: 5,
-              transform: `rotate(${rotDeg}, ${center.x}, ${center.y})`,
-              fill: 'none', stroke: asp.color, 'stroke-width': 1.5,
-            }));
-          } else {
+          if (asp.type !== 'conj') {
             const pt  = polar(lonToRad(tr.longitude, asc), R_BW_INNER);
             const pn  = polar(lonToRad(na.longitude, asc), R_BW_INNER);
             const mid = { x: (pt.x + pn.x) / 2, y: (pt.y + pn.y) / 2 };

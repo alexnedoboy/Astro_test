@@ -1108,8 +1108,6 @@ function renderBiwheelAt(jd) {
   const lbl = document.getElementById('transit-date-lbl');
   lbl.textContent = 'Транзиты на ' + d.toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' });
   lbl.classList.add('active');
-  // Scroll chart into view smoothly
-  document.getElementById('chart-wrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 // ── Biwheel (transit overlay) ─────────────────────────────────────────────────

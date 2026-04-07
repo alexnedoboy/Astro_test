@@ -77,6 +77,12 @@
   #info-table td { padding: 4px 12px; border-bottom: 1px solid #f2f2ee; }
   #info-table tr:hover td { background: #fafaf6; }
 
+  #transit-date-lbl {
+    text-align: center; font-size: 0.8em; color: #888;
+    min-height: 18px; margin: 2px 0 0;
+    transition: opacity 0.2s;
+  }
+  #transit-date-lbl.active { color: #2244bb; font-weight: 600; }
   #transit-tl {
     width: 100%; max-width: 900px;
     margin: 8px auto 0;
@@ -351,6 +357,7 @@
   <button class="tab-btn" id="tabTransit">Транзиты</button>
 </div>
 <div id="chart-wrap"></div>
+<div id="transit-date-lbl"></div>
 <div id="transit-tl"></div>
 
 <table id="info-table" style="display:none">
@@ -1079,11 +1086,31 @@ document.getElementById('tabTransit').addEventListener('click', () => {
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 };
   });
   renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
+  const dlbl = document.getElementById('transit-date-lbl');
+  dlbl.textContent = 'Сегодня'; dlbl.classList.remove('active');
 
   // Timeline below
   document.getElementById('transit-tl').style.display = 'block';
   computeAndRenderTimeline(natalData.planets);
 });
+
+// ── Render biwheel for a specific JD (called from timeline bar tap) ──────────
+function renderBiwheelAt(jd) {
+  if (!natalData || !swe) return;
+  const flags = swe.SEFLG_SWIEPH ?? 2;
+  const transit = PLANETS.map(p => {
+    const r = swe.calc_ut(jd, p.id, flags);
+    return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 };
+  });
+  renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
+  // Update date label
+  const d = new Date((jd - 2440587.5) * 86400000);
+  const lbl = document.getElementById('transit-date-lbl');
+  lbl.textContent = 'Транзиты на ' + d.toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' });
+  lbl.classList.add('active');
+  // Scroll chart into view smoothly
+  document.getElementById('chart-wrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
 
 // ── Biwheel (transit overlay) ─────────────────────────────────────────────────
 // Layout: transit planets in outer ring, natal in inner ring, separated by a
@@ -1569,10 +1596,24 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
       const barW = Math.max(x2 - x1, 2);
       const barY = baseY + 10 + p.sub * SUB_H + (SUB_H - BAR_H) / 2;
 
-      svgR.appendChild(el('rect', {
+      const bar = el('rect', {
         x: x1, y: barY, width: barW, height: BAR_H,
-        fill: p.asp.color, rx: 1, opacity,
-      }));
+        fill: p.asp.color, rx: 1, opacity, style: 'cursor:pointer',
+      });
+      // Tap/click → update biwheel to midpoint of this transit period
+      let touchStartX = 0;
+      bar.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+      bar.addEventListener('touchend', e => {
+        if (Math.abs(e.changedTouches[0].clientX - touchStartX) < 8) {
+          const midJD = (p.startJD + p.endJD) / 2;
+          renderBiwheelAt(midJD);
+        }
+      });
+      bar.addEventListener('click', () => {
+        const midJD = (p.startJD + p.endJD) / 2;
+        renderBiwheelAt(midJD);
+      });
+      svgR.appendChild(bar);
 
       for (const ejd of (p.exactJDs ?? [])) {
         const xE = xOf(ejd);

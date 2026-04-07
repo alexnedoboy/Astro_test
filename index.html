@@ -969,64 +969,59 @@ function drawAspects(g, planets, asc) {
   }
 }
 
-// ── Angular spread helper ─────────────────────────────────────────────────────
-// Spreads items (sorted by .dispA ascending) so no two are closer than minSepRad.
-// Strategy: unwrap to linear space → push apart → re-center → re-wrap.
-function spreadAngles(items, minSepRad) {
-  const n = items.length;
-  if (n <= 1) return;
+// ── Planet spreading helper ───────────────────────────────────────────────────
+// Groups planets that are within CLUSTER_DEG of each other, then spaces
+// each group evenly (STEP_DEG apart) centered on the group's midpoint.
+// Returns array of { planet, dispA } — display angle for each planet.
+function spreadPlanets(planets, asc) {
+  const CLUSTER_DEG = 10;  // planets within 10° go into a group
+  const STEP_DEG    = 13;  // degrees between glyphs inside a group
 
-  // 1. Unwrap: make each angle >= previous (linear, non-circular)
-  for (let i = 1; i < n; i++) {
-    while (items[i].dispA < items[i - 1].dispA) items[i].dispA += 2 * Math.PI;
-  }
+  // Sort by longitude
+  const sorted = [...planets].sort((a, b) => a.longitude - b.longitude);
 
-  // 2. Push neighbours apart until stable
-  for (let pass = 0; pass < 300; pass++) {
-    let moved = false;
-    for (let i = 0; i < n - 1; i++) {
-      const gap = items[i + 1].dispA - items[i].dispA;
-      if (gap < minSepRad - 0.00001) {
-        const push = (minSepRad - gap) / 2;
-        items[i].dispA     -= push;
-        items[i + 1].dispA += push;
-        moved = true;
-      }
+  // Build groups of consecutive close planets
+  const groups = [];
+  let cur = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    const gap = sorted[i].longitude - sorted[i - 1].longitude;
+    if (gap <= CLUSTER_DEG) {
+      cur.push(sorted[i]);
+    } else {
+      groups.push(cur);
+      cur = [sorted[i]];
     }
-    if (!moved) break;
   }
+  groups.push(cur);
 
-  // 3. Re-center the spread group around the original mean angle
-  const origMean = items.reduce((s, p) => s + p.dispA, 0) / n;
-  // original mean before spreading (use first item's original angle + span/2)
-  const spreadMean = (items[0].dispA + items[n - 1].dispA) / 2;
-  const shift = origMean - spreadMean;
-  items.forEach(p => { p.dispA += shift; });
-
-  // 4. Re-wrap to [0, 2π)
-  items.forEach(p => { p.dispA = ((p.dispA % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI); });
+  // For each group assign display angles
+  const result = [];
+  for (const grp of groups) {
+    const midLon = (grp[0].longitude + grp[grp.length - 1].longitude) / 2;
+    const midA   = lonToRad(midLon, asc);
+    const total  = (grp.length - 1) * STEP_DEG;
+    const startA = midA - (total / 2) * Math.PI / 180;
+    grp.forEach((p, i) => {
+      result.push({ p, dispA: startA + i * STEP_DEG * Math.PI / 180 });
+    });
+  }
+  return result;
 }
 
 // ── Planets ───────────────────────────────────────────────────────────────────
 
 function drawPlanets(g, planets, asc) {
-  const MIN_SEP = 13 * Math.PI / 180;  // ~13° minimum between glyphs
+  const spread = spreadPlanets(planets, asc);
 
-  const items = [...planets]
-    .sort((a, b) => a.longitude - b.longitude)
-    .map(p => ({ ...p, dispA: lonToRad(p.longitude, asc) }));
-
-  spreadAngles(items, MIN_SEP);
-
-  items.forEach(p => {
+  spread.forEach(({ p, dispA }) => {
     const actualA = lonToRad(p.longitude, asc);
-    const pos     = polar(p.dispA, R_PLANET);
+    const pos     = polar(dispA, R_PLANET);
 
     // Small dot on inner circle at actual longitude
     const dot = polar(actualA, R_INNER);
     g.appendChild(circ(dot.x, dot.y, 2.5, { fill: '#555', stroke: 'none' }));
 
-    // Glyph + degree superscript at spread position
+    // Glyph + degree superscript
     const deg = Math.floor(p.longitude % 30);
     const t   = el('text', {
       x: pos.x, y: pos.y,
@@ -1037,7 +1032,6 @@ function drawPlanets(g, planets, asc) {
     t.appendChild(el('tspan', { dy: '-8', 'font-size': '11', fill: '#333' }, String(deg)));
     g.appendChild(t);
 
-    // Retrograde 'R'
     if (p.retrograde) {
       g.appendChild(txt(pos.x + 14, pos.y + 5, 'R', {
         'font-size': 9, fill: '#bb1111', 'font-style': 'italic',
@@ -1241,19 +1235,13 @@ function renderBiwheel(natal, transit, cusps, asc) {
 }
 
 function drawBiwheelPlanets(g, planets, asc, rBase, rMin, rDot) {
-  const MIN_SEP = 13 * Math.PI / 180;
+  const spread = spreadPlanets(planets, asc);
 
-  const items = [...planets]
-    .sort((a, b) => a.longitude - b.longitude)
-    .map(p => ({ ...p, dispA: lonToRad(p.longitude, asc) }));
-
-  spreadAngles(items, MIN_SEP);
-
-  items.forEach(p => {
+  spread.forEach(({ p, dispA }) => {
     const actualA = lonToRad(p.longitude, asc);
-    const pos     = polar(p.dispA, rBase);
+    const pos     = polar(dispA, rBase);
 
-    // Small dot on the ring boundary at actual longitude
+    // Small dot on ring boundary at actual longitude
     const dot = polar(actualA, rDot);
     g.appendChild(circ(dot.x, dot.y, 2, { fill: '#888', stroke: 'none' }));
 

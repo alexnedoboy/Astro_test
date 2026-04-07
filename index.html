@@ -1442,8 +1442,8 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
   const PX_PER_DAY = 3;          // 3 px / day → 1 year ≈ 1095 px (scrollable on mobile)
   const LABEL_W    = 44;
   const HDR_H      = 28;
-  const BAR_H      = 7;
-  const SUB_H      = 14;
+  const BAR_H      = 4;
+  const SUB_H      = 18;
   const SPAN       = jdEnd - jdStart;
   const BARS_W     = Math.ceil(SPAN * PX_PER_DAY);
 
@@ -1472,7 +1472,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
     .map(pl => {
       // Slow planets sub-rows
       const { ps, nSubs } = packRows(byNatal[pl.id]);
-      const slowH = nSubs * SUB_H + 16;
+      const slowH = nSubs * SUB_H + 20;
 
       // Fast planets section (if expanded)
       const isExpanded = expandedRows.has(pl.id);
@@ -1482,7 +1482,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
         if (cached) {
           const fp = packRows(cached);
           fastPs = fp.ps; fastNSubs = fp.nSubs;
-          fastH = fastNSubs * SUB_H + 16;
+          fastH = fastNSubs * SUB_H + 20;
         } else {
           fastH = 22; // "loading…" placeholder height
         }

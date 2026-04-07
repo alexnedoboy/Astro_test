@@ -1600,19 +1600,19 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
         x: x1, y: barY, width: barW, height: BAR_H,
         fill: p.asp.color, rx: 1, opacity, style: 'cursor:pointer',
       });
-      // Tap/click → update biwheel to midpoint of this transit period
+      // Tap/click → update biwheel to the exact tapped date on the bar
+      const xToJD = clientX => {
+        const svgBounds = svgR.getBoundingClientRect();
+        const x = clientX - svgBounds.left;
+        return jdStart + x / PX_PER_DAY;
+      };
       let touchStartX = 0;
       bar.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
       bar.addEventListener('touchend', e => {
-        if (Math.abs(e.changedTouches[0].clientX - touchStartX) < 8) {
-          const midJD = (p.startJD + p.endJD) / 2;
-          renderBiwheelAt(midJD);
-        }
+        const cx = e.changedTouches[0].clientX;
+        if (Math.abs(cx - touchStartX) < 8) renderBiwheelAt(xToJD(cx));
       });
-      bar.addEventListener('click', () => {
-        const midJD = (p.startJD + p.endJD) / 2;
-        renderBiwheelAt(midJD);
-      });
+      bar.addEventListener('click', e => renderBiwheelAt(xToJD(e.clientX)));
       svgR.appendChild(bar);
 
       for (const ejd of (p.exactJDs ?? [])) {

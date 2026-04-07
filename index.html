@@ -1012,11 +1012,12 @@ function drawPlanets(g, planets, asc) {
     const midA   = lonToRad(midLon % 360, asc);
 
     // Glyph angles: spread symmetrically around midA
+    // lonToRad inverts direction, so step must be negative as i increases
     const n = grp.length;
-    const startOffset = -((n - 1) / 2) * STEP_DEG * Math.PI / 180;
+    const startOffset = +((n - 1) / 2) * STEP_DEG * Math.PI / 180;
 
     grp.forEach((p, i) => {
-      const glyphA  = midA + startOffset + i * STEP_DEG * Math.PI / 180;
+      const glyphA  = midA + startOffset - i * STEP_DEG * Math.PI / 180;
       const actualA = lonToRad(p.longitude, asc);
 
       // Dot on inner circle at exact longitude
@@ -1235,10 +1236,12 @@ function drawBiwheelPlanets(g, planets, asc, rBase, rDot) {
     const midLon = lons.reduce((s, l) => s + l, 0) / lons.length;
     const midA   = lonToRad(midLon % 360, asc);
     const n      = grp.length;
-    const startOffset = -((n - 1) / 2) * STEP_DEG * Math.PI / 180;
+    // lonToRad inverts direction (180-lon), so higher lon → smaller SVG angle
+    // We must go in the negative direction as longitude increases
+    const startOffset = +((n - 1) / 2) * STEP_DEG * Math.PI / 180;
 
     grp.forEach((p, i) => {
-      const glyphA  = midA + startOffset + i * STEP_DEG * Math.PI / 180;
+      const glyphA  = midA + startOffset - i * STEP_DEG * Math.PI / 180;
       const actualA = lonToRad(p.longitude, asc);
 
       // Dot at actual longitude on ring boundary

@@ -1208,11 +1208,11 @@ function renderBiwheel(natal, transit, cusps, asc) {
   // 7. Transit → natal aspect lines
   drawTransitAspects(g, natal, transit, 0);
 
-  // 8. Transit planets (outer ring: R_DIVIDER 196 → R_ZOD_IN 260), dots on R_DIVIDER
-  drawBiwheelPlanets(g, transit, 0, R_DIVIDER, R_T_PLANET);
+  // 8. Natal planets (inner ring), dots on R_BW_INNER — mirrors regular natal chart
+  drawBiwheelPlanets(g, natal,   0, R_BW_INNER, R_N_PLANET);
 
-  // 9. Natal planets (inner ring: R_BW_INNER 128 → R_DIVIDER 196), dots on R_DIVIDER
-  drawBiwheelPlanets(g, natal,   0, R_DIVIDER, R_N_PLANET);
+  // 9. Transit planets (outer ring), dots on R_DIVIDER
+  drawBiwheelPlanets(g, transit, 0, R_DIVIDER,  R_T_PLANET);
 
   // 11. House labels outside ring
   drawHouseLabels(g, cusps, 0);

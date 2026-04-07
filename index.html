@@ -938,7 +938,22 @@ function drawAspects(g, planets, asc) {
       const diff = angDiff(planets[i].longitude, planets[j].longitude);
       for (const asp of ASPECTS) {
         if (Math.abs(diff - asp.angle) <= asp.orb) {
-          if (asp.type !== 'conj') {
+          if (asp.type === 'conj') {
+            // Small ellipse on the inner circle boundary, under the planets
+            let l1 = planets[i].longitude, l2 = planets[j].longitude;
+            if (Math.abs(l1 - l2) > 180) { if (l1 < l2) l1 += 360; else l2 += 360; }
+            const midLon = ((l1 + l2) / 2) % 360;
+            const midA = lonToRad(midLon, asc);
+            const center = polar(midA, R_INNER);
+            const spanRad = diff * Math.PI / 180;
+            const rx = Math.max(10, spanRad * R_INNER / 2 + 8);
+            const rotDeg = midA * 180 / Math.PI + 90;
+            g.appendChild(el('ellipse', {
+              cx: center.x, cy: center.y, rx, ry: 6,
+              transform: `rotate(${rotDeg}, ${center.x}, ${center.y})`,
+              fill: 'none', stroke: asp.color, 'stroke-width': 1.5,
+            }));
+          } else {
             const pi = polar(lonToRad(planets[i].longitude, asc), R_INNER);
             const pj = polar(lonToRad(planets[j].longitude, asc), R_INNER);
             const attrs = { stroke: asp.color, 'stroke-width': asp.width, opacity: '0.6' };
@@ -960,29 +975,25 @@ function drawAspects(g, planets, asc) {
 // ── Planets ───────────────────────────────────────────────────────────────────
 
 function drawPlanets(g, planets, asc) {
-  const CLUSTER_DEG = 8;   // planets within 8° go into same radial stack
-  const STEP_R      = 22;  // radial step toward zodiac ring per stacked planet
+  // Resolve radial overlaps for close planets
+  const items = planets
+    .map(p => ({ ...p, a: lonToRad(p.longitude, asc), r: R_PLANET }))
+    .sort((a, b) => a.a - b.a);
 
-  // Sort by longitude, assign radial level within close groups
-  const sorted = [...planets].sort((a, b) => a.longitude - b.longitude);
-  const levels = new Array(sorted.length).fill(0);
-  for (let i = 1; i < sorted.length; i++) {
-    let gap = sorted[i].longitude - sorted[i - 1].longitude;
-    if (gap > 180) gap -= 360;
-    if (Math.abs(gap) <= CLUSTER_DEG) {
-      levels[i] = levels[i - 1] + 1;
+  for (let i = 1; i < items.length; i++) {
+    for (let j = 0; j < i; j++) {
+      let da = Math.abs(items[i].a - items[j].a);
+      da = Math.min(da, Math.PI * 2 - da);
+      if (da < 0.14) {
+        items[i].r = Math.max(R_INNER + 12, items[j].r - 24);
+      }
     }
   }
 
-  sorted.forEach((p, i) => {
-    const a   = lonToRad(p.longitude, asc);
-    const r   = R_PLANET + levels[i] * STEP_R;  // stack toward ring
-    const pos = polar(a, r);
+  items.forEach(p => {
+    const pos = polar(p.a, p.r);
 
-    // Dot on inner circle at exact longitude
-    const dot = polar(a, R_INNER);
-    g.appendChild(circ(dot.x, dot.y, 2.5, { fill: '#666', stroke: 'none' }));
-
+    // Glyph + degree superscript
     const deg = Math.floor(p.longitude % 30);
     const t   = el('text', {
       x: pos.x, y: pos.y,
@@ -993,8 +1004,9 @@ function drawPlanets(g, planets, asc) {
     t.appendChild(el('tspan', { dy: '-7', 'font-size': '10', fill: '#333' }, String(deg)));
     g.appendChild(t);
 
+    // Retrograde 'R'
     if (p.retrograde) {
-      g.appendChild(txt(pos.x + 13, pos.y + 5, 'R', {
+      g.appendChild(txt(pos.x + 12, pos.y + 4, 'R', {
         'font-size': 8, fill: '#bb1111', 'font-style': 'italic',
       }));
     }
@@ -1167,11 +1179,17 @@ function renderBiwheel(natal, transit, cusps, asc) {
   // 7. Transit → natal aspect lines
   drawTransitAspects(g, natal, transit, 0);
 
-  // 9. Transit planets (outer ring) — dots on R_DIVIDER
-  drawBiwheelPlanets(g, transit, 0, R_T_PLANET, R_DIVIDER);
+  // 8. Yellow dots on divider for every planet (transit + natal)
+  [...transit, ...natal].forEach(p => {
+    const pt = polar(lonToRad(p.longitude, 0), R_DIVIDER);
+    g.appendChild(circ(pt.x, pt.y, 2, { fill: '#9aaa00', stroke: 'none' }));
+  });
 
-  // 10. Natal planets (inner ring) — dots on R_BW_INNER
-  drawBiwheelPlanets(g, natal,   0, R_N_PLANET, R_BW_INNER);
+  // 9. Transit planets (outer ring: R_ZOD_IN 260 → R_DIVIDER 196)
+  drawBiwheelPlanets(g, transit, 0, R_T_PLANET, R_DIVIDER + 2, R_ZOD_IN - 2);
+
+  // 10. Natal planets (inner ring: R_DIVIDER 196 → R_BW_INNER 128)
+  drawBiwheelPlanets(g, natal,   0, R_N_PLANET, R_BW_INNER + 2, R_DIVIDER - 2);
 
   // 11. House labels outside ring
   drawHouseLabels(g, cusps, 0);
@@ -1179,30 +1197,28 @@ function renderBiwheel(natal, transit, cusps, asc) {
   document.getElementById('chart-wrap').replaceChildren(svg);
 }
 
-function drawBiwheelPlanets(g, planets, asc, rBase, rDot) {
-  const CLUSTER_DEG = 8;
-  const STEP_R      = 18;  // radial step toward zodiac ring per stacked planet
+function drawBiwheelPlanets(g, planets, asc, rBase, rMin, rMax) {
+  const items = planets
+    .map(p => ({ ...p, a: lonToRad(p.longitude, asc), r: rBase }))
+    .sort((a, b) => a.a - b.a);
 
-  const sorted = [...planets].sort((a, b) => a.longitude - b.longitude);
-  const levels = new Array(sorted.length).fill(0);
-  for (let i = 1; i < sorted.length; i++) {
-    let gap = sorted[i].longitude - sorted[i - 1].longitude;
-    if (gap > 180) gap -= 360;
-    if (Math.abs(gap) <= CLUSTER_DEG) levels[i] = levels[i - 1] + 1;
+  for (let i = 1; i < items.length; i++) {
+    for (let j = 0; j < i; j++) {
+      let da = Math.abs(items[i].a - items[j].a);
+      da = Math.min(da, Math.PI * 2 - da);
+      if (da < 0.14) {
+        items[i].r = Math.max(rMin + 6, items[j].r - 20);
+      }
+    }
   }
 
-  sorted.forEach((p, i) => {
-    const a   = lonToRad(p.longitude, asc);
-    const r   = rBase + levels[i] * STEP_R;
-    const pos = polar(a, r);
-
-    const dot = polar(a, rDot);
-    g.appendChild(circ(dot.x, dot.y, 2, { fill: '#9aaa00', stroke: 'none' }));
-
+  items.forEach(p => {
+    const pos = polar(p.a, p.r);
     const deg = Math.floor(p.longitude % 30);
+
     const t = el('text', {
       x: pos.x, y: pos.y,
-      'font-size': 17, fill: '#111',
+      'font-size': 19, fill: '#111',
       'text-anchor': 'middle', 'dominant-baseline': 'central',
     });
     t.appendChild(el('tspan', {}, p.glyph));
@@ -1223,7 +1239,21 @@ function drawTransitAspects(g, natal, transit, asc) {
       const diff = angDiff(tr.longitude, na.longitude);
       for (const asp of ASPECTS) {
         if (Math.abs(diff - asp.angle) <= asp.orb) {
-          if (asp.type !== 'conj') {
+          if (asp.type === 'conj') {
+            let l1 = tr.longitude, l2 = na.longitude;
+            if (Math.abs(l1 - l2) > 180) { if (l1 < l2) l1 += 360; else l2 += 360; }
+            const midLon = ((l1 + l2) / 2) % 360;
+            const midA = lonToRad(midLon, asc);
+            const center = polar(midA, R_DIVIDER);
+            const spanRad = diff * Math.PI / 180;
+            const rx = Math.max(8, spanRad * R_DIVIDER / 2 + 6);
+            const rotDeg = midA * 180 / Math.PI + 90;
+            g.appendChild(el('ellipse', {
+              cx: center.x, cy: center.y, rx, ry: 5,
+              transform: `rotate(${rotDeg}, ${center.x}, ${center.y})`,
+              fill: 'none', stroke: asp.color, 'stroke-width': 1.5,
+            }));
+          } else {
             const pt  = polar(lonToRad(tr.longitude, asc), R_BW_INNER);
             const pn  = polar(lonToRad(na.longitude, asc), R_BW_INNER);
             const mid = { x: (pt.x + pn.x) / 2, y: (pt.y + pn.y) / 2 };

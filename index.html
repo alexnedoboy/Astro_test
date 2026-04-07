@@ -849,31 +849,6 @@ function renderChart(planets, cusps, asc, mc) {
   // 7. Aspects
   drawAspects(g, planets, 0);
 
-  // точки планет на внутреннем круге
-
-planets.forEach(p => {
-
-  const pt = polar(
-    lonToRad(p.longitude, 0),
-    R_INNER
-  );
-
-  g.appendChild(
-    circ(
-      pt.x,
-      pt.y,
-      2,
-      {
-        fill: '#c6c300',
-        stroke: '#000',
-
-      'stroke-width': 0.6
-      }
-    )
-  );
-
-});
-
   // 8. Planets
   drawPlanets(g, planets, 0);
 
@@ -999,53 +974,68 @@ function drawAspects(g, planets, asc) {
 // ── Planets ───────────────────────────────────────────────────────────────────
 
 function drawPlanets(g, planets, asc) {
-  // Resolve radial overlaps for close planets
+  const GLYPH_R  = 230;
+  const THR_RAD  = 0.18;  // ~10° cluster threshold
+  const STEP_PX  = 22;
+
   const items = planets
-    .map(p => ({ ...p, a: lonToRad(p.longitude, asc), r: R_PLANET }))
-    .sort((a, b) => a.a - b.a);
+    .map(p => ({ ...p, dotAngle: lonToRad(p.longitude, asc) }))
+    .sort((a, b) => a.dotAngle - b.dotAngle);
 
+  const clusters = [];
+  let current = [items[0]];
   for (let i = 1; i < items.length; i++) {
-
-  for (let j = 0; j < i; j++) {
-
-    let da = Math.abs(items[i].a - items[j].a);
+    let da = Math.abs(items[i].dotAngle - items[i - 1].dotAngle);
     da = Math.min(da, Math.PI * 2 - da);
+    if (da < THR_RAD) current.push(items[i]);
+    else { clusters.push(current); current = [items[i]]; }
+  }
+  clusters.push(current);
 
-    if (da < 0.10) {
-
-      items[i].r = Math.max(
-        R_INNER + 6,
-        items[j].r - 14
-      );
-
-    }
-
+  const stepRad = STEP_PX / GLYPH_R;
+  const labeled = [];
+  for (const cluster of clusters) {
+    const centerAngle = cluster.reduce((s, p) => s + p.dotAngle, 0) / cluster.length;
+    const startAngle  = centerAngle - stepRad * (cluster.length - 1) / 2;
+    cluster.forEach((p, i) => labeled.push({
+      ...p,
+      labelAngle: startAngle + i * stepRad,
+      inCluster: cluster.length > 1,
+    }));
   }
 
-}
+  // 1. Dots at exact positions on R_INNER
+  labeled.forEach(p => {
+    const dot = polar(p.dotAngle, R_INNER);
+    g.appendChild(circ(dot.x, dot.y, 2.5, {
+      fill: '#c6c300', stroke: '#000', 'stroke-width': 0.6,
+    }));
+  });
 
-  items.forEach(p => {
-    const offset = 6;
+  // 2. Leader lines for clusters only
+  labeled.forEach(p => {
+    if (!p.inCluster) return;
+    const dot = polar(p.dotAngle,   R_INNER + 3);
+    const lbl = polar(p.labelAngle, GLYPH_R - 14);
+    g.appendChild(ln(dot.x, dot.y, lbl.x, lbl.y, {
+      stroke: '#aaa', 'stroke-width': 0.6, 'stroke-dasharray': '2,2.5',
+    }));
+  });
 
-    const pos = polar(
-     p.a,
-     p.r + offset
-  );
-
-    // Glyph + degree superscript
+  // 3. Glyphs at spread positions
+  labeled.forEach(p => {
+    const pos = polar(p.labelAngle, GLYPH_R);
     const deg = Math.floor(p.longitude % 30);
-    const t   = el('text', {
+    const t = el('text', {
       x: pos.x, y: pos.y,
-      'font-size': 26, fill: '#111',
+      'font-size': 24, fill: '#111',
       'text-anchor': 'middle', 'dominant-baseline': 'central',
     });
     t.appendChild(el('tspan', {}, p.glyph));
-    t.appendChild(el('tspan', { dy: '-7', 'font-size': '10', fill: '#333' }, String(deg)));
+    t.appendChild(el('tspan', { dy: '-7', 'font-size': '10', fill: '#555' }, String(deg)));
     g.appendChild(t);
-
-    // Retrograde 'R'
     if (p.retrograde) {
-      g.appendChild(txt(pos.x + 12, pos.y + 4, 'R', {
+      g.appendChild(txt(pos.x + 11, pos.y + 4, 'R', {
         'font-size': 8, fill: '#bb1111', 'font-style': 'italic',
       }));
     }

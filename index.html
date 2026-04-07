@@ -561,11 +561,11 @@ const ANGULAR    = { 0: 'As', 3: 'Ic', 6: 'Ds', 9: 'Mc' };
 
 // Hard aspects → red, soft → black
 const ASPECTS = [
-  { angle: 0,   orb: 8,  color: '#2244bb', width: 1.2, dash: '', symbol: '☌\uFE0E', type: 'conj' },
-  { angle: 60,  orb: 5,  color: '#333',    width: 0.8, dash: '4,3', symbol: '✶' },
-  { angle: 90,  orb: 7,  color: '#bb1111', width: 1.1, dash: '',    symbol: '□' },
-  { angle: 120, orb: 7,  color: '#333',    width: 1.0, dash: '',    symbol: '△' },
-  { angle: 180, orb: 8,  color: '#bb1111', width: 1.1, dash: '',    symbol: '—' },
+  { angle: 0,   orb: 8,  color: '#2244bb', width: 1, dash: '', symbol: '☌\uFE0E', type: 'conj' },
+  { angle: 60,  orb: 5,  color: '#FF0000',    width: 1, dash: '', symbol: '✶' },
+  { angle: 90,  orb: 7,  color: '#000000', width: 1, dash: '',    symbol: '□' },
+  { angle: 120, orb: 7,  color: '#FF0000',    width: 1, dash: '',    symbol: '△' },
+  { angle: 180, orb: 8,  color: '#000000', width: 1, dash: '',    symbol: '—' },
 ];
 
 // ── Layout (matching SVG template) ───────────────────────────────────────────
@@ -581,7 +581,7 @@ const RING_W    = 26;                     // ring stroke-width (template)
 const R_ZOD_OUT = R_RING + RING_W / 2;   // 286 – outer edge of ring
 const R_ZOD_IN  = R_RING - RING_W / 2;   // 260 – inner edge of ring
 const R_INNER   = 196;                   // inner circle (natal chart)
-const R_PLANET  = 222;                   // planet glyphs — closer to inner circle
+const R_PLANET = R_INNER + 8;                   // planet glyphs — closer to inner circle
 const R_LABEL   = 298;                   // cusp labels just outside ring
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -849,11 +849,35 @@ function renderChart(planets, cusps, asc, mc) {
   // 7. Aspects
   drawAspects(g, planets, 0);
 
+  // точки планет на внутреннем круге
+
+planets.forEach(p => {
+
+  const pt = polar(
+    lonToRad(p.longitude, 0),
+    R_INNER
+  );
+
+  g.appendChild(
+    circ(
+      pt.x,
+      pt.y,
+      2,
+      {
+        fill: '#c6c300',
+        stroke: '#000',
+
+      'stroke-width': 0.6
+      }
+    )
+  );
+
+});
+
   // 8. Planets
   drawPlanets(g, planets, 0);
 
-  // 9. Clusters
-  drawClusters(g, planets, 0);
+  // 9. Clusters drawClusters(g, planets, 0);
 
   // 10. Cusp labels
   drawHouseLabels(g, cusps, 0);
@@ -956,7 +980,7 @@ function drawAspects(g, planets, asc) {
           } else {
             const pi = polar(lonToRad(planets[i].longitude, asc), R_INNER);
             const pj = polar(lonToRad(planets[j].longitude, asc), R_INNER);
-            const attrs = { stroke: asp.color, 'stroke-width': asp.width, opacity: '0.6' };
+            const attrs = { stroke: asp.color, 'stroke-width': asp.width, opacity: '1' };
             if (asp.dash) attrs['stroke-dasharray'] = asp.dash;
             g.appendChild(ln(pi.x, pi.y, pj.x, pj.y, attrs));
             const mid = { x: (pi.x + pj.x) / 2, y: (pi.y + pj.y) / 2 };
@@ -981,23 +1005,38 @@ function drawPlanets(g, planets, asc) {
     .sort((a, b) => a.a - b.a);
 
   for (let i = 1; i < items.length; i++) {
-    for (let j = 0; j < i; j++) {
-      let da = Math.abs(items[i].a - items[j].a);
-      da = Math.min(da, Math.PI * 2 - da);
-      if (da < 0.14) {
-        items[i].r = Math.max(R_INNER + 12, items[j].r - 24);
-      }
+
+  for (let j = 0; j < i; j++) {
+
+    let da = Math.abs(items[i].a - items[j].a);
+    da = Math.min(da, Math.PI * 2 - da);
+
+    if (da < 0.10) {
+
+      items[i].r = Math.max(
+        R_INNER + 6,
+        items[j].r - 14
+      );
+
     }
+
   }
 
+}
+
   items.forEach(p => {
-    const pos = polar(p.a, p.r);
+    const offset = 6;
+
+    const pos = polar(
+     p.a,
+     p.r + offset
+  );
 
     // Glyph + degree superscript
     const deg = Math.floor(p.longitude % 30);
     const t   = el('text', {
       x: pos.x, y: pos.y,
-      'font-size': 21, fill: '#111',
+      'font-size': 26, fill: '#111',
       'text-anchor': 'middle', 'dominant-baseline': 'central',
     });
     t.appendChild(el('tspan', {}, p.glyph));

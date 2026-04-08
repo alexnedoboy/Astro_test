@@ -92,6 +92,28 @@
     padding: 16px; text-align: center;
     color: #999; font-size: 0.85em;
   }
+  #tl-tooltip {
+    position: fixed; z-index: 600; pointer-events: none;
+    background: rgba(28,28,28,0.88); color: #fff;
+    padding: 4px 9px; border-radius: 5px;
+    font-size: 0.83em; white-space: nowrap;
+    display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+
+  #tl-filter {
+    display: flex; flex-wrap: wrap; gap: 2px 4px;
+    padding: 4px 0 4px;
+  }
+  #tl-filter label {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 1.0em; cursor: pointer;
+    padding: 2px 6px; border-radius: 4px;
+    user-select: none; color: #444;
+  }
+  #tl-filter label:hover { background: #f0f0ec; }
+  #tl-filter label.tl-f-off { opacity: 0.35; }
+  #tl-filter input[type=checkbox] { accent-color: #444; width: 12px; height: 12px; margin: 0; }
+
   #tl-nav {
     display: flex; align-items: center; justify-content: space-between;
     padding: 2px 0 6px; gap: 8px;
@@ -253,6 +275,19 @@
   .chart-del:hover { color: #e44; background: #fff0f0; }
   .charts-empty { text-align: center; color: #ccc; font-size: 0.84em; padding: 36px 16px; line-height: 1.6; }
   svg text { font-family: 'Apple Symbols', 'Segoe UI Symbol', 'Noto Sans Symbols', serif; }
+
+  #transit-sub-bar {
+    width: 100%; max-width: 740px;
+    gap: 4px; margin: -2px 0 6px;
+    display: none;
+  }
+  #transit-sub-bar.visible { display: flex; }
+  #transit-sub-bar .tab-btn {
+    font-size: 0.82em; padding: 6px 0;
+    background: #f0f0ec; border-color: #ddd; color: #777;
+  }
+  #transit-sub-bar .tab-btn.active { background: #666; color: #fff; border-color: #666; }
+
 </style>
 </head>
 <body>
@@ -355,11 +390,16 @@
 
 <div id="tab-bar">
   <button class="tab-btn active" id="tabNatal">Натальная карта</button>
-  <button class="tab-btn" id="tabTransit">Транзиты</button>
+  <button class="tab-btn" id="tabTransit">Прогностика</button>
+</div>
+<div id="transit-sub-bar">
+  <button class="tab-btn active" id="subTabTransit">Транзиты</button>
+  <button class="tab-btn" id="subTabProgressed">Прогрессии</button>
 </div>
 <div id="chart-wrap"></div>
 <div id="transit-date-lbl"></div>
 <div id="transit-tl"></div>
+<div id="tl-tooltip"></div>
 
 <table id="info-table" style="display:none">
   <thead><tr><th>Планета</th><th>Знак</th><th>Позиция</th><th>Дом</th></tr></thead>
@@ -593,6 +633,7 @@ let tlPastYears      = 0;      // extra years extended into the past
 let tlFutureYears    = 0;      // extra years extended into the future
 let expandedRows     = new Set();  // natal planet IDs whose row is expanded
 let fastCache        = {};         // natal planet id → fast-transit periods[]
+let hiddenTPlants    = new Set();  // transiting planet IDs hidden from timeline
 let detectedTimezone = null;   // IANA timezone name after geocoding
 let currentTransitJD = null;   // currently displayed transit JD (null = today)
 
@@ -748,10 +789,10 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     planets.forEach(p => { p.house = findHouse(p.longitude, cusps); });
 
     // Save for transit tab; invalidate timeline cache and reset window
-    natalData = { planets, cusps, asc, mc };
+    natalData = { planets, cusps, asc, mc, birthJD: jd, lat, lon };
     cachedTimeline = null;
     tlPastYears = 0; tlFutureYears = 0;
-    expandedRows = new Set(); fastCache = {};
+    expandedRows = new Set(); fastCache = {}; hiddenTPlants = new Set();
     document.getElementById('tab-bar').classList.add('visible');
     setActiveTab('natal');
 
@@ -1109,6 +1150,7 @@ function renderTable(planets) {
 function setActiveTab(id) {
   document.getElementById('tabNatal').classList.toggle('active', id === 'natal');
   document.getElementById('tabTransit').classList.toggle('active', id === 'transit');
+  document.getElementById('transit-sub-bar').classList.toggle('visible', id === 'transit');
 }
 
 document.getElementById('tabNatal').addEventListener('click', () => {
@@ -1119,13 +1161,9 @@ document.getElementById('tabNatal').addEventListener('click', () => {
   renderTable(natalData.planets);
 });
 
-document.getElementById('tabTransit').addEventListener('click', () => {
-  if (!natalData || !swe) return;
-  setActiveTab('transit');
-
-  // Biwheel
-  const now    = new Date();
-  const jdNow  = swe.julday(
+function showTransitNow() {
+  const now   = new Date();
+  const jdNow = swe.julday(
     now.getUTCFullYear(), now.getUTCMonth() + 1,
     now.getUTCDate(), now.getUTCHours() + now.getUTCMinutes() / 60
   );
@@ -1138,10 +1176,51 @@ document.getElementById('tabTransit').addEventListener('click', () => {
   currentTransitJD = null;
   const dlbl = document.getElementById('transit-date-lbl');
   dlbl.textContent = 'Сегодня'; dlbl.classList.remove('active');
+}
 
-  // Timeline below
+function renderProgressedBiwheel() {
+  const { birthJD, lat, lon, planets: natal, cusps, asc } = natalData;
+  const now   = new Date();
+  const jdNow = swe.julday(
+    now.getUTCFullYear(), now.getUTCMonth() + 1,
+    now.getUTCDate(), now.getUTCHours() + now.getUTCMinutes() / 60
+  );
+  // Secondary progressions: 1 solar day after birth = 1 year of life
+  const ageInYears  = (jdNow - birthJD) / 365.25;
+  const progressedJD = birthJD + ageInYears;
+  const flags = swe.SEFLG_SWIEPH ?? 2;
+  const progressed = PLANETS.map(p => {
+    const r = swe.calc_ut(progressedJD, p.id, flags);
+    return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
+  });
+  renderBiwheel(natal, progressed, cusps, asc);
+  const dlbl = document.getElementById('transit-date-lbl');
+  dlbl.textContent = 'Прогрессии на ' + new Date().toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' });
+  dlbl.classList.add('active');
+}
+
+document.getElementById('tabTransit').addEventListener('click', () => {
+  if (!natalData || !swe) return;
+  setActiveTab('transit');
+  document.getElementById('subTabTransit').classList.add('active');
+  document.getElementById('subTabProgressed').classList.remove('active');
+  showTransitNow();
   document.getElementById('transit-tl').style.display = 'block';
   computeAndRenderTimeline(natalData.planets);
+});
+
+document.getElementById('subTabTransit').addEventListener('click', () => {
+  if (!natalData || !swe) return;
+  document.getElementById('subTabTransit').classList.add('active');
+  document.getElementById('subTabProgressed').classList.remove('active');
+  showTransitNow();
+});
+
+document.getElementById('subTabProgressed').addEventListener('click', () => {
+  if (!natalData || !swe) return;
+  document.getElementById('subTabProgressed').classList.add('active');
+  document.getElementById('subTabTransit').classList.remove('active');
+  renderProgressedBiwheel();
 });
 
 // ── Render biwheel for a specific JD (called from timeline bar tap) ──────────
@@ -1154,12 +1233,12 @@ function renderBiwheelAt(jd) {
   });
   renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
   currentTransitJD = jd;
-  // Update date label
   const d = new Date((jd - 2440587.5) * 86400000);
   const lbl = document.getElementById('transit-date-lbl');
   lbl.textContent = 'Транзиты на ' + d.toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' });
   lbl.classList.add('active');
 }
+
 
 // ── Biwheel (transit overlay) ─────────────────────────────────────────────────
 // Layout: transit planets in outer ring, natal in inner ring, separated by a
@@ -1338,13 +1417,124 @@ function drawTransitAspects(g, natal, transit, asc) {
 const SLOW_IDS = [5, 6, 7, 8, 9, 10, 12, 15]; // Jupiter, Saturn, Uranus, Neptune, Pluto, Node, Lilith, Chiron
 const FAST_IDS = [0, 2, 3, 4];            // Sun, Mercury, Venus, Mars
 
+// Orb per transiting planet (degrees)
+function getTransitOrb(planetId) {
+  if (planetId === 7 || planetId === 8 || planetId === 9) return 1;              // Uranus, Neptune, Pluto
+  if (planetId === 5 || planetId === 6 || planetId === 15) return 3;             // Jupiter, Saturn, Chiron
+  if (planetId === 10 || planetId === 12) return 3;                              // Node, Lilith
+  return 5;  // Sun, Mercury, Venus, Mars
+}
+
 const T_ASPECTS = [
-  { angle: 0,   orb: 3, color: '#2244bb', symbol: '☌' },
-  { angle: 60,  orb: 3, color: '#228833', symbol: '✶' },
-  { angle: 90,  orb: 3, color: '#cc1111', symbol: '□' },
-  { angle: 120, orb: 3, color: '#228833', symbol: '△' },
-  { angle: 180, orb: 3, color: '#cc1111', symbol: '☍' },
+  { angle: 0,   color: '#2244bb', symbol: '☌' },
+  { angle: 60,  color: '#228833', symbol: '✶' },
+  { angle: 90,  color: '#cc1111', symbol: '□' },
+  { angle: 120, color: '#228833', symbol: '△' },
+  { angle: 180, color: '#cc1111', symbol: '☍' },
 ];
+
+// ── Progressed Events ─────────────────────────────────────────────────────────
+// Scans every real-time day in [jdStart, jdEnd].
+// For each day X: progressedJD = birthJD + (X - birthJD) / 365.25
+// Finds: sign changes, house changes, exact aspects to natal, Moon/Sun phases (×45°).
+
+function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
+  if (!birthJD) return [];
+  const flags = swe.SEFLG_SWIEPH ?? 2;
+  const DAYS  = Math.ceil(jdEnd - jdStart) + 2;
+
+  // Precompute progressed longitudes for every real-time day
+  const progLons = new Map();
+  for (const p of PLANETS) progLons.set(p.id, new Float64Array(DAYS));
+  for (let i = 0; i < DAYS; i++) {
+    const ageInYears   = (jdStart + i - birthJD) / 365.25;
+    const progressedJD = birthJD + ageInYears;
+    for (const p of PLANETS) {
+      const r = swe.calc_ut(progressedJD, p.id, flags);
+      progLons.get(p.id)[i] = ((r[0] % 360) + 360) % 360;
+    }
+  }
+
+  const events = []; // { planetId, type, jd, label, color }
+
+  // 1. Sign changes
+  for (const p of PLANETS) {
+    const lons = progLons.get(p.id);
+    for (let i = 1; i < DAYS; i++) {
+      if (Math.floor(lons[i-1] / 30) !== Math.floor(lons[i] / 30)) {
+        events.push({ planetId: p.id, type: 'sign', jd: jdStart + i,
+          label: SIGNS[Math.floor(lons[i] / 30)], color: '#888' });
+      }
+    }
+  }
+
+  // 2. House changes
+  for (const p of PLANETS) {
+    const lons = progLons.get(p.id);
+    for (let i = 1; i < DAYS; i++) {
+      const h0 = findHouse(lons[i-1], cusps);
+      const h1 = findHouse(lons[i],   cusps);
+      if (h0 !== h1) {
+        events.push({ planetId: p.id, type: 'house', jd: jdStart + i,
+          label: ROMAN[h1-1], color: '#2244bb' });
+      }
+    }
+  }
+
+  // 3. Exact aspects of progressed inner planets to natal planets
+  const PROG_ASPECTS = [
+    { angle: 0,   color: '#2244bb', symbol: '☌' },
+    { angle: 60,  color: '#228833', symbol: '✶' },
+    { angle: 90,  color: '#cc1111', symbol: '□' },
+    { angle: 120, color: '#228833', symbol: '△' },
+    { angle: 180, color: '#cc1111', symbol: '☍' },
+  ];
+  for (const pid of [0, 1, 2, 3, 4]) { // Sun, Moon, Mercury, Venus, Mars
+    const lons = progLons.get(pid);
+    for (const na of natalPlanets) {
+      for (const asp of PROG_ASPECTS) {
+        for (let i = 1; i < DAYS - 1; i++) {
+          const d0 = Math.abs(angDiff(lons[i-1], na.longitude) - asp.angle);
+          const d1 = Math.abs(angDiff(lons[i],   na.longitude) - asp.angle);
+          const d2 = Math.abs(angDiff(lons[i+1], na.longitude) - asp.angle);
+          if (d1 < d0 && d1 < d2 && d1 < 0.6) {
+            events.push({ planetId: pid, type: 'aspect', jd: jdStart + i,
+              label: asp.symbol + na.glyph, color: asp.color });
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Progressed Moon / Sun phases — every 45°
+  const moonL = progLons.get(1);
+  const sunL  = progLons.get(0);
+  const PHASES = [
+    { angle:   0, symbol: '☌', color: '#2244bb' },
+    { angle:  45, symbol: '∠', color: '#997700' },
+    { angle:  90, symbol: '□', color: '#cc1111' },
+    { angle: 135, symbol: '∠', color: '#997700' },
+    { angle: 180, symbol: '☍', color: '#cc1111' },
+    { angle: 225, symbol: '∠', color: '#997700' },
+    { angle: 270, symbol: '□', color: '#cc1111' },
+    { angle: 315, symbol: '∠', color: '#997700' },
+  ];
+  for (const ph of PHASES) {
+    for (let i = 1; i < DAYS - 1; i++) {
+      const elong = j => ((moonL[j] - sunL[j]) % 360 + 360) % 360;
+      const dist  = (e, a) => { const d = Math.abs(e - a); return Math.min(d, 360 - d); };
+      const d0 = dist(elong(i-1), ph.angle);
+      const d1 = dist(elong(i),   ph.angle);
+      const d2 = dist(elong(i+1), ph.angle);
+      if (d1 < d0 && d1 < d2 && d1 < 0.6) {
+        events.push({ planetId: 1, type: 'phase', jd: jdStart + i,
+          label: ph.symbol, color: ph.color });
+      }
+    }
+  }
+
+  return events;
+}
 
 function computeAndRenderTimeline(natalPlanets) {
   const tl = document.getElementById('transit-tl');
@@ -1357,7 +1547,11 @@ function computeAndRenderTimeline(natalPlanets) {
         now.getUTCDate(), now.getUTCHours() + now.getUTCMinutes() / 60);
       const jdStart = jdToday - 182 - tlPastYears * 365;
       const jdEnd   = jdToday + 183 + tlFutureYears * 365;
-      cachedTimeline = computeTransits(natalPlanets, jdStart, jdEnd);
+      const transitData = computeTransits(natalPlanets, jdStart, jdEnd);
+      const progEvents  = natalData?.birthJD
+        ? computeProgressedEvents(natalPlanets, natalData.cusps, natalData.birthJD, transitData.jdStart, transitData.jdEnd)
+        : [];
+      cachedTimeline = { ...transitData, progEvents };
       renderTimeline(cachedTimeline);
     } catch (e) {
       tl.innerHTML = `<div class="tl-status">Ошибка: ${e.message}</div>`;
@@ -1384,11 +1578,26 @@ function computeTransits(natalPlanets, jdWindowStart, jdWindowEnd) {
     }
   }
 
+  // Find retrograde/direct station days between two exact aspect dates
+  const stationsBetween = (lons, jd1, jd2) => {
+    const d1 = Math.max(1, Math.round(jd1 - jdStart));
+    const d2 = Math.min(DAYS - 2, Math.round(jd2 - jdStart));
+    const result = [];
+    for (let d = d1 + 1; d < d2; d++) {
+      const sp = ((lons[d]   - lons[d-1] + 540) % 360) - 180;
+      const sn = ((lons[d+1] - lons[d]   + 540) % 360) - 180;
+      if (sp !== 0 && sn !== 0 && sp * sn < 0)
+        result.push({ jd: jdStart + d, type: sn > 0 ? 'D' : 'R' });
+    }
+    return result;
+  };
+
   const periods = [];
 
   for (const id of SLOW_IDS) {
-    const tPlanet = PLANETS.find(p => p.id === id);
-    const lons    = slowLons[id];
+    const tPlanet  = PLANETS.find(p => p.id === id);
+    const lons     = slowLons[id];
+    const orbLimit = getTransitOrb(id);
 
     for (const na of natalPlanets) {
       // Node / Lilith (transiting OR natal) → only conjunctions
@@ -1406,15 +1615,19 @@ function computeTransits(natalPlanets, jdWindowStart, jdWindowEnd) {
           if (wasDecreasing && curMinDay >= 0)
             localMinima.push({ day: curMinDay, diff: curMinDiff });
           const exactJDs = refineExactAspects(localMinima, id, na.longitude, asp.angle, jdStart, flags);
+          const stations = [];
+          if (exactJDs.length > 1)
+            for (let ei = 0; ei < exactJDs.length - 1; ei++)
+              stations.push(...stationsBetween(lons, exactJDs[ei], exactJDs[ei + 1]));
           periods.push({ tPlanet, na, asp,
-            startJD: jdStart + pStart, endJD: jdStart + endIdx, exactJDs });
+            startJD: jdStart + pStart, endJD: jdStart + endIdx, exactJDs, stations });
           inPeriod = false; prevDiff = Infinity; wasDecreasing = false;
           curMinDay = -1; curMinDiff = Infinity; localMinima = [];
         };
 
         for (let i = 0; i < DAYS; i++) {
           const diff = Math.abs(angDiff(lons[i], na.longitude) - asp.angle);
-          if (diff <= asp.orb) {
+          if (diff <= orbLimit) {
             if (!inPeriod) {
               inPeriod = true; pStart = i;
               prevDiff = diff; wasDecreasing = false;
@@ -1477,8 +1690,9 @@ function computeFastTransits(natalPlanet, jdStart, jdEnd) {
     : T_ASPECTS;
 
   for (const id of FAST_IDS) {
-    const tPlanet = PLANETS.find(p => p.id === id);
-    const lons    = new Float64Array(DAYS);
+    const tPlanet  = PLANETS.find(p => p.id === id);
+    const orbLimit = getTransitOrb(id);
+    const lons     = new Float64Array(DAYS);
     for (let i = 0; i < DAYS; i++) {
       const r = swe.calc_ut(jdStart + i, id, flags);
       lons[i] = ((r[0] % 360) + 360) % 360;
@@ -1502,7 +1716,7 @@ function computeFastTransits(natalPlanet, jdStart, jdEnd) {
 
       for (let i = 0; i < DAYS; i++) {
         const diff = Math.abs(angDiff(lons[i], natalPlanet.longitude) - asp.angle);
-        if (diff <= asp.orb) {
+        if (diff <= orbLimit) {
           if (!inPeriod) {
             inPeriod = true; pStart = i;
             prevDiff = diff; wasDecreasing = false;
@@ -1526,7 +1740,7 @@ function computeFastTransits(natalPlanet, jdStart, jdEnd) {
   return periods;
 }
 
-function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
+function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [] }) {
   const tl = document.getElementById('transit-tl');
   if (!periods.length) {
     tl.innerHTML = '<div class="tl-status">Нет активных транзитов в этом периоде.</div>';
@@ -1545,9 +1759,26 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
 
   // ── Row layout ──────────────────────────────────────────────────────────────
   const byNatal = {};
-  for (const p of periods) { (byNatal[p.na.id] ??= []).push(p); }
+  for (const p of periods) {
+    if (!p.exactJDs?.length) continue;               // skip non-perfecting
+    if (hiddenTPlants.has(p.tPlanet.id)) continue;   // skip filtered planets
+    (byNatal[p.na.id] ??= []).push(p);
+  }
 
-  // Greedy sub-row packing (assigns .sub to each period, returns nSubs)
+  // Fixed lane assignment: same transit (planet + aspect) → always same sub-row.
+  // Lanes sorted by transiting planet id, then aspect angle for stable ordering.
+  const assignLanes = (ps) => {
+    const keys = [...new Set(
+      [...ps]
+        .sort((a, b) => a.tPlanet.id - b.tPlanet.id || a.asp.angle - b.asp.angle)
+        .map(p => `${p.tPlanet.id}-${p.asp.angle}`)
+    )];
+    const laneOf = new Map(keys.map((k, i) => [k, i]));
+    for (const p of ps) p.sub = laneOf.get(`${p.tPlanet.id}-${p.asp.angle}`);
+    return { ps, nSubs: Math.max(laneOf.size, 1) };
+  };
+
+  // Greedy packing for fast transits (many short periods, overlap matters more)
   const packRows = (ps) => {
     const sorted = [...ps].sort((a, b) => a.startJD - b.startJD);
     const subEnds = [];
@@ -1564,8 +1795,8 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
   const rows = PLANETS
     .filter(pl => byNatal[pl.id]?.length)
     .map(pl => {
-      // Slow planets sub-rows
-      const { ps, nSubs } = packRows(byNatal[pl.id]);
+      // Slow planets: fixed lanes so same transit always on same row
+      const { ps, nSubs } = assignLanes(byNatal[pl.id]);
       const slowH = nSubs * SUB_H + 20;
 
       // Fast planets section (if expanded)
@@ -1587,16 +1818,24 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
                h: slowH + fastH };
     });
 
-  let y = HDR_H;
+  // ── Progressed events section layout ──────────────────────────────────────────
+  const byProgPlanet = {};
+  for (const ev of progEvents) { (byProgPlanet[ev.planetId] ??= []).push(ev); }
+  const progPlanets    = PLANETS.filter(p => byProgPlanet[p.id]?.length);
+  const PROG_HDR_H     = 18;
+  const PROG_ROW_H     = 20;
+  const PROG_SECTION_H = progPlanets.length > 0 ? PROG_HDR_H + progPlanets.length * PROG_ROW_H + 4 : 0;
+
+  let y = HDR_H + PROG_SECTION_H;
   for (const r of rows) { r.y = y; y += r.h; }
   const TL_H = y + 4;
 
   // ── Navigation bar ──────────────────────────────────────────────────────────
   const hel = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
-  const fmtMon = jd => {
-    const d = new Date((jd - 2440587.5) * 86400000);
-    return d.toLocaleDateString('ru', { month: 'short', year: 'numeric' });
-  };
+  const fmtMon = jd => new Date((jd - 2440587.5) * 86400000)
+    .toLocaleDateString('ru', { month: 'short', year: 'numeric' });
+  const fmtDate = jd => new Date((jd - 2440587.5) * 86400000)
+    .toLocaleDateString('ru', { day: 'numeric', month: 'short', year: 'numeric' });
   const nav = hel('div'); nav.id = 'tl-nav';
   const btnDayPrev = hel('button'); btnDayPrev.id = 'tl-btn-day-prev';
   btnDayPrev.title = 'На день назад';
@@ -1611,6 +1850,22 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
   // ── Left panel SVG (sticky planet labels) ───────────────────────────────────
   const svgL = el('svg', { id: 'tl-svg-left', width: LABEL_W, height: TL_H });
   svgL.appendChild(el('rect', { x:0, y:0, width:LABEL_W, height:TL_H, fill:'#fff' }));
+  if (progPlanets.length > 0) {
+    svgL.appendChild(el('rect', { x:0, y:HDR_H, width:LABEL_W, height:PROG_SECTION_H, fill:'#eeeaf5' }));
+    svgL.appendChild(txt(LABEL_W/2, HDR_H + 9, 'Пр', {
+      'font-size': 8, fill: '#bbb', 'text-anchor': 'middle', 'dominant-baseline': 'central',
+      'font-style': 'italic',
+    }));
+    progPlanets.forEach((pl, pi) => {
+      const py = HDR_H + PROG_HDR_H + pi * PROG_ROW_H;
+      svgL.appendChild(txt(LABEL_W/2, py + PROG_ROW_H/2, pl.glyph, {
+        'font-size': 14, fill: '#666',
+        'text-anchor': 'middle', 'dominant-baseline': 'central',
+      }));
+    });
+    svgL.appendChild(ln(0, HDR_H + PROG_SECTION_H, LABEL_W, HDR_H + PROG_SECTION_H,
+      { stroke: '#bbb', 'stroke-width': 1 }));
+  }
   rows.forEach((r, i) => {
     if (i % 2 === 0)
       svgL.appendChild(el('rect', { x:0, y:r.y, width:LABEL_W, height:r.h, fill:'#f7f7f4' }));
@@ -1665,6 +1920,26 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
     if (i % 2 === 0)
       svgR.appendChild(el('rect', { x:0, y:r.y, width:BARS_W, height:r.h, fill:'#f7f7f4' }));
   });
+  if (progPlanets.length > 0) {
+    svgR.appendChild(el('rect', { x:0, y:HDR_H, width:BARS_W, height:PROG_SECTION_H, fill:'#eeeaf5', opacity:'0.6' }));
+    svgR.appendChild(txt(6, HDR_H + 4, 'прогрессии', {
+      'font-size': 8, fill: '#bbb', 'dominant-baseline': 'hanging',
+    }));
+    svgR.appendChild(ln(0, HDR_H + PROG_SECTION_H, BARS_W, HDR_H + PROG_SECTION_H,
+      { stroke: '#bbb', 'stroke-width': 1 }));
+    progPlanets.forEach((pl, pi) => {
+      const py = HDR_H + PROG_HDR_H + pi * PROG_ROW_H;
+      for (const ev of byProgPlanet[pl.id]) {
+        const xE  = xOf(ev.jd);
+        const midY = py + PROG_ROW_H / 2;
+        svgR.appendChild(circ(xE, midY + 3, 3, { fill: ev.color, stroke: 'none', opacity: '0.85' }));
+        svgR.appendChild(txt(xE, midY - 2, ev.label, {
+          'font-size': 7, fill: ev.color,
+          'text-anchor': 'middle', 'dominant-baseline': 'auto',
+        }));
+      }
+    });
+  }
 
   // Month grid + labels
   const MS = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
@@ -1687,6 +1962,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
   svgR.appendChild(txt(xT + 2, 11, '▼', { 'font-size': 8, fill: '#e44' }));
 
   // Helper: draw bars + dots + labels for a set of periods
+  const tooltip = document.getElementById('tl-tooltip');
   const drawBars = (ps, baseY, opacity = '0.82') => {
     for (const p of ps) {
       const x1   = xOf(p.startJD);
@@ -1698,6 +1974,23 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
         x: x1, y: barY, width: barW, height: BAR_H,
         fill: p.asp.color, rx: 1, opacity, style: 'cursor:pointer',
       });
+
+      // Floating tooltip on hover
+      const nearest = p.exactJDs?.length
+        ? p.exactJDs.reduce((b, j) => Math.abs(j - jdToday) < Math.abs(b - jdToday) ? j : b)
+        : null;
+      const tipText = `${p.na.glyph} ${p.asp.symbol} ${p.tPlanet.glyph}` +
+        (nearest ? `  ·  ${fmtDate(nearest)}` : '');
+      bar.addEventListener('mouseover', () => {
+        tooltip.textContent = tipText;
+        tooltip.style.display = 'block';
+      });
+      bar.addEventListener('mousemove', e => {
+        tooltip.style.left = (e.clientX + 14) + 'px';
+        tooltip.style.top  = (e.clientY - 30) + 'px';
+      });
+      bar.addEventListener('mouseout', () => { tooltip.style.display = 'none'; });
+
       // Tap/click → update biwheel to the exact tapped date on the bar
       const xToJD = clientX => {
         const svgBounds = svgR.getBoundingClientRect();
@@ -1713,14 +2006,16 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
       bar.addEventListener('click', e => renderBiwheelAt(xToJD(e.clientX)));
       svgR.appendChild(bar);
 
+      // Exact aspect dots (white circles on the bar)
       for (const ejd of (p.exactJDs ?? [])) {
         const xE = xOf(ejd);
         if (xE >= x1 - 1 && xE <= x2 + 1) {
-          svgR.appendChild(circ(xE, barY + BAR_H / 2, 2, {
+          svgR.appendChild(circ(xE, barY + BAR_H / 2, 2.5, {
             fill: '#fff', stroke: p.asp.color, 'stroke-width': 1,
           }));
         }
       }
+
 
       if (barW >= 10) {
         const barLbl = p.tPlanet.glyph + p.asp.symbol;
@@ -1795,6 +2090,33 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
     computeAndRenderTimeline(natalData.planets);
   }));
 
+  // ── Planet filter bar ────────────────────────────────────────────────────────
+  const FILTER_PLANETS = [
+    { id: 7,  glyph: '♅\uFE0E', name: 'Уран'    },
+    { id: 8,  glyph: '♆\uFE0E', name: 'Нептун'  },
+    { id: 9,  glyph: '♇\uFE0E', name: 'Плутон'  },
+    { id: 6,  glyph: '♄\uFE0E', name: 'Сатурн'  },
+    { id: 5,  glyph: '♃\uFE0E', name: 'Юпитер'  },
+    { id: 15, glyph: '⚷\uFE0E', name: 'Хирон'   },
+    { id: 12, glyph: '⚸\uFE0E', name: 'Лилит'   },
+    { id: 10, glyph: '☊\uFE0E', name: 'Узлы'    },
+  ];
+  const filterBar = hel('div'); filterBar.id = 'tl-filter';
+  for (const fp of FILTER_PLANETS) {
+    const lbl = hel('label');
+    if (hiddenTPlants.has(fp.id)) lbl.classList.add('tl-f-off');
+    const cb = hel('input'); cb.type = 'checkbox'; cb.checked = !hiddenTPlants.has(fp.id);
+    cb.addEventListener('change', () => {
+      if (cb.checked) hiddenTPlants.delete(fp.id);
+      else            hiddenTPlants.add(fp.id);
+      lbl.classList.toggle('tl-f-off', !cb.checked);
+      if (cachedTimeline) renderTimeline(cachedTimeline);
+    });
+    lbl.append(cb, document.createTextNode(' ' + fp.glyph));
+    lbl.title = fp.name;
+    filterBar.appendChild(lbl);
+  }
+
   // ── Assemble ────────────────────────────────────────────────────────────────
   const scrollWrap = hel('div'); scrollWrap.id = 'tl-scroll';
   scrollWrap.appendChild(svgR);
@@ -1802,7 +2124,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
   const body = hel('div'); body.id = 'tl-body';
   body.append(svgL, scrollWrap);
 
-  tl.replaceChildren(nav, body);
+  tl.replaceChildren(filterBar, nav, body);
 
   // Scroll so "today" is ~30 % from the left edge
   requestAnimationFrame(() => {

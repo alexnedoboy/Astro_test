@@ -83,10 +83,39 @@
     transition: opacity 0.2s;
   }
   #transit-date-lbl.active { color: #2244bb; font-weight: 600; }
-  #transit-tl {
+  #prog-layout {
     width: 100%; max-width: 900px;
+    margin: 0 auto;
+  }
+  #prog-left { width: 100%; }
+  #transit-tl {
+    width: 100%;
     margin: 8px auto 0;
     display: none;
+  }
+
+  @media (min-width: 900px) {
+    #prog-layout.transit-active {
+      max-width: none;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    #prog-layout.transit-active #prog-left {
+      flex-shrink: 0;
+      width: 420px;
+    }
+    #prog-layout.transit-active #chart-wrap svg {
+      width: 100%;
+      height: auto;
+    }
+    #prog-layout.transit-active #transit-tl {
+      flex: 1;
+      min-width: 0;
+      margin-top: 0;
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+    }
   }
   #transit-tl .tl-status {
     padding: 16px; text-align: center;
@@ -396,9 +425,13 @@
   <button class="tab-btn active" id="subTabTransit">Транзиты</button>
   <button class="tab-btn" id="subTabProgressed">Прогрессии</button>
 </div>
-<div id="chart-wrap"></div>
-<div id="transit-date-lbl"></div>
-<div id="transit-tl"></div>
+<div id="prog-layout">
+  <div id="prog-left">
+    <div id="chart-wrap"></div>
+    <div id="transit-date-lbl"></div>
+  </div>
+  <div id="transit-tl"></div>
+</div>
 <div id="tl-tooltip"></div>
 
 <table id="info-table" style="display:none">
@@ -1151,6 +1184,7 @@ function setActiveTab(id) {
   document.getElementById('tabNatal').classList.toggle('active', id === 'natal');
   document.getElementById('tabTransit').classList.toggle('active', id === 'transit');
   document.getElementById('transit-sub-bar').classList.toggle('visible', id === 'transit');
+  document.getElementById('prog-layout').classList.toggle('transit-active', id === 'transit');
 }
 
 document.getElementById('tabNatal').addEventListener('click', () => {

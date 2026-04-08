@@ -1497,11 +1497,14 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
     for (const na of natalPlanets) {
       for (const asp of PROG_ASPECTS) {
         for (let i = 1; i < DAYS - 1; i++) {
-          const d0 = Math.abs(angDiff(lons[i-1], na.longitude) - asp.angle);
-          const d1 = Math.abs(angDiff(lons[i],   na.longitude) - asp.angle);
-          const d2 = Math.abs(angDiff(lons[i+1], na.longitude) - asp.angle);
-          if (d1 < d0 && d1 < d2 && d1 < 1.0) {   // orb 1°
+          const orb = j => Math.abs(angDiff(lons[j], na.longitude) - asp.angle);
+          const d0 = orb(i-1), d1 = orb(i), d2 = orb(i+1);
+          if (d1 < d0 && d1 < d2 && d1 < 1.0) {
+            // Walk back/forward to find full 1° orb window
+            let iS = i; while (iS > 0      && orb(iS - 1) < 1.0) iS--;
+            let iE = i; while (iE < DAYS-1 && orb(iE + 1) < 1.0) iE++;
             events.push({ planetId: pid, type: 'aspect', jd: jdStart + i,
+              startJD: jdStart + iS, endJD: jdStart + iE,
               label: pl.glyph + asp.symbol + na.glyph, color: asp.color });
           }
         }
@@ -1822,8 +1825,25 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [] }) {
     });
 
   // ── Progressed events section layout ──────────────────────────────────────────
-  // Single flat band — no per-planet rows.  Events are thin vertical ticks.
-  const PROG_SECTION_H = progEvents.length > 0 ? 48 : 0;
+  const progAspects = progEvents.filter(e => e.type === 'aspect');
+  const progPoints  = progEvents.filter(e => e.type !== 'aspect');
+
+  // Greedy-pack aspect bars so overlapping bars go on separate sub-rows
+  { const sorted = [...progAspects].sort((a,b) => a.startJD - b.startJD);
+    const ends = [];
+    for (const p of sorted) {
+      let placed = false;
+      for (let s = 0; s < ends.length; s++) {
+        if (p.startJD > ends[s] + 1) { p.sub = s; ends[s] = p.endJD; placed = true; break; }
+      }
+      if (!placed) { p.sub = ends.length; ends.push(p.endJD); }
+    }
+  }
+  const nProgAspSubs = progAspects.length ? Math.max(...progAspects.map(p => p.sub + 1)) : 0;
+
+  const PROG_ASP_H  = nProgAspSubs > 0 ? nProgAspSubs * SUB_H + 10 : 0;
+  const PROG_TICK_H = progPoints.length > 0 ? 28 : 0;
+  const PROG_SECTION_H = PROG_ASP_H + PROG_TICK_H;
 
   let y = HDR_H + PROG_SECTION_H;
   for (const r of rows) { r.y = y; y += r.h; }
@@ -1917,35 +1937,52 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [] }) {
     svgR.appendChild(ln(0, HDR_H + PROG_SECTION_H, BARS_W, HDR_H + PROG_SECTION_H,
       { stroke: '#bbb', 'stroke-width': 1 }));
 
-    // Draw events as thin vertical ticks + labels.
-    // Alternate label rows (top / bottom half) to reduce crowding.
-    const TICK_H   = 14;   // height of tick mark
-    const bandMidY = HDR_H + PROG_SECTION_H / 2;
-    const rowY     = [ HDR_H + 4, bandMidY + 2 ]; // two label rows
+    // ── Aspect bars (top zone) — same style as transit bars ───────────────────
+    for (const p of progAspects) {
+      const x1   = xOf(p.startJD);
+      const x2   = xOf(p.endJD + 1);
+      const barW = Math.max(x2 - x1, 2);
+      const barY = HDR_H + 6 + p.sub * SUB_H + (SUB_H - BAR_H) / 2;
 
-    // Sort by x so we can alternate rows for adjacent events
-    const sortedEv = [...progEvents].sort((a, b) => a.jd - b.jd);
-    let lastX = -999, rowIdx = 0;
-    for (const ev of sortedEv) {
-      const xE = xOf(ev.jd);
-      // Pick row: alternate whenever a new event is close to the previous one
-      if (xE - lastX < 28) rowIdx = 1 - rowIdx;
-      else rowIdx = 0;
-      lastX = xE;
-
-      const lblY = rowY[rowIdx];
-      const tickTop    = lblY + 9;
-      const tickBottom = tickTop + TICK_H;
-
-      // Thin vertical tick
-      svgR.appendChild(ln(xE, tickTop, xE, tickBottom, {
-        stroke: ev.color, 'stroke-width': 1.2, opacity: '0.85',
+      svgR.appendChild(el('rect', {
+        x: x1, y: barY, width: barW, height: BAR_H,
+        fill: p.color, rx: 1, opacity: '0.82',
       }));
-      // Label above tick
-      svgR.appendChild(txt(xE, lblY, ev.label, {
-        'font-size': 8, fill: ev.color,
-        'text-anchor': 'middle', 'dominant-baseline': 'hanging',
+
+      // White exact-dot at the precise aspect date
+      const xE = xOf(p.jd);
+      svgR.appendChild(circ(xE, barY + BAR_H / 2, 2.5, {
+        fill: '#fff', stroke: p.color, 'stroke-width': 1,
       }));
+
+      // Label centred on bar (or on exact point when bar is tiny)
+      const lblX = barW >= 14 ? x1 + barW / 2 : xE;
+      svgR.appendChild(txt(lblX, barY - 3, p.label, {
+        'font-size': 10, fill: p.color,
+        'text-anchor': 'middle', 'dominant-baseline': 'auto',
+      }));
+    }
+
+    // ── Point ticks (bottom zone) — sign / house / phase ──────────────────────
+    if (PROG_TICK_H > 0) {
+      const tickBase = HDR_H + PROG_ASP_H;
+      const rowY     = [ tickBase + 2, tickBase + 14 ]; // two alternating rows
+      const TICK_H   = 9;
+      const sortedPts = [...progPoints].sort((a, b) => a.jd - b.jd);
+      let lastX = -999, rowIdx = 0;
+      for (const ev of sortedPts) {
+        const xE = xOf(ev.jd);
+        if (xE - lastX < 36) rowIdx = 1 - rowIdx; else rowIdx = 0;
+        lastX = xE;
+        const lblY = rowY[rowIdx];
+        svgR.appendChild(ln(xE, lblY + 11, xE, lblY + 11 + TICK_H, {
+          stroke: ev.color, 'stroke-width': 1.2, opacity: '0.85',
+        }));
+        svgR.appendChild(txt(xE, lblY, ev.label, {
+          'font-size': 10, fill: ev.color,
+          'text-anchor': 'middle', 'dominant-baseline': 'hanging',
+        }));
+      }
     }
   }
 

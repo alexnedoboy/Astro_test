@@ -1456,19 +1456,21 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
   }
 
   const events = []; // { planetId, type, jd, label, color }
+  const plById = new Map(PLANETS.map(p => [p.id, p]));
 
-  // 1. Sign changes
+  // 1. Sign changes — all planets; label: plGlyph + → + signGlyph
   for (const p of PLANETS) {
     const lons = progLons.get(p.id);
     for (let i = 1; i < DAYS; i++) {
       if (Math.floor(lons[i-1] / 30) !== Math.floor(lons[i] / 30)) {
+        const newSign = Math.floor(lons[i] / 30);
         events.push({ planetId: p.id, type: 'sign', jd: jdStart + i,
-          label: SIGNS[Math.floor(lons[i] / 30)], color: '#888' });
+          label: p.glyph + '→' + SIGNS[newSign], color: '#777' });
       }
     }
   }
 
-  // 2. House changes
+  // 2. House changes — all planets; label: plGlyph + → + romanNumeral
   for (const p of PLANETS) {
     const lons = progLons.get(p.id);
     for (let i = 1; i < DAYS; i++) {
@@ -1476,12 +1478,12 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
       const h1 = findHouse(lons[i],   cusps);
       if (h0 !== h1) {
         events.push({ planetId: p.id, type: 'house', jd: jdStart + i,
-          label: ROMAN[h1-1], color: '#2244bb' });
+          label: p.glyph + '→' + ROMAN[h1-1], color: '#2244bb' });
       }
     }
   }
 
-  // 3. Exact aspects of progressed inner planets to natal planets
+  // 3. Exact aspects — Sun, Mercury, Venus, Mars only (Moon excluded)
   const PROG_ASPECTS = [
     { angle: 0,   color: '#2244bb', symbol: '☌' },
     { angle: 60,  color: '#228833', symbol: '✶' },
@@ -1489,7 +1491,8 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
     { angle: 120, color: '#228833', symbol: '△' },
     { angle: 180, color: '#cc1111', symbol: '☍' },
   ];
-  for (const pid of [0, 1, 2, 3, 4]) { // Sun, Moon, Mercury, Venus, Mars
+  for (const pid of [0, 2, 3, 4]) { // Sun, Mercury, Venus, Mars — no Moon
+    const pl   = plById.get(pid);
     const lons = progLons.get(pid);
     for (const na of natalPlanets) {
       for (const asp of PROG_ASPECTS) {
@@ -1497,16 +1500,16 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
           const d0 = Math.abs(angDiff(lons[i-1], na.longitude) - asp.angle);
           const d1 = Math.abs(angDiff(lons[i],   na.longitude) - asp.angle);
           const d2 = Math.abs(angDiff(lons[i+1], na.longitude) - asp.angle);
-          if (d1 < d0 && d1 < d2 && d1 < 0.6) {
+          if (d1 < d0 && d1 < d2 && d1 < 1.0) {   // orb 1°
             events.push({ planetId: pid, type: 'aspect', jd: jdStart + i,
-              label: asp.symbol + na.glyph, color: asp.color });
+              label: pl.glyph + asp.symbol + na.glyph, color: asp.color });
           }
         }
       }
     }
   }
 
-  // 4. Progressed Moon / Sun phases — every 45°
+  // 4. Progressed Moon / Sun phases — every 45°; label: ☽ phaseSymbol ☉
   const moonL = progLons.get(1);
   const sunL  = progLons.get(0);
   const PHASES = [
@@ -1528,7 +1531,7 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
       const d2 = dist(elong(i+1), ph.angle);
       if (d1 < d0 && d1 < d2 && d1 < 0.6) {
         events.push({ planetId: 1, type: 'phase', jd: jdStart + i,
-          label: ph.symbol, color: ph.color });
+          label: '☽\uFE0E' + ph.symbol + '☉\uFE0E', color: ph.color });
       }
     }
   }
@@ -1819,12 +1822,8 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [] }) {
     });
 
   // ── Progressed events section layout ──────────────────────────────────────────
-  const byProgPlanet = {};
-  for (const ev of progEvents) { (byProgPlanet[ev.planetId] ??= []).push(ev); }
-  const progPlanets    = PLANETS.filter(p => byProgPlanet[p.id]?.length);
-  const PROG_HDR_H     = 18;
-  const PROG_ROW_H     = 20;
-  const PROG_SECTION_H = progPlanets.length > 0 ? PROG_HDR_H + progPlanets.length * PROG_ROW_H + 4 : 0;
+  // Single flat band — no per-planet rows.  Events are thin vertical ticks.
+  const PROG_SECTION_H = progEvents.length > 0 ? 48 : 0;
 
   let y = HDR_H + PROG_SECTION_H;
   for (const r of rows) { r.y = y; y += r.h; }
@@ -1850,19 +1849,12 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [] }) {
   // ── Left panel SVG (sticky planet labels) ───────────────────────────────────
   const svgL = el('svg', { id: 'tl-svg-left', width: LABEL_W, height: TL_H });
   svgL.appendChild(el('rect', { x:0, y:0, width:LABEL_W, height:TL_H, fill:'#fff' }));
-  if (progPlanets.length > 0) {
+  if (PROG_SECTION_H > 0) {
     svgL.appendChild(el('rect', { x:0, y:HDR_H, width:LABEL_W, height:PROG_SECTION_H, fill:'#eeeaf5' }));
-    svgL.appendChild(txt(LABEL_W/2, HDR_H + 9, 'Пр', {
-      'font-size': 8, fill: '#bbb', 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    svgL.appendChild(txt(LABEL_W/2, HDR_H + PROG_SECTION_H/2, 'Пр', {
+      'font-size': 9, fill: '#aaa', 'text-anchor': 'middle', 'dominant-baseline': 'central',
       'font-style': 'italic',
     }));
-    progPlanets.forEach((pl, pi) => {
-      const py = HDR_H + PROG_HDR_H + pi * PROG_ROW_H;
-      svgL.appendChild(txt(LABEL_W/2, py + PROG_ROW_H/2, pl.glyph, {
-        'font-size': 14, fill: '#666',
-        'text-anchor': 'middle', 'dominant-baseline': 'central',
-      }));
-    });
     svgL.appendChild(ln(0, HDR_H + PROG_SECTION_H, LABEL_W, HDR_H + PROG_SECTION_H,
       { stroke: '#bbb', 'stroke-width': 1 }));
   }
@@ -1920,25 +1912,41 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [] }) {
     if (i % 2 === 0)
       svgR.appendChild(el('rect', { x:0, y:r.y, width:BARS_W, height:r.h, fill:'#f7f7f4' }));
   });
-  if (progPlanets.length > 0) {
-    svgR.appendChild(el('rect', { x:0, y:HDR_H, width:BARS_W, height:PROG_SECTION_H, fill:'#eeeaf5', opacity:'0.6' }));
-    svgR.appendChild(txt(6, HDR_H + 4, 'прогрессии', {
-      'font-size': 8, fill: '#bbb', 'dominant-baseline': 'hanging',
-    }));
+  if (PROG_SECTION_H > 0) {
+    svgR.appendChild(el('rect', { x:0, y:HDR_H, width:BARS_W, height:PROG_SECTION_H, fill:'#eeeaf5', opacity:'0.55' }));
     svgR.appendChild(ln(0, HDR_H + PROG_SECTION_H, BARS_W, HDR_H + PROG_SECTION_H,
       { stroke: '#bbb', 'stroke-width': 1 }));
-    progPlanets.forEach((pl, pi) => {
-      const py = HDR_H + PROG_HDR_H + pi * PROG_ROW_H;
-      for (const ev of byProgPlanet[pl.id]) {
-        const xE  = xOf(ev.jd);
-        const midY = py + PROG_ROW_H / 2;
-        svgR.appendChild(circ(xE, midY + 3, 3, { fill: ev.color, stroke: 'none', opacity: '0.85' }));
-        svgR.appendChild(txt(xE, midY - 2, ev.label, {
-          'font-size': 7, fill: ev.color,
-          'text-anchor': 'middle', 'dominant-baseline': 'auto',
-        }));
-      }
-    });
+
+    // Draw events as thin vertical ticks + labels.
+    // Alternate label rows (top / bottom half) to reduce crowding.
+    const TICK_H   = 14;   // height of tick mark
+    const bandMidY = HDR_H + PROG_SECTION_H / 2;
+    const rowY     = [ HDR_H + 4, bandMidY + 2 ]; // two label rows
+
+    // Sort by x so we can alternate rows for adjacent events
+    const sortedEv = [...progEvents].sort((a, b) => a.jd - b.jd);
+    let lastX = -999, rowIdx = 0;
+    for (const ev of sortedEv) {
+      const xE = xOf(ev.jd);
+      // Pick row: alternate whenever a new event is close to the previous one
+      if (xE - lastX < 28) rowIdx = 1 - rowIdx;
+      else rowIdx = 0;
+      lastX = xE;
+
+      const lblY = rowY[rowIdx];
+      const tickTop    = lblY + 9;
+      const tickBottom = tickTop + TICK_H;
+
+      // Thin vertical tick
+      svgR.appendChild(ln(xE, tickTop, xE, tickBottom, {
+        stroke: ev.color, 'stroke-width': 1.2, opacity: '0.85',
+      }));
+      // Label above tick
+      svgR.appendChild(txt(xE, lblY, ev.label, {
+        'font-size': 8, fill: ev.color,
+        'text-anchor': 'middle', 'dominant-baseline': 'hanging',
+      }));
+    }
   }
 
   // Month grid + labels

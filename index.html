@@ -97,9 +97,9 @@
     padding: 2px 0 6px; gap: 8px;
   }
   #tl-nav button {
-    padding: 5px 12px; border: 1px solid #ccc; border-radius: 5px;
-    background: #f5f5f2; color: #555; font-size: 0.82em;
-    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    padding: 5px 14px; border: 1px solid #ccc; border-radius: 5px;
+    background: #f5f5f2; color: #555; font-size: 0.9em;
+    cursor: pointer; white-space: nowrap; flex-shrink: 0; line-height: 1;
   }
   #tl-nav button:hover { background: #e8e8e4; }
   #tl-nav-lbl { font-size: 0.78em; color: #999; text-align: center; flex: 1; }
@@ -594,6 +594,7 @@ let tlFutureYears    = 0;      // extra years extended into the future
 let expandedRows     = new Set();  // natal planet IDs whose row is expanded
 let fastCache        = {};         // natal planet id → fast-transit periods[]
 let detectedTimezone = null;   // IANA timezone name after geocoding
+let currentTransitJD = null;   // currently displayed transit JD (null = today)
 
 (async () => {
   try {
@@ -1134,6 +1135,7 @@ document.getElementById('tabTransit').addEventListener('click', () => {
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   });
   renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
+  currentTransitJD = null;
   const dlbl = document.getElementById('transit-date-lbl');
   dlbl.textContent = 'Сегодня'; dlbl.classList.remove('active');
 
@@ -1151,6 +1153,7 @@ function renderBiwheelAt(jd) {
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   });
   renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
+  currentTransitJD = jd;
   // Update date label
   const d = new Date((jd - 2440587.5) * 86400000);
   const lbl = document.getElementById('transit-date-lbl');
@@ -1595,11 +1598,15 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
     return d.toLocaleDateString('ru', { month: 'short', year: 'numeric' });
   };
   const nav = hel('div'); nav.id = 'tl-nav';
-  const btnPrev = hel('button'); btnPrev.textContent = '◀ ещё год';
+  const btnDayPrev = hel('button'); btnDayPrev.id = 'tl-btn-day-prev';
+  btnDayPrev.title = 'На день назад';
+  btnDayPrev.innerHTML = '&#9664;';
   const navLbl  = hel('span');   navLbl.id = 'tl-nav-lbl';
   navLbl.textContent = `${fmtMon(jdStart)} — ${fmtMon(jdEnd)}`;
-  const btnNext = hel('button'); btnNext.textContent = 'ещё год ▶';
-  nav.append(btnPrev, navLbl, btnNext);
+  const btnDayNext = hel('button'); btnDayNext.id = 'tl-btn-day-next';
+  btnDayNext.title = 'На день вперёд';
+  btnDayNext.innerHTML = '&#9654;';
+  nav.append(btnDayPrev, navLbl, btnDayNext);
 
   // ── Left panel SVG (sticky planet labels) ───────────────────────────────────
   const svgL = el('svg', { id: 'tl-svg-left', width: LABEL_W, height: TL_H });
@@ -1759,6 +1766,35 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
     }
   }
 
+  // ── "+" extend buttons inside the SVG at left / right data boundaries ────────
+  const midY = HDR_H + (TL_H - HDR_H) / 2;
+  const R_PLUS = 15;
+
+  const mkPlusBtn = (cx, onClickFn) => {
+    const g = el('g', { style: 'cursor:pointer' });
+    g.appendChild(circ(cx, midY, R_PLUS, {
+      fill: '#f4f4ef', stroke: '#bbb', 'stroke-width': 1.5,
+    }));
+    g.appendChild(txt(cx, midY, '+', {
+      'font-size': 20, fill: '#888',
+      'text-anchor': 'middle', 'dominant-baseline': 'central',
+      style: 'pointer-events:none; user-select:none;',
+    }));
+    g.addEventListener('click', onClickFn);
+    return g;
+  };
+
+  svgR.appendChild(mkPlusBtn(R_PLUS + 4, () => {
+    tlPastYears++;
+    cachedTimeline = null; fastCache = {};
+    computeAndRenderTimeline(natalData.planets);
+  }));
+  svgR.appendChild(mkPlusBtn(BARS_W - R_PLUS - 4, () => {
+    tlFutureYears++;
+    cachedTimeline = null; fastCache = {};
+    computeAndRenderTimeline(natalData.planets);
+  }));
+
   // ── Assemble ────────────────────────────────────────────────────────────────
   const scrollWrap = hel('div'); scrollWrap.id = 'tl-scroll';
   scrollWrap.appendChild(svgR);
@@ -1773,16 +1809,14 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday }) {
     scrollWrap.scrollLeft = xT - scrollWrap.clientWidth * 0.3;
   });
 
-  // ── Year-extend buttons ──────────────────────────────────────────────────────
-  btnPrev.addEventListener('click', () => {
-    tlPastYears++;
-    cachedTimeline = null; fastCache = {};
-    computeAndRenderTimeline(natalData.planets);
+  // ── Day navigation buttons ────────────────────────────────────────────────
+  btnDayPrev.addEventListener('click', () => {
+    const base = currentTransitJD ?? jdToday;
+    renderBiwheelAt(base - 1);
   });
-  btnNext.addEventListener('click', () => {
-    tlFutureYears++;
-    cachedTimeline = null; fastCache = {};
-    computeAndRenderTimeline(natalData.planets);
+  btnDayNext.addEventListener('click', () => {
+    const base = currentTransitJD ?? jdToday;
+    renderBiwheelAt(base + 1);
   });
 }
 

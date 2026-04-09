@@ -83,21 +83,49 @@
     transition: opacity 0.2s;
   }
   #transit-date-lbl.active { color: #2244bb; font-weight: 600; }
-  #prog-layout {
-    width: 100%; max-width: 900px;
-    margin: 0 auto;
-  }
+  /* ── Page modes ─────────────────────────────────────────── */
+  #prog-layout { display: none; width: 100%; margin: 0 auto; }
+  #prog-layout.visible { display: block; }
   #prog-left { width: 100%; }
-  #transit-tl {
-    width: 100%;
-    margin: 8px auto 0;
+  #transit-tl { width: 100%; margin: 8px auto 0; display: none; }
+
+  /* Controls panel below chart (visible only in transit mode) */
+  #prog-controls {
     display: none;
+    padding: 8px 6px 4px;
+    border-top: 1px solid #e8e8e4;
+    margin-top: 4px;
   }
+  #prog-layout.transit-active #prog-controls { display: block; }
+
+  /* transit-sub-bar inside prog-controls is always shown */
+  #prog-controls #transit-sub-bar {
+    display: flex; max-width: none;
+    margin-bottom: 6px;
+  }
+
+  /* ── Header: home vs chart mode ───────────────────────── */
+  #header-home { display: flex; align-items: center; }
+  #header-chart {
+    display: none; flex: 1; align-items: center;
+    gap: 8px; min-width: 0;
+  }
+  #app-header.chart-mode { max-width: none; padding: 0 16px; }
+  #app-header.chart-mode #header-home { display: none; }
+  #app-header.chart-mode #header-chart { display: flex; }
+  #header-chart-name {
+    font-size: 0.86em; color: #888;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex-shrink: 1; min-width: 0;
+  }
+  #header-tabs { display: flex; gap: 4px; flex-shrink: 0; margin-left: 8px; }
+  #header-tabs .tab-btn { padding: 7px 18px; font-size: 0.85em; flex: none; }
+  #backBtn { flex-shrink: 0; }
 
   @media (min-width: 900px) {
     #prog-layout.transit-active {
       max-width: none;
-      display: flex;
+      display: flex !important;
       align-items: flex-start;
       gap: 16px;
     }
@@ -113,7 +141,7 @@
       flex: 1;
       min-width: 0;
       margin-top: 0;
-      max-height: calc(100vh - 120px);
+      max-height: calc(100vh - 80px);
       overflow-y: auto;
     }
   }
@@ -365,7 +393,17 @@
 
 <!-- ── App header with auth zone ────────────────────────────── -->
 <div id="app-header">
-  <h1>Натальная карта</h1>
+  <div id="header-home">
+    <h1>Натальная карта</h1>
+  </div>
+  <div id="header-chart">
+    <button id="backBtn" class="auth-btn">← Новая</button>
+    <span id="header-chart-name"></span>
+    <div id="header-tabs">
+      <button class="tab-btn active" id="tabNatal">Натальная карта</button>
+      <button class="tab-btn" id="tabTransit">Прогностика</button>
+    </div>
+  </div>
   <div id="auth-zone">
     <button id="loginBtn" class="auth-btn primary">Войти</button>
     <div id="user-info" style="display:none">
@@ -417,18 +455,17 @@
   </div>
 </div>
 
-<div id="tab-bar">
-  <button class="tab-btn active" id="tabNatal">Натальная карта</button>
-  <button class="tab-btn" id="tabTransit">Прогностика</button>
-</div>
-<div id="transit-sub-bar">
-  <button class="tab-btn active" id="subTabTransit">Транзиты</button>
-  <button class="tab-btn" id="subTabProgressed">Прогрессии</button>
-</div>
 <div id="prog-layout">
   <div id="prog-left">
     <div id="chart-wrap"></div>
-    <div id="transit-date-lbl"></div>
+    <div id="prog-controls">
+      <div id="transit-sub-bar">
+        <button class="tab-btn active" id="subTabTransit">Транзиты</button>
+        <button class="tab-btn" id="subTabProgressed">Прогрессии</button>
+      </div>
+      <div id="transit-date-lbl"></div>
+      <!-- tl-filter and tl-nav inserted here by renderTimeline -->
+    </div>
   </div>
   <div id="transit-tl"></div>
 </div>
@@ -583,6 +620,7 @@ function loadChartFromDB(c) {
   document.getElementById('lonVal').value     = c.lon         ?? '';
   document.getElementById('utcOff').value     = c.utc_offset  ?? '';
   detectedTimezone = c.timezone ?? null;
+  pendingChartName = c.name ?? null;
   document.getElementById('calcBtn').click();
 }
 
@@ -789,6 +827,30 @@ document.getElementById('birthPlace').addEventListener('keydown', async e => {
   } catch { setStatus('Ошибка геокодинга.'); }
 });
 
+// ── Page mode: home ↔ chart ───────────────────────────────────────────────────
+
+let pendingChartName = null;  // set by loadChartFromDB before calcBtn.click()
+
+function enterChartMode(name) {
+  document.getElementById('form-wrap').style.display = 'none';
+  document.getElementById('app-header').classList.add('chart-mode');
+  document.getElementById('header-chart-name').textContent = name || '';
+  document.getElementById('prog-layout').classList.add('visible');
+}
+
+function exitChartMode() {
+  document.getElementById('form-wrap').style.display = 'block';
+  document.getElementById('app-header').classList.remove('chart-mode');
+  document.getElementById('prog-layout').classList.remove('visible', 'transit-active');
+  document.getElementById('transit-tl').style.display = 'none';
+  document.getElementById('info-table').style.display = 'none';
+  natalData = null;
+  cachedTimeline = null;
+  setActiveTab('natal');
+}
+
+document.getElementById('backBtn').addEventListener('click', exitChartMode);
+
 // ── Calculate ─────────────────────────────────────────────────────────────────
 
 document.getElementById('calcBtn').addEventListener('click', () => {
@@ -826,7 +888,10 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     cachedTimeline = null;
     tlPastYears = 0; tlFutureYears = 0;
     expandedRows = new Set(); fastCache = {}; hiddenTPlants = new Set();
-    document.getElementById('tab-bar').classList.add('visible');
+
+    const chartName = pendingChartName || document.getElementById('birthPlace').value || 'Карта';
+    pendingChartName = null;
+    enterChartMode(chartName);
     setActiveTab('natal');
 
     renderChart(planets, cusps, asc, mc);
@@ -1183,8 +1248,15 @@ function renderTable(planets) {
 function setActiveTab(id) {
   document.getElementById('tabNatal').classList.toggle('active', id === 'natal');
   document.getElementById('tabTransit').classList.toggle('active', id === 'transit');
-  document.getElementById('transit-sub-bar').classList.toggle('visible', id === 'transit');
-  document.getElementById('prog-layout').classList.toggle('transit-active', id === 'transit');
+  const pl = document.getElementById('prog-layout');
+  pl.classList.toggle('transit-active', id === 'transit');
+  // Clear any inline display so CSS (incl. media query flex) can take over
+  pl.style.removeProperty('display');
+  // info-table only for natal
+  const infoTable = document.getElementById('info-table');
+  if (id === 'transit' && infoTable.style.display !== 'none') {
+    infoTable.style.display = 'none';
+  }
 }
 
 document.getElementById('tabNatal').addEventListener('click', () => {
@@ -1409,10 +1481,11 @@ function drawBiwheelPlanets(g, planets, asc, rDot, rGlyph) {
 
 function drawTransitAspects(g, natal, transit, asc) {
   for (const tr of transit) {
+    const orb = getTransitOrb(tr.id);   // per-planet transit orb
     for (const na of natal) {
       const diff = angDiff(tr.longitude, na.longitude);
       for (const asp of ASPECTS) {
-        if (Math.abs(diff - asp.angle) <= asp.orb) {
+        if (Math.abs(diff - asp.angle) <= orb) {
           if (asp.type === 'conj') {
             let l1 = tr.longitude, l2 = na.longitude;
             if (Math.abs(l1 - l2) > 180) { if (l1 < l2) l1 += 360; else l2 += 360; }
@@ -2203,7 +2276,13 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [] }) {
   const body = hel('div'); body.id = 'tl-body';
   body.append(svgL, scrollWrap);
 
-  tl.replaceChildren(filterBar, nav, body);
+  // filterBar + nav live in the left panel (prog-controls), not inside transit-tl
+  const controls = document.getElementById('prog-controls');
+  controls.querySelector('#tl-filter')?.remove();
+  controls.querySelector('#tl-nav')?.remove();
+  controls.append(filterBar, nav);
+
+  tl.replaceChildren(body);
 
   // Scroll so "today" is ~30 % from the left edge
   requestAnimationFrame(() => {

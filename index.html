@@ -1070,6 +1070,23 @@ function lonToRad(lon, asc) { return (180 - (lon - asc)) * Math.PI / 180; }
 function polar(a, r)         { return { x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) }; }
 function angDiff(a, b)       { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
 
+// ── South Node helper ─────────────────────────────────────────────────────────
+// South Node is always exactly opposite the North Node (id=10).
+function addSouthNode(planets, cusps = null) {
+  const nn = planets.find(p => p.id === 10);
+  if (!nn) return planets;
+  const lon = (nn.longitude + 180) % 360;
+  const sn = {
+    id: -10,
+    name: 'Ю. Узел',
+    glyph: '☋\uFE0E',
+    longitude: lon,
+    retrograde: false,
+    house: cusps ? findHouse(lon, cusps) : undefined,
+  };
+  return [...planets, sn];
+}
+
 // ── Format helpers ────────────────────────────────────────────────────────────
 
 function fmtLon(lon) {
@@ -1084,7 +1101,7 @@ function fmtLon(lon) {
 function fmtOrb(orbDeg) {
   const d = Math.floor(orbDeg);
   const m = Math.round((orbDeg - d) * 60);
-  return `орбис ${d}°${String(m).padStart(2,'0')}'`;
+  return `(${d}°${String(m).padStart(2,'0')}')`;
 }
 
 // ── Chart tooltip ─────────────────────────────────────────────────────────────
@@ -1174,11 +1191,12 @@ function renderChart(planets, cusps, asc, mc) {
     fill: '#fff', stroke: '#000', 'stroke-width': 1.5,
   }));
 
-  // 7. Aspects
-  drawAspects(g, planets, 0);
+  // 7. Aspects (include South Node)
+  const planetsWithSN = addSouthNode(planets, cusps);
+  drawAspects(g, planetsWithSN, 0);
 
-  // 8. Planets
-  drawPlanets(g, planets, 0);
+  // 8. Planets (include South Node)
+  drawPlanets(g, planetsWithSN, 0);
 
   // 9. Clusters drawClusters(g, planets, 0);
 
@@ -1278,6 +1296,9 @@ function drawHouseLabels(g, cusps, asc) {
 function drawAspects(g, planets, asc) {
   for (let i = 0; i < planets.length; i++) {
     for (let j = i + 1; j < planets.length; j++) {
+      // Skip trivial N.Node ↔ S.Node opposition (always exact by definition)
+      const ids = [planets[i].id, planets[j].id];
+      if (ids.includes(10) && ids.includes(-10)) continue;
       const diff = angDiff(planets[i].longitude, planets[j].longitude);
       for (const asp of ASPECTS) {
         const orb = getNatalOrb(asp, planets[i].id, planets[j].id);
@@ -1618,14 +1639,14 @@ function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) 
   // 7. Directed cusp lines (inner zone: R_BW_INNER → R_DIVIDER)
   drawDirectedCusps(g, directedCusps, 0);
 
-  // 8. Direction → natal aspect lines
-  drawDirectionAspects(g, natal, directed, 0);
+  // 8. Direction → natal aspect lines (include South Nodes)
+  drawDirectionAspects(g, addSouthNode(natal, natalCusps), addSouthNode(directed), 0);
 
-  // 9. Natal planets (inner ring)
-  drawBiwheelPlanets(g, natal, 0, R_BW_INNER, R_N_PLANET);
+  // 9. Natal planets (inner ring) — include South Node
+  drawBiwheelPlanets(g, addSouthNode(natal, natalCusps), 0, R_BW_INNER, R_N_PLANET);
 
-  // 10. Directed planets (outer ring) in purple
-  drawBiwheelPlanets(g, directed, 0, R_DIVIDER, R_T_PLANET, '#111', '#111');
+  // 10. Directed planets (outer ring) — include South Node
+  drawBiwheelPlanets(g, addSouthNode(directed),           0, R_DIVIDER, R_T_PLANET, '#111', '#111');
 
   // 11. House labels outside ring (natal)
   drawHouseLabels(g, natalCusps, 0);
@@ -1650,6 +1671,8 @@ function drawDirectedCusps(g, directedCusps, asc) {
 function drawDirectionAspects(g, natal, directed, asc) {
   for (const dir of directed) {
     for (const na of natal) {
+      // Skip trivial N.Node ↔ S.Node opposition
+      if ((dir.id === 10 && na.id === -10) || (dir.id === -10 && na.id === 10)) continue;
       const orbLimit = (dir.id === 0 || dir.id === 1 || na.id === 0 || na.id === 1) ? 2 : 1;
       const diff = angDiff(dir.longitude, na.longitude);
       for (const asp of D_ASPECTS) {
@@ -1724,6 +1747,93 @@ function showTransitNow() {
   updateDateNav(null);
 }
 
+// ── Progressed aspects (orbs: 2° Sun/Moon, 1° others) ────────────────────────
+function drawProgressedAspects(g, natal, progressed, asc) {
+  for (const pr of progressed) {
+    for (const na of natal) {
+      // Skip trivial N.Node ↔ S.Node opposition
+      if ((pr.id === 10 && na.id === -10) || (pr.id === -10 && na.id === 10)) continue;
+      const progOrb = (pr.id === 0 || pr.id === 1 || na.id === 0 || na.id === 1) ? 2.0 : 1.0;
+      const diff = angDiff(pr.longitude, na.longitude);
+      for (const asp of ASPECTS) {
+        if (Math.abs(diff - asp.angle) <= progOrb) {
+          const actualOrb = Math.abs(diff - asp.angle);
+          const tipText = `пр${pr.glyph} ${asp.name} нат${na.glyph}  ${fmtOrb(actualOrb)}`;
+          if (asp.type === 'conj') {
+            let l1 = pr.longitude, l2 = na.longitude;
+            if (Math.abs(l1 - l2) > 180) { if (l1 < l2) l1 += 360; else l2 += 360; }
+            const midLon = ((l1 + l2) / 2) % 360;
+            const midA = lonToRad(midLon, asc);
+            const center = polar(midA, R_DIVIDER);
+            const spanRad = diff * Math.PI / 180;
+            const rx = Math.max(8, spanRad * R_DIVIDER / 2 + 6);
+            const rotDeg = midA * 180 / Math.PI + 90;
+            const ellipseEl = el('ellipse', {
+              cx: center.x, cy: center.y, rx, ry: 5,
+              transform: `rotate(${rotDeg}, ${center.x}, ${center.y})`,
+              fill: 'none', stroke: asp.color, 'stroke-width': 1.5, style: 'cursor:default',
+            });
+            ellipseEl.addEventListener('mouseover', e => showChartTip(tipText, e));
+            ellipseEl.addEventListener('mousemove', moveChartTip);
+            ellipseEl.addEventListener('mouseout', hideChartTip);
+            g.appendChild(ellipseEl);
+          } else {
+            const pp  = polar(lonToRad(pr.longitude, asc), R_BW_INNER);
+            const pn  = polar(lonToRad(na.longitude, asc), R_BW_INNER);
+            const mid = { x: (pp.x + pn.x) / 2, y: (pp.y + pn.y) / 2 };
+            const attrs = { stroke: asp.color, 'stroke-width': asp.width, opacity: '0.6' };
+            if (asp.dash) attrs['stroke-dasharray'] = asp.dash;
+            g.appendChild(ln(pp.x, pp.y, pn.x, pn.y, attrs));
+            const hitLine = ln(pp.x, pp.y, pn.x, pn.y, { stroke: 'transparent', 'stroke-width': 8, style: 'cursor:default' });
+            hitLine.addEventListener('mouseover', e => showChartTip(tipText, e));
+            hitLine.addEventListener('mousemove', moveChartTip);
+            hitLine.addEventListener('mouseout', hideChartTip);
+            g.appendChild(hitLine);
+            g.appendChild(txt(mid.x, mid.y, asp.symbol, {
+              'font-size': 9, fill: asp.color,
+              'text-anchor': 'middle', 'dominant-baseline': 'central',
+            }));
+          }
+          break;
+        }
+      }
+    }
+  }
+}
+
+// ── Progressed biwheel renderer ───────────────────────────────────────────────
+function renderProgressedBiwheelChart(natal, progressed, cusps, asc) {
+  const svg = el('svg', { viewBox: VIEWBOX, width: '100%', style: 'display:block' });
+  const clipRect = el('rect', { width: W, height: H });
+  const clipPath = el('clipPath', { id: 'canvasClip' });
+  clipPath.appendChild(clipRect);
+  const defs = el('defs');
+  defs.appendChild(clipPath);
+  svg.appendChild(defs);
+  const g = el('g', { 'clip-path': 'url(#canvasClip)' });
+  svg.appendChild(g);
+
+  g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
+  drawHouseAxes(g, cusps, 0, true);
+  g.appendChild(circ(CX, CY, R_RING, { fill: 'none', stroke: '#808080', 'stroke-width': RING_W }));
+  drawSignDividers(g, 0);
+  drawZodiacGlyphs(g, 0);
+  g.appendChild(circ(CX, CY, R_DIVIDER, { fill: 'none', stroke: '#aaa', 'stroke-width': 0.8 }));
+  g.appendChild(circ(CX, CY, R_BW_INNER, { fill: '#fff', stroke: '#000', 'stroke-width': 1.5 }));
+
+  // Progressed → natal aspects with progression orbs
+  drawProgressedAspects(g, addSouthNode(natal, cusps), addSouthNode(progressed), 0);
+
+  // Natal planets (inner ring)
+  drawBiwheelPlanets(g, addSouthNode(natal, cusps), 0, R_BW_INNER, R_N_PLANET);
+
+  // Progressed planets (outer ring)
+  drawBiwheelPlanets(g, addSouthNode(progressed),   0, R_DIVIDER,  R_T_PLANET);
+
+  drawHouseLabels(g, cusps, 0);
+  document.getElementById('chart-wrap').replaceChildren(svg);
+}
+
 function renderProgressedBiwheel(jd = null) {
   const { birthJD, planets: natal, cusps, asc } = natalData;
   // jd = real-world date for which to compute progressions (null = today)
@@ -1736,7 +1846,7 @@ function renderProgressedBiwheel(jd = null) {
     const r = swe.calc_ut(progressedJD, p.id, flags);
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   });
-  renderBiwheel(natal, progressed, cusps, asc);
+  renderProgressedBiwheelChart(natal, progressed, cusps, asc);
   currentTransitJD = jd;   // null = today, value = specific date
   updateDateNav(jd);
 }
@@ -1864,14 +1974,14 @@ function renderBiwheel(natal, transit, cusps, asc) {
     fill: '#fff', stroke: '#000', 'stroke-width': 1.5,
   }));
 
-  // 7. Transit → natal aspect lines
-  drawTransitAspects(g, natal, transit, 0);
+  // 7. Transit → natal aspect lines (include South Nodes)
+  drawTransitAspects(g, addSouthNode(natal, cusps), addSouthNode(transit), 0);
 
-  // 8. Natal planets (inner ring), dots on R_BW_INNER — mirrors regular natal chart
-  drawBiwheelPlanets(g, natal,   0, R_BW_INNER, R_N_PLANET);
+  // 8. Natal planets (inner ring) — include South Node
+  drawBiwheelPlanets(g, addSouthNode(natal, cusps), 0, R_BW_INNER, R_N_PLANET);
 
-  // 9. Transit planets (outer ring), dots on R_DIVIDER
-  drawBiwheelPlanets(g, transit, 0, R_DIVIDER,  R_T_PLANET);
+  // 9. Transit planets (outer ring) — include South Node
+  drawBiwheelPlanets(g, addSouthNode(transit),      0, R_DIVIDER,  R_T_PLANET);
 
   // 11. House labels outside ring
   drawHouseLabels(g, cusps, 0);
@@ -1959,6 +2069,8 @@ function drawTransitAspects(g, natal, transit, asc) {
   for (const tr of transit) {
     const orb = getTransitOrb(tr.id);   // per-planet transit orb
     for (const na of natal) {
+      // Skip trivial N.Node ↔ S.Node opposition
+      if ((tr.id === 10 && na.id === -10) || (tr.id === -10 && na.id === 10)) continue;
       const diff = angDiff(tr.longitude, na.longitude);
       for (const asp of ASPECTS) {
         if (Math.abs(diff - asp.angle) <= orb) {
@@ -2015,7 +2127,7 @@ const FAST_IDS = [0, 2, 3, 4];            // Sun, Mercury, Venus, Mars
 function getTransitOrb(planetId) {
   if (planetId === 7 || planetId === 8 || planetId === 9) return 1;              // Uranus, Neptune, Pluto
   if (planetId === 5 || planetId === 6 || planetId === 15) return 3;             // Jupiter, Saturn, Chiron
-  if (planetId === 10 || planetId === 12) return 3;                              // Node, Lilith
+  if (planetId === 10 || planetId === 12 || planetId === -10) return 3;          // Node, Lilith, S.Node
   return 5;  // Sun, Mercury, Venus, Mars
 }
 

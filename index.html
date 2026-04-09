@@ -484,6 +484,7 @@
       <div id="transit-sub-bar">
         <button class="tab-btn active" id="subTabTransit">Транзиты</button>
         <button class="tab-btn" id="subTabProgressed">Прогрессии</button>
+        <button class="tab-btn" id="subTabDirection">Дирекции</button>
       </div>
       <!-- Mode-specific controls (tl-filter inserted into transit-mode-content by JS) -->
       <div id="mode-content">
@@ -741,7 +742,7 @@ let fastCache        = {};         // natal planet id → fast-transit periods[]
 let hiddenTPlants    = new Set();  // transiting planet IDs hidden from timeline
 let detectedTimezone = null;   // IANA timezone name after geocoding
 let currentTransitJD = null;   // currently displayed JD (null = today)
-let currentMode      = 'transit'; // 'transit' | 'progressed'
+let currentMode      = 'transit'; // 'transit' | 'progressed' | 'direction'
 
 (async () => {
   try {
@@ -1324,6 +1325,8 @@ function navigateDate(delta) {
   currentTransitJD = base + delta;
   if (currentMode === 'transit') {
     renderBiwheelAt(currentTransitJD);
+  } else if (currentMode === 'direction') {
+    renderDirectionBiwheel(currentTransitJD);
   } else {
     renderProgressedBiwheel(currentTransitJD);
   }
@@ -1334,8 +1337,137 @@ document.getElementById('nav-next').addEventListener('click', () => navigateDate
 document.getElementById('nav-today').addEventListener('click', () => {
   currentTransitJD = null;
   if (currentMode === 'transit') showTransitNow();
+  else if (currentMode === 'direction') renderDirectionBiwheel(null);
   else renderProgressedBiwheel(null);
 });
+
+function renderDirectionBiwheel(jd = null) {
+  const { birthJD, planets: natal, cusps: natalCusps, asc } = natalData;
+  const jdReal = jd ?? computeJDNow();
+  // Symbolic directions: 1 year of life = 1 degree of arc
+  const ageInYears = (jdReal - birthJD) / 365.25;
+  const directed = natal.map(p => ({
+    ...p,
+    longitude: ((p.longitude + ageInYears) % 360 + 360) % 360,
+    retrograde: false,
+  }));
+  const directedCusps = natalCusps.map(c => ((c + ageInYears) % 360 + 360) % 360);
+  renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc);
+  currentTransitJD = jd;
+  updateDateNav(jd);
+}
+
+function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) {
+  const svg = el('svg', { viewBox: VIEWBOX, width: '100%', style: 'display:block' });
+
+  const clipRect = el('rect', { width: W, height: H });
+  const clipPath = el('clipPath', { id: 'canvasClip' });
+  clipPath.appendChild(clipRect);
+  const defs = el('defs');
+  defs.appendChild(clipPath);
+  svg.appendChild(defs);
+
+  const g = el('g', { 'clip-path': 'url(#canvasClip)' });
+  svg.appendChild(g);
+
+  // 1. Background
+  g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
+
+  // 2. Natal house axes
+  drawHouseAxes(g, natalCusps, 0);
+
+  // 3. Zodiac ring
+  g.appendChild(circ(CX, CY, R_RING, {
+    fill: 'none', stroke: '#808080', 'stroke-width': RING_W,
+  }));
+
+  // 4. Sign dividers + glyphs
+  drawSignDividers(g, 0);
+  drawZodiacGlyphs(g, 0);
+
+  // 5. Divider circle between directed / natal rings
+  g.appendChild(circ(CX, CY, R_DIVIDER, {
+    fill: 'none', stroke: '#aaa', 'stroke-width': 0.8,
+  }));
+
+  // 6. Inner circle
+  g.appendChild(circ(CX, CY, R_BW_INNER, {
+    fill: '#fff', stroke: '#000', 'stroke-width': 1.5,
+  }));
+
+  // 7. Directed cusp lines (inner zone: R_BW_INNER → R_DIVIDER)
+  drawDirectedCusps(g, directedCusps, 0);
+
+  // 8. Direction → natal aspect lines
+  drawDirectionAspects(g, natal, directed, 0);
+
+  // 9. Natal planets (inner ring)
+  drawBiwheelPlanets(g, natal, 0, R_BW_INNER, R_N_PLANET);
+
+  // 10. Directed planets (outer ring) in purple
+  drawBiwheelPlanets(g, directed, 0, R_DIVIDER, R_T_PLANET, '#7722cc', '#7722cc');
+
+  // 11. House labels outside ring (natal)
+  drawHouseLabels(g, natalCusps, 0);
+
+  document.getElementById('chart-wrap').replaceChildren(svg);
+}
+
+function drawDirectedCusps(g, directedCusps, asc) {
+  for (let i = 0; i < 6; i++) {
+    const isAng = (i === 0 || i === 3);
+    const a1 = lonToRad(directedCusps[i],     asc);
+    const a2 = lonToRad(directedCusps[i + 6], asc);
+    const p1 = polar(a1, R_LABEL);
+    const p2 = polar(a2, R_LABEL);
+    g.appendChild(ln(p1.x, p1.y, p2.x, p2.y, {
+      stroke: '#7722cc',
+      'stroke-width': isAng ? 2 : 1,
+      opacity: '0.55',
+    }));
+  }
+}
+
+function drawDirectionAspects(g, natal, directed, asc) {
+  for (const dir of directed) {
+    for (const na of natal) {
+      const orbLimit = (dir.id === 0 || dir.id === 1 || na.id === 0 || na.id === 1) ? 2 : 1;
+      const diff = angDiff(dir.longitude, na.longitude);
+      for (const asp of D_ASPECTS) {
+        if (Math.abs(diff - asp.angle) <= orbLimit) {
+          if (asp.angle === 0) {
+            // Conjunction: ellipse arc on the divider circle
+            let l1 = dir.longitude, l2 = na.longitude;
+            if (Math.abs(l1 - l2) > 180) { if (l1 < l2) l1 += 360; else l2 += 360; }
+            const midLon = ((l1 + l2) / 2) % 360;
+            const midA = lonToRad(midLon, asc);
+            const center = polar(midA, R_DIVIDER);
+            const spanRad = diff * Math.PI / 180;
+            const rx = Math.max(8, spanRad * R_DIVIDER / 2 + 6);
+            const rotDeg = midA * 180 / Math.PI + 90;
+            g.appendChild(el('ellipse', {
+              cx: center.x, cy: center.y, rx, ry: 5,
+              transform: `rotate(${rotDeg}, ${center.x}, ${center.y})`,
+              fill: 'none', stroke: asp.color, 'stroke-width': 1.5,
+            }));
+          } else {
+            const pd  = polar(lonToRad(dir.longitude, asc), R_BW_INNER);
+            const pn  = polar(lonToRad(na.longitude, asc), R_BW_INNER);
+            const mid = { x: (pd.x + pn.x) / 2, y: (pd.y + pn.y) / 2 };
+            g.appendChild(ln(pd.x, pd.y, pn.x, pn.y, {
+              stroke: asp.color, 'stroke-width': 1, opacity: '0.6',
+            }));
+            g.appendChild(txt(mid.x, mid.y, asp.symbol, {
+              'font-size': 9, fill: asp.color,
+              'text-anchor': 'middle', 'dominant-baseline': 'central',
+            }));
+          }
+          break;
+        }
+      }
+    }
+  }
+}
 
 document.getElementById('tabNatal').addEventListener('click', () => {
   if (!natalData) return;
@@ -1385,6 +1517,7 @@ document.getElementById('tabTransit').addEventListener('click', () => {
   setActiveTab('transit');
   document.getElementById('subTabTransit').classList.add('active');
   document.getElementById('subTabProgressed').classList.remove('active');
+  document.getElementById('subTabDirection').classList.remove('active');
   document.getElementById('transit-mode-content').style.display = 'block';
   document.getElementById('prog-mode-content').style.display = 'none';
   showTransitNow();
@@ -1397,6 +1530,7 @@ document.getElementById('subTabTransit').addEventListener('click', () => {
   currentMode = 'transit';
   document.getElementById('subTabTransit').classList.add('active');
   document.getElementById('subTabProgressed').classList.remove('active');
+  document.getElementById('subTabDirection').classList.remove('active');
   document.getElementById('transit-mode-content').style.display = 'block';
   document.getElementById('prog-mode-content').style.display = 'none';
   // Navigate to current date or keep currentTransitJD
@@ -1409,9 +1543,21 @@ document.getElementById('subTabProgressed').addEventListener('click', () => {
   currentMode = 'progressed';
   document.getElementById('subTabProgressed').classList.add('active');
   document.getElementById('subTabTransit').classList.remove('active');
+  document.getElementById('subTabDirection').classList.remove('active');
   document.getElementById('transit-mode-content').style.display = 'none';
   document.getElementById('prog-mode-content').style.display = 'block';
   renderProgressedBiwheel(currentTransitJD);
+});
+
+document.getElementById('subTabDirection').addEventListener('click', () => {
+  if (!natalData || !swe) return;
+  currentMode = 'direction';
+  document.getElementById('subTabDirection').classList.add('active');
+  document.getElementById('subTabTransit').classList.remove('active');
+  document.getElementById('subTabProgressed').classList.remove('active');
+  document.getElementById('transit-mode-content').style.display = 'none';
+  document.getElementById('prog-mode-content').style.display = 'none';
+  renderDirectionBiwheel(currentTransitJD);
 });
 
 // ── Render biwheel for a specific JD (called from timeline bar tap) ──────────
@@ -1490,7 +1636,7 @@ function renderBiwheel(natal, transit, cusps, asc) {
   document.getElementById('chart-wrap').replaceChildren(svg);
 }
 
-function drawBiwheelPlanets(g, planets, asc, rDot, rGlyph) {
+function drawBiwheelPlanets(g, planets, asc, rDot, rGlyph, dotColor = '#9aaa00', glyphColor = '#111') {
   const THR_RAD = 0.18;   // ~10° cluster threshold
   const STEP_PX = 18;
 
@@ -1527,7 +1673,7 @@ function drawBiwheelPlanets(g, planets, asc, rDot, rGlyph) {
   labeled.forEach(p => {
     const dot = polar(p.dotAngle, rDot);
     g.appendChild(circ(dot.x, dot.y, 2, {
-      fill: '#9aaa00', stroke: 'none',
+      fill: dotColor, stroke: 'none',
     }));
   });
 
@@ -1547,11 +1693,11 @@ function drawBiwheelPlanets(g, planets, asc, rDot, rGlyph) {
     const deg = Math.floor(p.longitude % 30);
     const t = el('text', {
       x: pos.x, y: pos.y,
-      'font-size': 19, fill: '#111',
+      'font-size': 19, fill: glyphColor,
       'text-anchor': 'middle', 'dominant-baseline': 'central',
     });
     t.appendChild(el('tspan', {}, p.glyph));
-    t.appendChild(el('tspan', { dy: '-6', 'font-size': '9', fill: '#555' }, String(deg)));
+    t.appendChild(el('tspan', { dy: '-6', 'font-size': '9', fill: glyphColor === '#111' ? '#555' : glyphColor }, String(deg)));
     g.appendChild(t);
     if (p.retrograde) {
       g.appendChild(txt(pos.x + 9, pos.y + 3, 'R', {
@@ -1616,6 +1762,14 @@ function getTransitOrb(planetId) {
 
 const T_ASPECTS = [
   { angle: 0,   color: '#2244bb', symbol: '☌' },
+  { angle: 60,  color: '#228833', symbol: '✶' },
+  { angle: 90,  color: '#cc1111', symbol: '□' },
+  { angle: 120, color: '#228833', symbol: '△' },
+  { angle: 180, color: '#cc1111', symbol: '☍' },
+];
+
+const D_ASPECTS = [
+  { angle: 0,   color: '#7722cc', symbol: '☌' },
   { angle: 60,  color: '#228833', symbol: '✶' },
   { angle: 90,  color: '#cc1111', symbol: '□' },
   { angle: 120, color: '#228833', symbol: '△' },

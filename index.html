@@ -77,12 +77,39 @@
   #info-table td { padding: 4px 12px; border-bottom: 1px solid #f2f2ee; }
   #info-table tr:hover td { background: #fafaf6; }
 
-  #transit-date-lbl {
-    text-align: center; font-size: 0.8em; color: #888;
-    min-height: 18px; margin: 2px 0 0;
-    transition: opacity 0.2s;
+  /* ── Date navigator (universal, bottom of left panel) ────── */
+  #date-nav {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 0 2px;
+    border-top: 1px solid #e8e8e4;
+    margin-top: 8px;
   }
-  #transit-date-lbl.active { color: #2244bb; font-weight: 600; }
+  #date-nav .nav-arrow {
+    flex-shrink: 0;
+    padding: 7px 14px; border: 1px solid #ccc; border-radius: 5px;
+    background: #f5f5f2; color: #555; font-size: 0.88em;
+    cursor: pointer; line-height: 1;
+  }
+  #date-nav .nav-arrow:hover { background: #e8e8e4; }
+  #nav-center {
+    flex: 1; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  #transit-date-lbl {
+    font-size: 0.85em; font-weight: 500; color: #444;
+    transition: color 0.15s;
+  }
+  #transit-date-lbl.active { color: #2244bb; }
+  #nav-today {
+    font-size: 0.73em; color: #2244bb; background: none; border: none;
+    padding: 1px 4px; cursor: pointer; border-radius: 3px;
+    display: none; text-decoration: underline;
+  }
+  #nav-today:hover { background: #eef2ff; }
+
+  /* ── Mode-specific controls ───────────────────────────────── */
+  #mode-content { padding: 4px 0 2px; }
+  #transit-mode-content, #prog-mode-content { display: block; }
   /* ── Page modes ─────────────────────────────────────────── */
   #prog-layout { display: none; width: 100%; margin: 0 auto; }
   #prog-layout.visible { display: block; }
@@ -172,16 +199,10 @@
   #tl-filter input[type=checkbox] { accent-color: #444; width: 12px; height: 12px; margin: 0; }
 
   #tl-nav {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 2px 0 6px; gap: 8px;
+    padding: 2px 0 4px;
+    text-align: center;
   }
-  #tl-nav button {
-    padding: 5px 14px; border: 1px solid #ccc; border-radius: 5px;
-    background: #f5f5f2; color: #555; font-size: 0.9em;
-    cursor: pointer; white-space: nowrap; flex-shrink: 0; line-height: 1;
-  }
-  #tl-nav button:hover { background: #e8e8e4; }
-  #tl-nav-lbl { font-size: 0.78em; color: #999; text-align: center; flex: 1; }
+  #tl-nav-lbl { font-size: 0.76em; color: #bbb; }
   #tl-body { display: flex; align-items: flex-start; }
   #tl-svg-left { flex-shrink: 0; display: block; }
   #tl-scroll {
@@ -459,12 +480,25 @@
   <div id="prog-left">
     <div id="chart-wrap"></div>
     <div id="prog-controls">
+      <!-- Mode switcher -->
       <div id="transit-sub-bar">
         <button class="tab-btn active" id="subTabTransit">Транзиты</button>
         <button class="tab-btn" id="subTabProgressed">Прогрессии</button>
       </div>
-      <div id="transit-date-lbl"></div>
-      <!-- tl-filter and tl-nav inserted here by renderTimeline -->
+      <!-- Mode-specific controls (tl-filter inserted into transit-mode-content by JS) -->
+      <div id="mode-content">
+        <div id="transit-mode-content"></div>
+        <div id="prog-mode-content" style="display:none"></div>
+      </div>
+      <!-- Universal date navigator -->
+      <div id="date-nav">
+        <button class="nav-arrow" id="nav-prev" title="На день назад">&#9664;</button>
+        <div id="nav-center">
+          <span id="transit-date-lbl">Сегодня</span>
+          <button id="nav-today">↺ Сегодня</button>
+        </div>
+        <button class="nav-arrow" id="nav-next" title="На день вперёд">&#9654;</button>
+      </div>
     </div>
   </div>
   <div id="transit-tl"></div>
@@ -706,7 +740,8 @@ let expandedRows     = new Set();  // natal planet IDs whose row is expanded
 let fastCache        = {};         // natal planet id → fast-transit periods[]
 let hiddenTPlants    = new Set();  // transiting planet IDs hidden from timeline
 let detectedTimezone = null;   // IANA timezone name after geocoding
-let currentTransitJD = null;   // currently displayed transit JD (null = today)
+let currentTransitJD = null;   // currently displayed JD (null = today)
+let currentMode      = 'transit'; // 'transit' | 'progressed'
 
 (async () => {
   try {
@@ -1259,6 +1294,49 @@ function setActiveTab(id) {
   }
 }
 
+// ── Date navigator helpers ────────────────────────────────────────────────────
+
+function computeJDNow() {
+  if (!swe) return null;
+  const now = new Date();
+  return swe.julday(now.getUTCFullYear(), now.getUTCMonth() + 1,
+    now.getUTCDate(), now.getUTCHours() + now.getUTCMinutes() / 60);
+}
+
+function updateDateNav(jd) {
+  const lbl      = document.getElementById('transit-date-lbl');
+  const todayBtn = document.getElementById('nav-today');
+  if (jd === null) {
+    lbl.textContent = 'Сегодня';
+    lbl.classList.remove('active');
+    todayBtn.style.display = 'none';
+  } else {
+    lbl.textContent = new Date((jd - 2440587.5) * 86400000)
+      .toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' });
+    lbl.classList.add('active');
+    todayBtn.style.display = 'inline';
+  }
+}
+
+function navigateDate(delta) {
+  const base = currentTransitJD ?? computeJDNow();
+  if (!base) return;
+  currentTransitJD = base + delta;
+  if (currentMode === 'transit') {
+    renderBiwheelAt(currentTransitJD);
+  } else {
+    renderProgressedBiwheel(currentTransitJD);
+  }
+}
+
+document.getElementById('nav-prev').addEventListener('click', () => navigateDate(-1));
+document.getElementById('nav-next').addEventListener('click', () => navigateDate(+1));
+document.getElementById('nav-today').addEventListener('click', () => {
+  currentTransitJD = null;
+  if (currentMode === 'transit') showTransitNow();
+  else renderProgressedBiwheel(null);
+});
+
 document.getElementById('tabNatal').addEventListener('click', () => {
   if (!natalData) return;
   setActiveTab('natal');
@@ -1280,19 +1358,15 @@ function showTransitNow() {
   });
   renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
   currentTransitJD = null;
-  const dlbl = document.getElementById('transit-date-lbl');
-  dlbl.textContent = 'Сегодня'; dlbl.classList.remove('active');
+  updateDateNav(null);
 }
 
-function renderProgressedBiwheel() {
-  const { birthJD, lat, lon, planets: natal, cusps, asc } = natalData;
-  const now   = new Date();
-  const jdNow = swe.julday(
-    now.getUTCFullYear(), now.getUTCMonth() + 1,
-    now.getUTCDate(), now.getUTCHours() + now.getUTCMinutes() / 60
-  );
+function renderProgressedBiwheel(jd = null) {
+  const { birthJD, planets: natal, cusps, asc } = natalData;
+  // jd = real-world date for which to compute progressions (null = today)
+  const jdReal = jd ?? computeJDNow();
   // Secondary progressions: 1 solar day after birth = 1 year of life
-  const ageInYears  = (jdNow - birthJD) / 365.25;
+  const ageInYears  = (jdReal - birthJD) / 365.25;
   const progressedJD = birthJD + ageInYears;
   const flags = swe.SEFLG_SWIEPH ?? 2;
   const progressed = PLANETS.map(p => {
@@ -1300,16 +1374,19 @@ function renderProgressedBiwheel() {
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   });
   renderBiwheel(natal, progressed, cusps, asc);
-  const dlbl = document.getElementById('transit-date-lbl');
-  dlbl.textContent = 'Прогрессии на ' + new Date().toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' });
-  dlbl.classList.add('active');
+  currentTransitJD = jd;   // null = today, value = specific date
+  updateDateNav(jd);
 }
 
 document.getElementById('tabTransit').addEventListener('click', () => {
   if (!natalData || !swe) return;
+  currentMode = 'transit';
+  currentTransitJD = null;
   setActiveTab('transit');
   document.getElementById('subTabTransit').classList.add('active');
   document.getElementById('subTabProgressed').classList.remove('active');
+  document.getElementById('transit-mode-content').style.display = 'block';
+  document.getElementById('prog-mode-content').style.display = 'none';
   showTransitNow();
   document.getElementById('transit-tl').style.display = 'block';
   computeAndRenderTimeline(natalData.planets);
@@ -1317,16 +1394,24 @@ document.getElementById('tabTransit').addEventListener('click', () => {
 
 document.getElementById('subTabTransit').addEventListener('click', () => {
   if (!natalData || !swe) return;
+  currentMode = 'transit';
   document.getElementById('subTabTransit').classList.add('active');
   document.getElementById('subTabProgressed').classList.remove('active');
-  showTransitNow();
+  document.getElementById('transit-mode-content').style.display = 'block';
+  document.getElementById('prog-mode-content').style.display = 'none';
+  // Navigate to current date or keep currentTransitJD
+  if (currentTransitJD) renderBiwheelAt(currentTransitJD);
+  else showTransitNow();
 });
 
 document.getElementById('subTabProgressed').addEventListener('click', () => {
   if (!natalData || !swe) return;
+  currentMode = 'progressed';
   document.getElementById('subTabProgressed').classList.add('active');
   document.getElementById('subTabTransit').classList.remove('active');
-  renderProgressedBiwheel();
+  document.getElementById('transit-mode-content').style.display = 'none';
+  document.getElementById('prog-mode-content').style.display = 'block';
+  renderProgressedBiwheel(currentTransitJD);
 });
 
 // ── Render biwheel for a specific JD (called from timeline bar tap) ──────────
@@ -1339,10 +1424,7 @@ function renderBiwheelAt(jd) {
   });
   renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
   currentTransitJD = jd;
-  const d = new Date((jd - 2440587.5) * 86400000);
-  const lbl = document.getElementById('transit-date-lbl');
-  lbl.textContent = 'Транзиты на ' + d.toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric' });
-  lbl.classList.add('active');
+  updateDateNav(jd);
 }
 
 
@@ -1956,22 +2038,16 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [] }) {
   for (const r of rows) { r.y = y; y += r.h; }
   const TL_H = y + 4;
 
-  // ── Navigation bar ──────────────────────────────────────────────────────────
+  // ── Timeline range label ────────────────────────────────────────────────────
   const hel = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
   const fmtMon = jd => new Date((jd - 2440587.5) * 86400000)
     .toLocaleDateString('ru', { month: 'short', year: 'numeric' });
   const fmtDate = jd => new Date((jd - 2440587.5) * 86400000)
     .toLocaleDateString('ru', { day: 'numeric', month: 'short', year: 'numeric' });
   const nav = hel('div'); nav.id = 'tl-nav';
-  const btnDayPrev = hel('button'); btnDayPrev.id = 'tl-btn-day-prev';
-  btnDayPrev.title = 'На день назад';
-  btnDayPrev.innerHTML = '&#9664;';
-  const navLbl  = hel('span');   navLbl.id = 'tl-nav-lbl';
+  const navLbl = hel('span'); navLbl.id = 'tl-nav-lbl';
   navLbl.textContent = `${fmtMon(jdStart)} — ${fmtMon(jdEnd)}`;
-  const btnDayNext = hel('button'); btnDayNext.id = 'tl-btn-day-next';
-  btnDayNext.title = 'На день вперёд';
-  btnDayNext.innerHTML = '&#9654;';
-  nav.append(btnDayPrev, navLbl, btnDayNext);
+  nav.appendChild(navLbl);
 
   // ── Left panel SVG (sticky planet labels) ───────────────────────────────────
   const svgL = el('svg', { id: 'tl-svg-left', width: LABEL_W, height: TL_H });
@@ -2276,27 +2352,17 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [] }) {
   const body = hel('div'); body.id = 'tl-body';
   body.append(svgL, scrollWrap);
 
-  // filterBar + nav live in the left panel (prog-controls), not inside transit-tl
-  const controls = document.getElementById('prog-controls');
-  controls.querySelector('#tl-filter')?.remove();
-  controls.querySelector('#tl-nav')?.remove();
-  controls.append(filterBar, nav);
+  // filterBar → transit-mode-content in left panel
+  const modeContent = document.getElementById('transit-mode-content');
+  modeContent.querySelector('#tl-filter')?.remove();
+  modeContent.appendChild(filterBar);
 
-  tl.replaceChildren(body);
+  // range label nav → inside timeline
+  tl.replaceChildren(nav, body);
 
   // Scroll so "today" is ~30 % from the left edge
   requestAnimationFrame(() => {
     scrollWrap.scrollLeft = xT - scrollWrap.clientWidth * 0.3;
-  });
-
-  // ── Day navigation buttons ────────────────────────────────────────────────
-  btnDayPrev.addEventListener('click', () => {
-    const base = currentTransitJD ?? jdToday;
-    renderBiwheelAt(base - 1);
-  });
-  btnDayNext.addEventListener('click', () => {
-    const base = currentTransitJD ?? jdToday;
-    renderBiwheelAt(base + 1);
   });
 }
 

@@ -1040,17 +1040,25 @@ function renderChart(planets, cusps, asc, mc) {
 // 6 full-diameter lines, each connecting two opposite house cusps.
 // Angular axes (ASC-DSC, IC-MC) are thicker.
 
-function drawHouseAxes(g, cusps, asc) {
+function drawHouseAxes(g, cusps, asc, biwheel = false) {
   for (let i = 0; i < 6; i++) {
     const isAng = (i === 0 || i === 3);
     const a1 = lonToRad(cusps[i],     asc);
     const a2 = lonToRad(cusps[i + 6], asc);
-    const p1 = polar(a1, R_LABEL);
-    const p2 = polar(a2, R_LABEL);
-    g.appendChild(ln(p1.x, p1.y, p2.x, p2.y, {
-      stroke: '#000',
-      'stroke-width': isAng ? 2 : 1,
-    }));
+    const attrs = { stroke: '#000', 'stroke-width': isAng ? 2 : 1 };
+    if (biwheel) {
+      // Inner segment: from R_DIVIDER through center to R_DIVIDER (center covered by white fill)
+      const i1 = polar(a1, R_DIVIDER), i2 = polar(a2, R_DIVIDER);
+      g.appendChild(ln(i1.x, i1.y, i2.x, i2.y, attrs));
+      // Outer segments: short stubs outside zodiac ring (for label area only)
+      const o1a = polar(a1, R_ZOD_OUT), o1b = polar(a1, R_LABEL);
+      const o2a = polar(a2, R_ZOD_OUT), o2b = polar(a2, R_LABEL);
+      g.appendChild(ln(o1a.x, o1a.y, o1b.x, o1b.y, attrs));
+      g.appendChild(ln(o2a.x, o2a.y, o2b.x, o2b.y, attrs));
+    } else {
+      const p1 = polar(a1, R_LABEL), p2 = polar(a2, R_LABEL);
+      g.appendChild(ln(p1.x, p1.y, p2.x, p2.y, attrs));
+    }
   }
 }
 
@@ -1373,8 +1381,8 @@ function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) 
   // 1. Background
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
 
-  // 2. Natal house axes
-  drawHouseAxes(g, natalCusps, 0);
+  // 2. Natal house axes (clipped to natal ring + outer label area)
+  drawHouseAxes(g, natalCusps, 0, true);
 
   // 3. Zodiac ring
   g.appendChild(circ(CX, CY, R_RING, {
@@ -1405,7 +1413,7 @@ function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) 
   drawBiwheelPlanets(g, natal, 0, R_BW_INNER, R_N_PLANET);
 
   // 10. Directed planets (outer ring) in purple
-  drawBiwheelPlanets(g, directed, 0, R_DIVIDER, R_T_PLANET, '#7722cc', '#7722cc');
+  drawBiwheelPlanets(g, directed, 0, R_DIVIDER, R_T_PLANET, '#111', '#111');
 
   // 11. House labels outside ring (natal)
   drawHouseLabels(g, natalCusps, 0);
@@ -1418,13 +1426,12 @@ function drawDirectedCusps(g, directedCusps, asc) {
     const isAng = (i === 0 || i === 3);
     const a1 = lonToRad(directedCusps[i],     asc);
     const a2 = lonToRad(directedCusps[i + 6], asc);
-    const p1 = polar(a1, R_LABEL);
-    const p2 = polar(a2, R_LABEL);
-    g.appendChild(ln(p1.x, p1.y, p2.x, p2.y, {
-      stroke: '#7722cc',
-      'stroke-width': isAng ? 2 : 1,
-      opacity: '0.55',
-    }));
+    const attrs = { stroke: '#000', 'stroke-width': isAng ? 2 : 1, opacity: '0.55' };
+    // Visible only in the directed ring: R_DIVIDER → R_ZOD_IN (each side)
+    const p1a = polar(a1, R_DIVIDER), p1b = polar(a1, R_ZOD_IN);
+    const p2a = polar(a2, R_DIVIDER), p2b = polar(a2, R_ZOD_IN);
+    g.appendChild(ln(p1a.x, p1a.y, p1b.x, p1b.y, attrs));
+    g.appendChild(ln(p2a.x, p2a.y, p2b.x, p2b.y, attrs));
   }
 }
 
@@ -1599,8 +1606,8 @@ function renderBiwheel(natal, transit, cusps, asc) {
   // 1. Background
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
 
-  // 2. House axes — fixed zodiac orientation
-  drawHouseAxes(g, cusps, 0);
+  // 2. House axes — clipped to natal ring + outer label area
+  drawHouseAxes(g, cusps, 0, true);
 
   // 3. Zodiac ring
   g.appendChild(circ(CX, CY, R_RING, {
@@ -1769,11 +1776,11 @@ const T_ASPECTS = [
 ];
 
 const D_ASPECTS = [
-  { angle: 0,   color: '#7722cc', symbol: '☌' },
-  { angle: 60,  color: '#228833', symbol: '✶' },
-  { angle: 90,  color: '#cc1111', symbol: '□' },
-  { angle: 120, color: '#228833', symbol: '△' },
-  { angle: 180, color: '#cc1111', symbol: '☍' },
+  { angle: 0,   color: '#111', symbol: '☌' },
+  { angle: 60,  color: '#111', symbol: '✶' },
+  { angle: 90,  color: '#111', symbol: '□' },
+  { angle: 120, color: '#111', symbol: '△' },
+  { angle: 180, color: '#111', symbol: '☍' },
 ];
 
 // ── Progressed Events ─────────────────────────────────────────────────────────

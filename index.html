@@ -1036,7 +1036,7 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     const [y, m, d] = dateVal.split('-').map(Number);
     const [hr, mn]  = timeVal.split(':').map(Number);
     const jd        = swe.julday(y, m, d, hr + mn / 60 - utcOff);
-    const flags     = swe.SEFLG_SWIEPH ?? 2;
+    const flags     = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
 
     const planets = PLANETS.map(p => {
       const r = swe.calc_ut(jd, p.id, flags);
@@ -1751,7 +1751,7 @@ function showTransitNow() {
     now.getUTCFullYear(), now.getUTCMonth() + 1,
     now.getUTCDate(), now.getUTCHours() + now.getUTCMinutes() / 60
   );
-  const flags  = swe.SEFLG_SWIEPH ?? 2;
+  const flags  = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
   const transit = PLANETS.map(p => {
     const r = swe.calc_ut(jdNow, p.id, flags);
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
@@ -1855,7 +1855,7 @@ function renderProgressedBiwheel(jd = null) {
   // Secondary progressions: 1 solar day after birth = 1 year of life
   const ageInYears  = (jdReal - birthJD) / 365.25;
   const progressedJD = birthJD + ageInYears;
-  const flags = swe.SEFLG_SWIEPH ?? 2;
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
   const progressed = PLANETS.map(p => {
     const r = swe.calc_ut(progressedJD, p.id, flags);
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
@@ -1930,7 +1930,7 @@ document.getElementById('subTabDirection').addEventListener('click', () => {
 // ── Render biwheel for a specific JD (called from timeline bar tap) ──────────
 function renderBiwheelAt(jd) {
   if (!natalData || !swe) return;
-  const flags = swe.SEFLG_SWIEPH ?? 2;
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
   const transit = PLANETS.map(p => {
     const r = swe.calc_ut(jd, p.id, flags);
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
@@ -2168,7 +2168,7 @@ const D_ASPECTS = [
 
 function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
   if (!birthJD) return [];
-  const flags = swe.SEFLG_SWIEPH ?? 2;
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
   const DAYS  = Math.ceil(jdEnd - jdStart) + 2;
 
   // Precompute progressed longitudes for every real-time day
@@ -2301,7 +2301,7 @@ function computeTransits(natalPlanets, jdWindowStart, jdWindowEnd) {
     now.getUTCDate(), now.getUTCHours() + now.getUTCMinutes() / 60);
   const jdStart = jdWindowStart ?? jdToday - 182;
   const jdEnd   = jdWindowEnd   ?? jdToday + 183;
-  const flags   = swe.SEFLG_SWIEPH ?? 2;
+  const flags   = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
   const DAYS    = Math.ceil(jdEnd - jdStart) + 2;
 
   // Precompute slow planet longitudes for every day
@@ -2416,7 +2416,7 @@ function refineExactAspects(localMinima, planetId, natalLon, aspAngle, jdStart, 
 // Compute transits of fast planets (Sun/Mercury/Venus/Mars) to one natal planet.
 // Uses same algorithm as computeTransits but for FAST_IDS and a single natal planet.
 function computeFastTransits(natalPlanet, jdStart, jdEnd) {
-  const flags  = swe.SEFLG_SWIEPH ?? 2;
+  const flags  = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
   const DAYS   = Math.ceil(jdEnd - jdStart) + 2;
   const periods = [];
 

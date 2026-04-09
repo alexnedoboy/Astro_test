@@ -84,21 +84,43 @@
     border-top: 1px solid #e8e8e4;
     margin-top: 8px;
   }
+  .nav-group {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .nav-lbl {
+    font-size: 0.6em; color: #aaa; line-height: 1; pointer-events: none;
+    text-align: center;
+  }
   #date-nav .nav-arrow {
-    flex-shrink: 0;
-    padding: 7px 14px; border: 1px solid #ccc; border-radius: 5px;
-    background: #f5f5f2; color: #555; font-size: 0.88em;
+    flex-shrink: 0; min-height: 44px; min-width: 32px;
+    border: 1px solid #ccc; border-radius: 5px;
+    background: #f5f5f2; color: #555;
     cursor: pointer; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
   }
   #date-nav .nav-arrow:hover { background: #e8e8e4; }
+  #date-nav .nav-year {
+    font-size: 0.9em; font-weight: 700; letter-spacing: -1.5px;
+    padding: 0 5px;
+  }
+  #date-nav .nav-month {
+    font-size: 0.85em; font-weight: 600; letter-spacing: -0.5px;
+    padding: 0 6px;
+  }
+  #date-nav .nav-day {
+    font-size: 0.78em; font-weight: 400;
+    padding: 0 8px;
+  }
   #nav-center {
     flex: 1; text-align: center;
     display: flex; flex-direction: column; align-items: center; gap: 2px;
   }
   #transit-date-lbl {
-    font-size: 0.85em; font-weight: 500; color: #444;
-    transition: color 0.15s;
+    font-size: 0.82em; font-weight: 500; color: #444;
+    transition: color 0.15s; cursor: pointer;
+    text-decoration-style: dotted; text-underline-offset: 2px;
   }
+  #transit-date-lbl:hover { text-decoration: underline; color: #2244bb; }
   #transit-date-lbl.active { color: #2244bb; }
   #nav-today {
     font-size: 0.73em; color: #2244bb; background: none; border: none;
@@ -145,9 +167,44 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     flex-shrink: 1; min-width: 0;
   }
-  #header-tabs { display: flex; gap: 4px; flex-shrink: 0; margin-left: 8px; }
+  /* header-collapse: tabs + auth inline on desktop */
+  #header-collapse { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  /* tabs hidden in home mode; visible in chart mode */
+  #header-tabs { display: none; gap: 4px; flex-shrink: 0; }
+  #app-header.chart-mode #header-tabs { display: flex; }
   #header-tabs .tab-btn { padding: 7px 18px; font-size: 0.85em; flex: none; }
   #backBtn { flex-shrink: 0; }
+
+  /* ── Hamburger (mobile only) ───────────────────────────── */
+  .hamburger-btn {
+    display: none;
+    padding: 7px 11px; border: 1px solid #ccc; border-radius: 5px;
+    background: #f8f8f5; color: #555; font-size: 1.1em;
+    cursor: pointer; flex-shrink: 0; line-height: 1;
+  }
+  .hamburger-btn:hover { background: #e8e8e4; }
+
+  @media (max-width: 600px) {
+    .hamburger-btn { display: block; }
+    #header-collapse {
+      display: none;
+      position: absolute; top: 100%; right: 0;
+      background: #fff; box-shadow: 0 6px 20px rgba(0,0,0,0.14);
+      border-radius: 0 0 10px 10px; padding: 10px 14px;
+      flex-direction: column; align-items: stretch;
+      gap: 8px; z-index: 300; min-width: 200px;
+    }
+    #app-header.menu-open #header-collapse { display: flex; }
+    /* In chart mode + open: show tabs full-width */
+    #app-header.chart-mode.menu-open #header-tabs { display: flex; width: 100%; }
+    /* Auth zone stacks vertically in mobile menu */
+    #header-collapse #auth-zone {
+      display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+    }
+    #header-collapse #auth-zone .auth-btn { width: 100%; text-align: center; }
+    #header-collapse #user-info { flex-direction: column; gap: 6px; align-items: stretch; }
+    #app-header { flex-wrap: nowrap; }
+  }
 
   @media (min-width: 900px) {
     #prog-layout.transit-active {
@@ -176,7 +233,7 @@
     padding: 16px; text-align: center;
     color: #999; font-size: 0.85em;
   }
-  #tl-tooltip {
+  #tl-tooltip, #chart-tooltip {
     position: fixed; z-index: 600; pointer-events: none;
     background: rgba(28,28,28,0.88); color: #fff;
     padding: 4px 9px; border-radius: 5px;
@@ -246,7 +303,7 @@
   #app-header {
     width: 100%; max-width: 480px; padding: 0 8px;
     display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 18px;
+    margin-bottom: 18px; position: relative;
   }
   #app-header h1 { margin-bottom: 0; }
   #auth-zone { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
@@ -420,19 +477,22 @@
   <div id="header-chart">
     <button id="backBtn" class="auth-btn">← Новая</button>
     <span id="header-chart-name"></span>
+  </div>
+  <div id="header-collapse">
     <div id="header-tabs">
       <button class="tab-btn active" id="tabNatal">Натальная карта</button>
       <button class="tab-btn" id="tabTransit">Прогностика</button>
     </div>
-  </div>
-  <div id="auth-zone">
-    <button id="loginBtn" class="auth-btn primary">Войти</button>
-    <div id="user-info" style="display:none">
-      <span id="user-email-short"></span>
-      <button id="chartsBtn" class="auth-btn">📂 Карты</button>
-      <button id="logoutBtn" class="auth-btn ghost">Выйти</button>
+    <div id="auth-zone">
+      <button id="loginBtn" class="auth-btn primary">Войти</button>
+      <div id="user-info" style="display:none">
+        <span id="user-email-short"></span>
+        <button id="chartsBtn" class="auth-btn">📂 Карты</button>
+        <button id="logoutBtn" class="auth-btn ghost">Выйти</button>
+      </div>
     </div>
   </div>
+  <button id="hamburger-btn" class="hamburger-btn" aria-label="Меню">☰</button>
 </div>
 
 <div id="form-wrap">
@@ -494,18 +554,42 @@
       </div>
       <!-- Universal date navigator -->
       <div id="date-nav">
-        <button class="nav-arrow" id="nav-prev" title="На день назад">&#9664;</button>
+        <div class="nav-group">
+          <button class="nav-arrow nav-year" id="nav-prev-year" title="-1 год">&#9664;&#9664;&#9664;</button>
+          <span class="nav-lbl">год</span>
+        </div>
+        <div class="nav-group">
+          <button class="nav-arrow nav-month" id="nav-prev-month" title="-1 месяц">&#9664;&#9664;</button>
+          <span class="nav-lbl">мес</span>
+        </div>
+        <div class="nav-group">
+          <button class="nav-arrow nav-day" id="nav-prev-day" title="-1 день">&#9664;</button>
+          <span class="nav-lbl">день</span>
+        </div>
         <div id="nav-center">
-          <span id="transit-date-lbl">Сегодня</span>
+          <span id="transit-date-lbl" title="Нажмите для выбора даты">Сегодня</span>
+          <input type="date" id="nav-date-input" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px">
           <button id="nav-today">↺ Сегодня</button>
         </div>
-        <button class="nav-arrow" id="nav-next" title="На день вперёд">&#9654;</button>
+        <div class="nav-group">
+          <button class="nav-arrow nav-day" id="nav-next-day" title="+1 день">&#9654;</button>
+          <span class="nav-lbl">день</span>
+        </div>
+        <div class="nav-group">
+          <button class="nav-arrow nav-month" id="nav-next-month" title="+1 месяц">&#9654;&#9654;</button>
+          <span class="nav-lbl">мес</span>
+        </div>
+        <div class="nav-group">
+          <button class="nav-arrow nav-year" id="nav-next-year" title="+1 год">&#9654;&#9654;&#9654;</button>
+          <span class="nav-lbl">год</span>
+        </div>
       </div>
     </div>
   </div>
   <div id="transit-tl"></div>
 </div>
 <div id="tl-tooltip"></div>
+<div id="chart-tooltip"></div>
 
 <table id="info-table" style="display:none">
   <thead><tr><th>Планета</th><th>Знак</th><th>Позиция</th><th>Дом</th></tr></thead>
@@ -608,6 +692,30 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   closeChartsPanel();
 });
 
+// ── Hamburger menu (mobile) ───────────────────────────────────────────────────
+
+const hamburgerBtn = document.getElementById('hamburger-btn');
+const appHeader    = document.getElementById('app-header');
+
+hamburgerBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  appHeader.classList.toggle('menu-open');
+});
+
+// Close on outside click
+document.addEventListener('click', e => {
+  if (appHeader.classList.contains('menu-open') && !appHeader.contains(e.target)) {
+    appHeader.classList.remove('menu-open');
+  }
+});
+
+// Close when a tab/button inside the menu is clicked
+document.getElementById('header-collapse').addEventListener('click', e => {
+  if (e.target.closest('.tab-btn, .auth-btn')) {
+    appHeader.classList.remove('menu-open');
+  }
+});
+
 // ── Charts panel ──────────────────────────────────────────────────────────────
 
 const chartsPanel = document.getElementById('charts-panel');
@@ -706,14 +814,23 @@ const SIGN_NAMES = ['Овен','Телец','Близнецы','Рак','Лев'
 const ROMAN      = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
 const ANGULAR    = { 0: 'As', 3: 'Ic', 6: 'Ds', 9: 'Mc' };
 
-// Hard aspects → red, soft → black
+// Natal aspects — dynamic orbs via getNatalOrb()
 const ASPECTS = [
-  { angle: 0,   orb: 8,  color: '#2244bb', width: 1, dash: '', symbol: '☌\uFE0E', type: 'conj' },
-  { angle: 60,  orb: 5,  color: '#FF0000',    width: 1, dash: '', symbol: '✶' },
-  { angle: 90,  orb: 7,  color: '#000000', width: 1, dash: '',    symbol: '□' },
-  { angle: 120, orb: 7,  color: '#FF0000',    width: 1, dash: '',    symbol: '△' },
-  { angle: 180, orb: 8,  color: '#000000', width: 1, dash: '',    symbol: '—' },
+  { angle: 0,   color: '#2244bb', width: 1, dash: '', symbol: '☌\uFE0E', type: 'conj', name: 'Соединение' },
+  { angle: 60,  color: '#FF0000', width: 1, dash: '', symbol: '✶',       name: 'Секстиль' },
+  { angle: 90,  color: '#000000', width: 1, dash: '', symbol: '□',       name: 'Квадрат' },
+  { angle: 120, color: '#FF0000', width: 1, dash: '', symbol: '△',       name: 'Трин' },
+  { angle: 180, color: '#000000', width: 1, dash: '', symbol: '☍\uFE0E', name: 'Оппозиция' },
 ];
+
+// Dynamic natal orb: conjunction 8°/6°, trine & opposition 7°/6°, square & sextile 6°
+// +1° if Sun (0) or Moon (1) is involved
+function getNatalOrb(asp, id1, id2) {
+  const hasSunMoon = (id1 === 0 || id1 === 1 || id2 === 0 || id2 === 1);
+  if (asp.angle === 0)   return hasSunMoon ? 8 : 6;
+  if (asp.angle === 180 || asp.angle === 120) return hasSunMoon ? 7 : 6;
+  return 6;
+}
 
 // ── Layout (matching SVG template) ───────────────────────────────────────────
 
@@ -953,6 +1070,40 @@ function lonToRad(lon, asc) { return (180 - (lon - asc)) * Math.PI / 180; }
 function polar(a, r)         { return { x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) }; }
 function angDiff(a, b)       { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
 
+// ── Format helpers ────────────────────────────────────────────────────────────
+
+function fmtLon(lon) {
+  const norm = ((lon % 360) + 360) % 360;
+  const signIdx = Math.floor(norm / 30) % 12;
+  const inSign  = norm % 30;
+  const deg = Math.floor(inSign);
+  const min = Math.floor((inSign - deg) * 60);
+  return `${deg}°${String(min).padStart(2,'0')}' ${SIGN_NAMES[signIdx]}`;
+}
+
+function fmtOrb(orbDeg) {
+  const d = Math.floor(orbDeg);
+  const m = Math.round((orbDeg - d) * 60);
+  return `орбис ${d}°${String(m).padStart(2,'0')}'`;
+}
+
+// ── Chart tooltip ─────────────────────────────────────────────────────────────
+
+const _ctEl = () => document.getElementById('chart-tooltip');
+function showChartTip(text, e) {
+  const el = _ctEl();
+  el.textContent = text;
+  el.style.display = 'block';
+  el.style.left = (e.clientX + 14) + 'px';
+  el.style.top  = (e.clientY - 30) + 'px';
+}
+function moveChartTip(e) {
+  const el = _ctEl();
+  el.style.left = (e.clientX + 14) + 'px';
+  el.style.top  = (e.clientY - 30) + 'px';
+}
+function hideChartTip() { _ctEl().style.display = 'none'; }
+
 // ── SVG factory ───────────────────────────────────────────────────────────────
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -1095,6 +1246,8 @@ function drawZodiacGlyphs(g, asc) {
 
 // ── Cusp labels outside ring ──────────────────────────────────────────────────
 
+const ANGULAR_NAMES = { 0: 'Асцендент', 3: 'IC', 6: 'Десцендент', 9: 'MC' };
+
 function drawHouseLabels(g, cusps, asc) {
   cusps.forEach((cusp, i) => {
     const a    = lonToRad(cusp + 5, asc);   // +5 degrees offset past cusp line
@@ -1102,14 +1255,20 @@ function drawHouseLabels(g, cusps, asc) {
     const deg  = Math.floor(cusp % 30);
     const name = ANGULAR[i] ?? ROMAN[i];
     const isAng = ANGULAR[i] !== undefined;
+    const tipText = `${ROMAN[i]} дом${isAng ? `  ${ANGULAR_NAMES[i]}` : ''}  ${fmtLon(cusp)}`;
 
-    g.appendChild(lblSup(p.x, p.y, name, deg, {
+    const labelEl = lblSup(p.x, p.y, name, deg, {
       'font-size': isAng ? 13 : 11,
       fill: isAng ? '#111' : '#555',
       'font-weight': isAng ? 'bold' : 'normal',
       'text-anchor': 'middle',
       'dominant-baseline': 'central',
-    }));
+      style: 'cursor:default',
+    });
+    labelEl.addEventListener('mouseover', e => showChartTip(tipText, e));
+    labelEl.addEventListener('mousemove', moveChartTip);
+    labelEl.addEventListener('mouseout', hideChartTip);
+    g.appendChild(labelEl);
   });
 }
 
@@ -1121,7 +1280,10 @@ function drawAspects(g, planets, asc) {
     for (let j = i + 1; j < planets.length; j++) {
       const diff = angDiff(planets[i].longitude, planets[j].longitude);
       for (const asp of ASPECTS) {
-        if (Math.abs(diff - asp.angle) <= asp.orb) {
+        const orb = getNatalOrb(asp, planets[i].id, planets[j].id);
+        const actualOrb = Math.abs(diff - asp.angle);
+        if (actualOrb <= orb) {
+          const tipText = `${planets[i].glyph} ${asp.name} ${planets[j].glyph}  ${fmtOrb(actualOrb)}`;
           if (asp.type === 'conj') {
             // Small ellipse on the inner circle boundary, under the planets
             let l1 = planets[i].longitude, l2 = planets[j].longitude;
@@ -1132,17 +1294,27 @@ function drawAspects(g, planets, asc) {
             const spanRad = diff * Math.PI / 180;
             const rx = Math.max(10, spanRad * R_INNER / 2 + 8);
             const rotDeg = midA * 180 / Math.PI + 90;
-            g.appendChild(el('ellipse', {
+            const ellipseEl = el('ellipse', {
               cx: center.x, cy: center.y, rx, ry: 6,
               transform: `rotate(${rotDeg}, ${center.x}, ${center.y})`,
-              fill: 'none', stroke: asp.color, 'stroke-width': 1.5,
-            }));
+              fill: 'none', stroke: asp.color, 'stroke-width': 1.5, style: 'cursor:default',
+            });
+            ellipseEl.addEventListener('mouseover', e => showChartTip(tipText, e));
+            ellipseEl.addEventListener('mousemove', moveChartTip);
+            ellipseEl.addEventListener('mouseout', hideChartTip);
+            g.appendChild(ellipseEl);
           } else {
             const pi = polar(lonToRad(planets[i].longitude, asc), R_INNER);
             const pj = polar(lonToRad(planets[j].longitude, asc), R_INNER);
             const attrs = { stroke: asp.color, 'stroke-width': asp.width, opacity: '1' };
             if (asp.dash) attrs['stroke-dasharray'] = asp.dash;
             g.appendChild(ln(pi.x, pi.y, pj.x, pj.y, attrs));
+            // Invisible wider hit area for easier hover
+            const hitLine = ln(pi.x, pi.y, pj.x, pj.y, { stroke: 'transparent', 'stroke-width': 8, style: 'cursor:default' });
+            hitLine.addEventListener('mouseover', e => showChartTip(tipText, e));
+            hitLine.addEventListener('mousemove', moveChartTip);
+            hitLine.addEventListener('mouseout', hideChartTip);
+            g.appendChild(hitLine);
             const mid = { x: (pi.x + pj.x) / 2, y: (pi.y + pj.y) / 2 };
             g.appendChild(txt(mid.x, mid.y, asp.symbol, {
               'font-size': 9, fill: asp.color,
@@ -1211,13 +1383,18 @@ function drawPlanets(g, planets, asc) {
   labeled.forEach(p => {
     const pos = polar(p.labelAngle, GLYPH_R);
     const deg = Math.floor(p.longitude % 30);
+    const tipText = `${p.glyph} ${p.name}  ${fmtLon(p.longitude)}${p.house ? `  Дом ${ROMAN[p.house - 1]}` : ''}${p.retrograde ? '  R' : ''}`;
     const t = el('text', {
       x: pos.x, y: pos.y,
       'font-size': 24, fill: '#111',
       'text-anchor': 'middle', 'dominant-baseline': 'central',
+      style: 'cursor:default',
     });
     t.appendChild(el('tspan', {}, p.glyph));
     t.appendChild(el('tspan', { dy: '-7', 'font-size': '10', fill: '#555' }, String(deg)));
+    t.addEventListener('mouseover', e => showChartTip(tipText, e));
+    t.addEventListener('mousemove', moveChartTip);
+    t.addEventListener('mouseout', hideChartTip);
     g.appendChild(t);
     if (p.retrograde) {
       g.appendChild(txt(pos.x + 11, pos.y + 4, 'R', {
@@ -1328,21 +1505,55 @@ function updateDateNav(jd) {
   }
 }
 
-function navigateDate(delta) {
-  const base = currentTransitJD ?? computeJDNow();
-  if (!base) return;
-  currentTransitJD = base + delta;
-  if (currentMode === 'transit') {
-    renderBiwheelAt(currentTransitJD);
-  } else if (currentMode === 'direction') {
-    renderDirectionBiwheel(currentTransitJD);
-  } else {
-    renderProgressedBiwheel(currentTransitJD);
-  }
+function applyNavigatedJD(jd) {
+  currentTransitJD = jd;
+  if (currentMode === 'transit') renderBiwheelAt(currentTransitJD);
+  else if (currentMode === 'direction') renderDirectionBiwheel(currentTransitJD);
+  else renderProgressedBiwheel(currentTransitJD);
 }
 
-document.getElementById('nav-prev').addEventListener('click', () => navigateDate(-1));
-document.getElementById('nav-next').addEventListener('click', () => navigateDate(+1));
+function navigateDateBy(unit, delta) {
+  const baseJD = currentTransitJD ?? computeJDNow();
+  if (!baseJD) return;
+  let newJD;
+  if (unit === 'day') {
+    newJD = baseJD + delta;
+  } else {
+    const d = new Date((baseJD - 2440587.5) * 86400000);
+    if (unit === 'month') d.setUTCMonth(d.getUTCMonth() + delta);
+    else d.setUTCFullYear(d.getUTCFullYear() + delta);
+    newJD = d.getTime() / 86400000 + 2440587.5;
+  }
+  applyNavigatedJD(newJD);
+}
+
+document.getElementById('nav-prev-day').addEventListener('click', () => navigateDateBy('day', -1));
+document.getElementById('nav-next-day').addEventListener('click', () => navigateDateBy('day', +1));
+document.getElementById('nav-prev-month').addEventListener('click', () => navigateDateBy('month', -1));
+document.getElementById('nav-next-month').addEventListener('click', () => navigateDateBy('month', +1));
+document.getElementById('nav-prev-year').addEventListener('click', () => navigateDateBy('year', -1));
+document.getElementById('nav-next-year').addEventListener('click', () => navigateDateBy('year', +1));
+
+document.getElementById('transit-date-lbl').addEventListener('click', () => {
+  const baseJD = currentTransitJD ?? computeJDNow();
+  if (baseJD) {
+    const d = new Date((baseJD - 2440587.5) * 86400000);
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    document.getElementById('nav-date-input').value = `${yyyy}-${mm}-${dd}`;
+  }
+  try { document.getElementById('nav-date-input').showPicker(); }
+  catch { document.getElementById('nav-date-input').click(); }
+});
+
+document.getElementById('nav-date-input').addEventListener('change', () => {
+  const val = document.getElementById('nav-date-input').value;
+  if (!val) return;
+  const [y, m, d] = val.split('-').map(Number);
+  applyNavigatedJD(new Date(Date.UTC(y, m - 1, d)).getTime() / 86400000 + 2440587.5);
+});
+
 document.getElementById('nav-today').addEventListener('click', () => {
   currentTransitJD = null;
   if (currentMode === 'transit') showTransitNow();
@@ -1443,6 +1654,9 @@ function drawDirectionAspects(g, natal, directed, asc) {
       const diff = angDiff(dir.longitude, na.longitude);
       for (const asp of D_ASPECTS) {
         if (Math.abs(diff - asp.angle) <= orbLimit) {
+          const actualOrb = Math.abs(diff - asp.angle);
+          const aspName = ASPECTS.find(a => a.angle === asp.angle)?.name ?? asp.symbol;
+          const tipText = `дир${dir.glyph} ${aspName} нат${na.glyph}  ${fmtOrb(actualOrb)}`;
           if (asp.angle === 0) {
             // Conjunction: ellipse arc on the divider circle
             let l1 = dir.longitude, l2 = na.longitude;
@@ -1453,11 +1667,15 @@ function drawDirectionAspects(g, natal, directed, asc) {
             const spanRad = diff * Math.PI / 180;
             const rx = Math.max(8, spanRad * R_DIVIDER / 2 + 6);
             const rotDeg = midA * 180 / Math.PI + 90;
-            g.appendChild(el('ellipse', {
+            const ellipseEl = el('ellipse', {
               cx: center.x, cy: center.y, rx, ry: 5,
               transform: `rotate(${rotDeg}, ${center.x}, ${center.y})`,
-              fill: 'none', stroke: asp.color, 'stroke-width': 1.5,
-            }));
+              fill: 'none', stroke: asp.color, 'stroke-width': 1.5, style: 'cursor:default',
+            });
+            ellipseEl.addEventListener('mouseover', e => showChartTip(tipText, e));
+            ellipseEl.addEventListener('mousemove', moveChartTip);
+            ellipseEl.addEventListener('mouseout', hideChartTip);
+            g.appendChild(ellipseEl);
           } else {
             const pd  = polar(lonToRad(dir.longitude, asc), R_BW_INNER);
             const pn  = polar(lonToRad(na.longitude, asc), R_BW_INNER);
@@ -1465,6 +1683,11 @@ function drawDirectionAspects(g, natal, directed, asc) {
             g.appendChild(ln(pd.x, pd.y, pn.x, pn.y, {
               stroke: asp.color, 'stroke-width': 1, opacity: '0.6',
             }));
+            const hitLine = ln(pd.x, pd.y, pn.x, pn.y, { stroke: 'transparent', 'stroke-width': 8, style: 'cursor:default' });
+            hitLine.addEventListener('mouseover', e => showChartTip(tipText, e));
+            hitLine.addEventListener('mousemove', moveChartTip);
+            hitLine.addEventListener('mouseout', hideChartTip);
+            g.appendChild(hitLine);
             g.appendChild(txt(mid.x, mid.y, asp.symbol, {
               'font-size': 9, fill: asp.color,
               'text-anchor': 'middle', 'dominant-baseline': 'central',
@@ -1711,13 +1934,18 @@ function drawBiwheelPlanets(g, planets, asc, rDot, rGlyph, dotColor = '#9aaa00',
   labeled.forEach(p => {
     const pos = polar(p.labelAngle, rGlyph);
     const deg = Math.floor(p.longitude % 30);
+    const tipText = `${p.glyph} ${p.name}  ${fmtLon(p.longitude)}${p.house ? `  Дом ${ROMAN[p.house - 1]}` : ''}${p.retrograde ? '  R' : ''}`;
     const t = el('text', {
       x: pos.x, y: pos.y,
       'font-size': 19, fill: glyphColor,
       'text-anchor': 'middle', 'dominant-baseline': 'central',
+      style: 'cursor:default',
     });
     t.appendChild(el('tspan', {}, p.glyph));
     t.appendChild(el('tspan', { dy: '-6', 'font-size': '9', fill: glyphColor === '#111' ? '#555' : glyphColor }, String(deg)));
+    t.addEventListener('mouseover', e => showChartTip(tipText, e));
+    t.addEventListener('mousemove', moveChartTip);
+    t.addEventListener('mouseout', hideChartTip);
     g.appendChild(t);
     if (p.retrograde) {
       g.appendChild(txt(pos.x + 9, pos.y + 3, 'R', {
@@ -1734,6 +1962,8 @@ function drawTransitAspects(g, natal, transit, asc) {
       const diff = angDiff(tr.longitude, na.longitude);
       for (const asp of ASPECTS) {
         if (Math.abs(diff - asp.angle) <= orb) {
+          const actualOrb = Math.abs(diff - asp.angle);
+          const tipText = `тр${tr.glyph} ${asp.name} нат${na.glyph}  ${fmtOrb(actualOrb)}`;
           if (asp.type === 'conj') {
             let l1 = tr.longitude, l2 = na.longitude;
             if (Math.abs(l1 - l2) > 180) { if (l1 < l2) l1 += 360; else l2 += 360; }
@@ -1743,11 +1973,15 @@ function drawTransitAspects(g, natal, transit, asc) {
             const spanRad = diff * Math.PI / 180;
             const rx = Math.max(8, spanRad * R_DIVIDER / 2 + 6);
             const rotDeg = midA * 180 / Math.PI + 90;
-            g.appendChild(el('ellipse', {
+            const ellipseEl = el('ellipse', {
               cx: center.x, cy: center.y, rx, ry: 5,
               transform: `rotate(${rotDeg}, ${center.x}, ${center.y})`,
-              fill: 'none', stroke: asp.color, 'stroke-width': 1.5,
-            }));
+              fill: 'none', stroke: asp.color, 'stroke-width': 1.5, style: 'cursor:default',
+            });
+            ellipseEl.addEventListener('mouseover', e => showChartTip(tipText, e));
+            ellipseEl.addEventListener('mousemove', moveChartTip);
+            ellipseEl.addEventListener('mouseout', hideChartTip);
+            g.appendChild(ellipseEl);
           } else {
             const pt  = polar(lonToRad(tr.longitude, asc), R_BW_INNER);
             const pn  = polar(lonToRad(na.longitude, asc), R_BW_INNER);
@@ -1755,6 +1989,11 @@ function drawTransitAspects(g, natal, transit, asc) {
             const attrs = { stroke: asp.color, 'stroke-width': asp.width, opacity: '0.6' };
             if (asp.dash) attrs['stroke-dasharray'] = asp.dash;
             g.appendChild(ln(pt.x, pt.y, pn.x, pn.y, attrs));
+            const hitLine = ln(pt.x, pt.y, pn.x, pn.y, { stroke: 'transparent', 'stroke-width': 8, style: 'cursor:default' });
+            hitLine.addEventListener('mouseover', e => showChartTip(tipText, e));
+            hitLine.addEventListener('mousemove', moveChartTip);
+            hitLine.addEventListener('mouseout', hideChartTip);
+            g.appendChild(hitLine);
             g.appendChild(txt(mid.x, mid.y, asp.symbol, {
               'font-size': 9, fill: asp.color,
               'text-anchor': 'middle', 'dominant-baseline': 'central',
@@ -1847,6 +2086,7 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
   }
 
   // 3. Exact aspects — Sun, Mercury, Venus, Mars only (Moon excluded)
+  // Orb: 2° if Sun (id=0) or Moon (id=1) is involved, else 1°
   const PROG_ASPECTS = [
     { angle: 0,   color: '#2244bb', symbol: '☌' },
     { angle: 60,  color: '#228833', symbol: '✶' },
@@ -1858,14 +2098,15 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
     const pl   = plById.get(pid);
     const lons = progLons.get(pid);
     for (const na of natalPlanets) {
+      const progOrb = (pid === 0 || na.id === 0 || na.id === 1) ? 2.0 : 1.0;
       for (const asp of PROG_ASPECTS) {
         for (let i = 1; i < DAYS - 1; i++) {
           const orb = j => Math.abs(angDiff(lons[j], na.longitude) - asp.angle);
           const d0 = orb(i-1), d1 = orb(i), d2 = orb(i+1);
-          if (d1 < d0 && d1 < d2 && d1 < 1.0) {
-            // Walk back/forward to find full 1° orb window
-            let iS = i; while (iS > 0      && orb(iS - 1) < 1.0) iS--;
-            let iE = i; while (iE < DAYS-1 && orb(iE + 1) < 1.0) iE++;
+          if (d1 < d0 && d1 < d2 && d1 < progOrb) {
+            // Walk back/forward to find full orb window
+            let iS = i; while (iS > 0      && orb(iS - 1) < progOrb) iS--;
+            let iE = i; while (iE < DAYS-1 && orb(iE + 1) < progOrb) iE++;
             events.push({ planetId: pid, type: 'aspect', jd: jdStart + i,
               startJD: jdStart + iS, endJD: jdStart + iE,
               label: pl.glyph + asp.symbol + na.glyph, color: asp.color });

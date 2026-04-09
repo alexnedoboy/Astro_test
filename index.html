@@ -2272,6 +2272,115 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
   return events;
 }
 
+// ── Direction Events ──────────────────────────────────────────────────────────
+// Solar arc directions: every planet and cusp moves by arc = (jd − birthJD) / 365.25 degrees.
+// No swe calls needed — just natal longitude + arc.
+// Finds: aspects (all planets), sign changes (planets + cusps),
+//        directed-cusp ☌ natal-planet, directed-planet ☌ natal-cusp.
+
+function computeDirectionEvents(natalPlanets, natalCusps, birthJD, jdStart, jdEnd) {
+  if (!birthJD || !natalCusps) return [];
+  const DAYS   = Math.ceil(jdEnd - jdStart) + 2;
+  const plById = new Map(PLANETS.map(p => [p.id, p]));
+
+  const arcAt  = i => (jdStart + i - birthJD) / 365.25;
+  const dirLon = (natalLon, i) => ((natalLon + arcAt(i)) % 360 + 360) % 360;
+
+  const events = [];
+
+  const DIR_ASP = [
+    { angle: 0,   color: '#2244bb', symbol: '☌\uFE0E' },
+    { angle: 60,  color: '#228833', symbol: '✶' },
+    { angle: 90,  color: '#cc1111', symbol: '□' },
+    { angle: 120, color: '#228833', symbol: '△' },
+    { angle: 180, color: '#cc1111', symbol: '☍\uFE0E' },
+  ];
+
+  // 1. Aspects: all directed planets → all natal planets
+  for (const dirPl of PLANETS) {
+    const natalDirLon = natalPlanets.find(p => p.id === dirPl.id)?.longitude;
+    if (natalDirLon == null) continue;
+    for (const na of natalPlanets) {
+      const natPl = plById.get(na.id);
+      if (!natPl) continue;
+      const orbLimit = (dirPl.id === 0 || dirPl.id === 1 || na.id === 0 || na.id === 1) ? 2.0 : 1.0;
+      for (const asp of DIR_ASP) {
+        for (let i = 1; i < DAYS - 1; i++) {
+          const orb = j => Math.abs(angDiff(dirLon(natalDirLon, j), na.longitude) - asp.angle);
+          const d0 = orb(i-1), d1 = orb(i), d2 = orb(i+1);
+          if (d1 < d0 && d1 < d2 && d1 < orbLimit) {
+            events.push({ type: 'dir_aspect', jd: jdStart + i,
+              label: dirPl.glyph + asp.symbol + natPl.glyph, color: asp.color });
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Sign changes of directed planets
+  for (const p of PLANETS) {
+    const natalLon = natalPlanets.find(pl => pl.id === p.id)?.longitude;
+    if (natalLon == null) continue;
+    for (let i = 1; i < DAYS; i++) {
+      const s0 = Math.floor(dirLon(natalLon, i-1) / 30);
+      const s1 = Math.floor(dirLon(natalLon, i)   / 30);
+      if (s0 !== s1)
+        events.push({ type: 'dir_sign', jd: jdStart + i,
+          label: p.glyph + '→' + SIGNS[s1 % 12], color: '#777' });
+    }
+  }
+
+  // 3. Sign changes of directed cusps — emit pairs (1/7, 2/8, … 6/12) as one event
+  for (let ci = 0; ci < 6; ci++) {
+    const natalCusp = natalCusps[ci];
+    for (let i = 1; i < DAYS; i++) {
+      const s0 = Math.floor(dirLon(natalCusp, i-1) / 30);
+      const s1 = Math.floor(dirLon(natalCusp, i)   / 30);
+      if (s0 !== s1) {
+        const s1opp = (s1 + 6) % 12;
+        events.push({ type: 'dir_cusp_sign', jd: jdStart + i,
+          label: ROMAN[ci] + '/' + ROMAN[ci+6] + '→' + SIGNS[s1 % 12] + SIGNS[s1opp], color: '#555' });
+      }
+    }
+  }
+
+  // 4. Directed cusps ☌ natal planets
+  for (let ci = 0; ci < 12; ci++) {
+    const natalCusp = natalCusps[ci];
+    for (const na of natalPlanets) {
+      const natPl = plById.get(na.id);
+      if (!natPl) continue;
+      const orbLimit = (na.id === 0 || na.id === 1) ? 2.0 : 1.0;
+      for (let i = 1; i < DAYS - 1; i++) {
+        const orb = j => Math.abs(angDiff(dirLon(natalCusp, j), na.longitude));
+        const d0 = orb(i-1), d1 = orb(i), d2 = orb(i+1);
+        if (d1 < d0 && d1 < d2 && d1 < orbLimit)
+          events.push({ type: 'dir_cusp_planet', jd: jdStart + i,
+            label: ROMAN[ci] + '☌\uFE0E' + natPl.glyph, color: '#2244bb' });
+      }
+    }
+  }
+
+  // 5. Directed planets ☌ natal cusps
+  for (const dirPl of PLANETS) {
+    const natalDirLon = natalPlanets.find(p => p.id === dirPl.id)?.longitude;
+    if (natalDirLon == null) continue;
+    const orbLimit = (dirPl.id === 0 || dirPl.id === 1) ? 2.0 : 1.0;
+    for (let ci = 0; ci < 12; ci++) {
+      const natCusp = natalCusps[ci];
+      for (let i = 1; i < DAYS - 1; i++) {
+        const orb = j => Math.abs(angDiff(dirLon(natalDirLon, j), natCusp));
+        const d0 = orb(i-1), d1 = orb(i), d2 = orb(i+1);
+        if (d1 < d0 && d1 < d2 && d1 < orbLimit)
+          events.push({ type: 'dir_planet_cusp', jd: jdStart + i,
+            label: dirPl.glyph + '☌\uFE0E' + ROMAN[ci], color: '#8833bb' });
+      }
+    }
+  }
+
+  return events;
+}
+
 function computeAndRenderTimeline(natalPlanets) {
   const tl = document.getElementById('transit-tl');
   if (cachedTimeline) { renderTimeline(cachedTimeline); return; }
@@ -2287,7 +2396,10 @@ function computeAndRenderTimeline(natalPlanets) {
       const progEvents  = natalData?.birthJD
         ? computeProgressedEvents(natalPlanets, natalData.cusps, natalData.birthJD, transitData.jdStart, transitData.jdEnd)
         : [];
-      cachedTimeline = { ...transitData, progEvents };
+      const dirEvents   = natalData?.birthJD
+        ? computeDirectionEvents(natalPlanets, natalData.cusps, natalData.birthJD, transitData.jdStart, transitData.jdEnd)
+        : [];
+      cachedTimeline = { ...transitData, progEvents, dirEvents };
       renderTimeline(cachedTimeline);
     } catch (e) {
       tl.innerHTML = `<div class="tl-status">Ошибка: ${e.message}</div>`;
@@ -2476,7 +2588,7 @@ function computeFastTransits(natalPlanet, jdStart, jdEnd) {
   return periods;
 }
 
-function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [] }) {
+function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dirEvents = [] }) {
   const tl = document.getElementById('transit-tl');
   if (!periods.length) {
     tl.innerHTML = '<div class="tl-status">Нет активных транзитов в этом периоде.</div>';
@@ -2575,7 +2687,9 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [] }) {
   const PROG_TICK_H = progPoints.length > 0 ? 28 : 0;
   const PROG_SECTION_H = PROG_ASP_H + PROG_TICK_H;
 
-  let y = HDR_H + PROG_SECTION_H;
+  const DIR_TICK_H = dirEvents.length > 0 ? 36 : 0;
+
+  let y = HDR_H + PROG_SECTION_H + DIR_TICK_H;
   for (const r of rows) { r.y = y; y += r.h; }
   const TL_H = y + 4;
 
@@ -2600,6 +2714,16 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [] }) {
       'font-style': 'italic',
     }));
     svgL.appendChild(ln(0, HDR_H + PROG_SECTION_H, LABEL_W, HDR_H + PROG_SECTION_H,
+      { stroke: '#bbb', 'stroke-width': 1 }));
+  }
+  if (DIR_TICK_H > 0) {
+    const dirY = HDR_H + PROG_SECTION_H;
+    svgL.appendChild(el('rect', { x:0, y:dirY, width:LABEL_W, height:DIR_TICK_H, fill:'#f5ede0' }));
+    svgL.appendChild(txt(LABEL_W/2, dirY + DIR_TICK_H/2, 'Дир', {
+      'font-size': 9, fill: '#aaa', 'text-anchor': 'middle', 'dominant-baseline': 'central',
+      'font-style': 'italic',
+    }));
+    svgL.appendChild(ln(0, dirY + DIR_TICK_H, LABEL_W, dirY + DIR_TICK_H,
       { stroke: '#bbb', 'stroke-width': 1 }));
   }
   rows.forEach((r, i) => {
@@ -2707,6 +2831,29 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [] }) {
           'text-anchor': 'middle', 'dominant-baseline': 'hanging',
         }));
       }
+    }
+  }
+
+  // ── Direction events section ─────────────────────────────────────────────────
+  if (DIR_TICK_H > 0) {
+    const dirY = HDR_H + PROG_SECTION_H;
+    svgR.appendChild(el('rect', { x:0, y:dirY, width:BARS_W, height:DIR_TICK_H, fill:'#f5ede0', opacity:'0.55' }));
+    svgR.appendChild(ln(0, dirY + DIR_TICK_H, BARS_W, dirY + DIR_TICK_H,
+      { stroke: '#bbb', 'stroke-width': 1 }));
+
+    const rowY   = [ dirY + 2, dirY + 14, dirY + 26 ]; // three alternating rows
+    const TICK_H = 9;
+    const sorted = [...dirEvents].sort((a, b) => a.jd - b.jd);
+    let lastX = -999, rowIdx = 0;
+    for (const ev of sorted) {
+      const xE = xOf(ev.jd);
+      if (xE - lastX < 36) rowIdx = (rowIdx + 1) % 3; else rowIdx = 0;
+      lastX = xE;
+      const lblY = rowY[rowIdx];
+      svgR.appendChild(txt(xE, lblY, ev.label, {
+        'font-size': 10, fill: ev.color,
+        'text-anchor': 'middle', 'dominant-baseline': 'hanging',
+      }));
     }
   }
 

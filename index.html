@@ -361,7 +361,7 @@
   }
   #transit-sub-bar.visible { display: flex; }
   #transit-sub-bar .tab-btn {
-    font-size: 0.82em; padding: 6px 0;
+    font-size: 0.74em; padding: 5px 0;
     background: #f0f0ec; border-color: #ddd; color: #777;
   }
   #transit-sub-bar .tab-btn.active { background: #666; color: #fff; border-color: #666; }
@@ -482,6 +482,7 @@
     <div id="prog-controls">
       <!-- Mode switcher -->
       <div id="transit-sub-bar">
+        <button class="tab-btn" id="subTabNatal">Натал</button>
         <button class="tab-btn active" id="subTabTransit">Транзиты</button>
         <button class="tab-btn" id="subTabProgressed">Прогрессии</button>
         <button class="tab-btn" id="subTabDirection">Дирекции</button>
@@ -1522,9 +1523,8 @@ document.getElementById('tabTransit').addEventListener('click', () => {
   currentMode = 'transit';
   currentTransitJD = null;
   setActiveTab('transit');
-  document.getElementById('subTabTransit').classList.add('active');
-  document.getElementById('subTabProgressed').classList.remove('active');
-  document.getElementById('subTabDirection').classList.remove('active');
+  setSubTab('subTabTransit');
+  document.getElementById('date-nav').style.display = '';
   document.getElementById('transit-mode-content').style.display = 'block';
   document.getElementById('prog-mode-content').style.display = 'none';
   showTransitNow();
@@ -1532,12 +1532,27 @@ document.getElementById('tabTransit').addEventListener('click', () => {
   computeAndRenderTimeline(natalData.planets);
 });
 
+function setSubTab(id) {
+  ['subTabNatal','subTabTransit','subTabProgressed','subTabDirection'].forEach(t =>
+    document.getElementById(t).classList.toggle('active', t === id)
+  );
+}
+
+document.getElementById('subTabNatal').addEventListener('click', () => {
+  if (!natalData) return;
+  currentMode = 'natal';
+  setSubTab('subTabNatal');
+  document.getElementById('transit-mode-content').style.display = 'none';
+  document.getElementById('prog-mode-content').style.display = 'none';
+  document.getElementById('date-nav').style.display = 'none';
+  renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
+});
+
 document.getElementById('subTabTransit').addEventListener('click', () => {
   if (!natalData || !swe) return;
   currentMode = 'transit';
-  document.getElementById('subTabTransit').classList.add('active');
-  document.getElementById('subTabProgressed').classList.remove('active');
-  document.getElementById('subTabDirection').classList.remove('active');
+  setSubTab('subTabTransit');
+  document.getElementById('date-nav').style.display = '';
   document.getElementById('transit-mode-content').style.display = 'block';
   document.getElementById('prog-mode-content').style.display = 'none';
   // Navigate to current date or keep currentTransitJD
@@ -1548,9 +1563,8 @@ document.getElementById('subTabTransit').addEventListener('click', () => {
 document.getElementById('subTabProgressed').addEventListener('click', () => {
   if (!natalData || !swe) return;
   currentMode = 'progressed';
-  document.getElementById('subTabProgressed').classList.add('active');
-  document.getElementById('subTabTransit').classList.remove('active');
-  document.getElementById('subTabDirection').classList.remove('active');
+  setSubTab('subTabProgressed');
+  document.getElementById('date-nav').style.display = '';
   document.getElementById('transit-mode-content').style.display = 'none';
   document.getElementById('prog-mode-content').style.display = 'block';
   renderProgressedBiwheel(currentTransitJD);
@@ -1559,9 +1573,8 @@ document.getElementById('subTabProgressed').addEventListener('click', () => {
 document.getElementById('subTabDirection').addEventListener('click', () => {
   if (!natalData || !swe) return;
   currentMode = 'direction';
-  document.getElementById('subTabDirection').classList.add('active');
-  document.getElementById('subTabTransit').classList.remove('active');
-  document.getElementById('subTabProgressed').classList.remove('active');
+  setSubTab('subTabDirection');
+  document.getElementById('date-nav').style.display = '';
   document.getElementById('transit-mode-content').style.display = 'none';
   document.getElementById('prog-mode-content').style.display = 'none';
   renderDirectionBiwheel(currentTransitJD);

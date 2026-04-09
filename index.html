@@ -256,7 +256,8 @@
   }
 
   #tl-filter {
-    display: flex; flex-wrap: wrap; gap: 2px 4px;
+    display: none; /* hidden — planet filter checkboxes, restore to: flex */
+    flex-wrap: wrap; gap: 2px 4px;
     padding: 4px 0 4px;
   }
   #tl-filter label {
@@ -423,6 +424,20 @@
   .chart-del { background: none; border: none; color: #ddd; cursor: pointer; font-size: 0.9em; padding: 4px 6px; border-radius: 4px; flex-shrink: 0; }
   .chart-del:hover { color: #e44; background: #fff0f0; }
   .charts-empty { text-align: center; color: #ccc; font-size: 0.84em; padding: 36px 16px; line-height: 1.6; }
+
+  /* ── Home recent charts ───────────────────────────────────── */
+  #home-charts {
+    width: 100%; max-width: 480px;
+    margin: 18px auto 0;
+    display: none;
+  }
+  #home-charts.visible { display: block; }
+  #home-charts-title {
+    font-size: 0.72em; color: #bbb; text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 6px; padding: 0 2px;
+  }
+  #home-charts-list .chart-item { border-radius: 9px; border-bottom: none; margin-bottom: 4px; background: #f9f9f6; }
+  #home-charts-list .chart-item:hover { background: #f0f0eb; }
   svg text { font-family: 'Apple Symbols', 'Segoe UI Symbol', 'Noto Sans Symbols', serif; }
 
   #transit-sub-bar {
@@ -550,6 +565,12 @@
   </div>
 </div>
 
+<!-- ── Recent charts on home page ──────────────────────────── -->
+<div id="home-charts">
+  <div id="home-charts-title">Последние карты</div>
+  <div id="home-charts-list"></div>
+</div>
+
 <div id="prog-layout">
   <div id="prog-left">
     <div id="chart-wrap"></div>
@@ -640,9 +661,39 @@ function updateAuthUI(user) {
     loginBtn.style.display = 'none';
     userInfo.style.display = 'flex';
     emailEl.textContent = user.email ?? user.user_metadata?.full_name ?? '';
+    loadHomeCharts();
   } else {
     loginBtn.style.display = '';
     userInfo.style.display = 'none';
+    document.getElementById('home-charts').classList.remove('visible');
+  }
+}
+
+async function loadHomeCharts() {
+  const wrap = document.getElementById('home-charts');
+  const list = document.getElementById('home-charts-list');
+  list.innerHTML = '';
+  const { data, error } = await sb.from('charts').select('*').order('created_at', { ascending: false });
+  if (error || !data?.length) { wrap.classList.remove('visible'); return; }
+  wrap.classList.add('visible');
+  for (const c of data) {
+    const div = document.createElement('div');
+    div.className = 'chart-item';
+    div.innerHTML = `
+      <div class="chart-item-info">
+        <div class="chart-item-name">${c.name}</div>
+        <div class="chart-item-meta">${c.birth_date ?? ''} ${c.birth_time ?? ''}&nbsp;·&nbsp;${c.city ?? ''}</div>
+      </div>
+      <button class="chart-del" title="Удалить">🗑</button>`;
+    div.querySelector('.chart-item-info').addEventListener('click', () => loadChartFromDB(c));
+    div.querySelector('.chart-del').addEventListener('click', async e => {
+      e.stopPropagation();
+      if (!confirm(`Удалить «${c.name}»?`)) return;
+      await sb.from('charts').delete().eq('id', c.id);
+      loadHomeCharts();
+      loadChartsList();
+    });
+    list.appendChild(div);
   }
 }
 
@@ -1001,6 +1052,7 @@ let pendingChartName = null;  // set by loadChartFromDB before calcBtn.click()
 
 function enterChartMode(name) {
   document.getElementById('form-wrap').style.display = 'none';
+  document.getElementById('home-charts').style.display = 'none';
   document.getElementById('app-header').classList.add('chart-mode');
   document.getElementById('header-chart-name').textContent = name || '';
   document.getElementById('prog-layout').classList.add('visible');
@@ -1008,6 +1060,7 @@ function enterChartMode(name) {
 
 function exitChartMode() {
   document.getElementById('form-wrap').style.display = 'block';
+  if (currentUser) document.getElementById('home-charts').style.display = '';
   document.getElementById('app-header').classList.remove('chart-mode');
   document.getElementById('prog-layout').classList.remove('visible', 'transit-active');
   document.getElementById('transit-tl').style.display = 'none';
@@ -1540,11 +1593,60 @@ function updateDateNav(jd) {
   }
 }
 
-function applyNavigatedJD(jd) {
+function applyNavigatedJD(jd, unit = null) {
   currentTransitJD = jd;
   if (currentMode === 'transit') renderBiwheelAt(currentTransitJD);
   else if (currentMode === 'direction') renderDirectionBiwheel(currentTransitJD);
   else renderProgressedBiwheel(currentTransitJD);
+  syncTimelineCursor(unit);
+}
+
+function switchModeAndNavigate(mode, jd) {
+  if (!natalData || !swe) return;
+  if (mode === 'direction') {
+    currentMode = 'direction';
+    setSubTab('subTabDirection');
+    document.getElementById('date-nav').style.display = '';
+    document.getElementById('transit-mode-content').style.display = 'none';
+    document.getElementById('prog-mode-content').style.display = 'none';
+    renderDirectionBiwheel(jd);
+  } else if (mode === 'progressed') {
+    currentMode = 'progressed';
+    setSubTab('subTabProgressed');
+    document.getElementById('date-nav').style.display = '';
+    document.getElementById('transit-mode-content').style.display = 'none';
+    document.getElementById('prog-mode-content').style.display = 'block';
+    renderProgressedBiwheel(jd);
+  } else {
+    currentMode = 'transit';
+    setSubTab('subTabTransit');
+    document.getElementById('date-nav').style.display = '';
+    document.getElementById('transit-mode-content').style.display = 'block';
+    document.getElementById('prog-mode-content').style.display = 'none';
+    renderBiwheelAt(jd);
+  }
+  syncTimelineCursor();
+}
+
+function syncTimelineCursor(unit = null) {
+  if (!cachedTimeline) return;
+  const jd = currentTransitJD ?? computeJDNow();
+  const { jdStart, jdEnd } = cachedTimeline;
+  if (jd >= jdStart && jd <= jdEnd) {
+    renderTimeline({ ...cachedTimeline, jdCursor: jd });
+  } else if (unit === 'day' || unit === 'month') {
+    // Edge reached by day/month arrows → extend timeline like "+"
+    if (jd < jdStart) tlPastYears++;
+    else tlFutureYears++;
+    const savedCenter = cachedTimeline.center;
+    cachedTimeline = null; fastCache = {};
+    if (natalData) computeAndRenderTimeline(natalData.planets, savedCenter);
+  } else {
+    // Year navigation or date picker → rebuild centered on new date
+    cachedTimeline = null; fastCache = {};
+    tlPastYears = 0; tlFutureYears = 0;
+    if (natalData) computeAndRenderTimeline(natalData.planets);
+  }
 }
 
 function navigateDateBy(unit, delta) {
@@ -1559,7 +1661,7 @@ function navigateDateBy(unit, delta) {
     else d.setUTCFullYear(d.getUTCFullYear() + delta);
     newJD = d.getTime() / 86400000 + 2440587.5;
   }
-  applyNavigatedJD(newJD);
+  applyNavigatedJD(newJD, unit);
 }
 
 document.getElementById('nav-prev-day').addEventListener('click', () => navigateDateBy('day', -1));
@@ -1594,6 +1696,7 @@ document.getElementById('nav-today').addEventListener('click', () => {
   if (currentMode === 'transit') showTransitNow();
   else if (currentMode === 'direction') renderDirectionBiwheel(null);
   else renderProgressedBiwheel(null);
+  syncTimelineCursor();
 });
 
 function renderDirectionBiwheel(jd = null) {
@@ -2381,17 +2484,21 @@ function computeDirectionEvents(natalPlanets, natalCusps, birthJD, jdStart, jdEn
   return events;
 }
 
-function computeAndRenderTimeline(natalPlanets) {
+function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
   const tl = document.getElementById('transit-tl');
-  if (cachedTimeline) { renderTimeline(cachedTimeline); return; }
+  if (cachedTimeline) {
+    renderTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() });
+    return;
+  }
   tl.innerHTML = '<div class="tl-status">Вычисление транзитов…</div>';
   setTimeout(() => {
     try {
       const now     = new Date();
       const jdToday = swe.julday(now.getUTCFullYear(), now.getUTCMonth() + 1,
         now.getUTCDate(), now.getUTCHours() + now.getUTCMinutes() / 60);
-      const jdStart = jdToday - 182 - tlPastYears * 365;
-      const jdEnd   = jdToday + 183 + tlFutureYears * 365;
+      const center  = centerOverride ?? currentTransitJD ?? jdToday;
+      const jdStart = center - 182 - tlPastYears * 365;
+      const jdEnd   = center + 183 + tlFutureYears * 365;
       const transitData = computeTransits(natalPlanets, jdStart, jdEnd);
       const progEvents  = natalData?.birthJD
         ? computeProgressedEvents(natalPlanets, natalData.cusps, natalData.birthJD, transitData.jdStart, transitData.jdEnd)
@@ -2399,8 +2506,8 @@ function computeAndRenderTimeline(natalPlanets) {
       const dirEvents   = natalData?.birthJD
         ? computeDirectionEvents(natalPlanets, natalData.cusps, natalData.birthJD, transitData.jdStart, transitData.jdEnd)
         : [];
-      cachedTimeline = { ...transitData, progEvents, dirEvents };
-      renderTimeline(cachedTimeline);
+      cachedTimeline = { ...transitData, progEvents, dirEvents, center };
+      renderTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? jdToday });
     } catch (e) {
       tl.innerHTML = `<div class="tl-status">Ошибка: ${e.message}</div>`;
     }
@@ -2588,7 +2695,7 @@ function computeFastTransits(natalPlanet, jdStart, jdEnd) {
   return periods;
 }
 
-function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dirEvents = [] }) {
+function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dirEvents = [], jdCursor = null }) {
   const tl = document.getElementById('transit-tl');
   if (!periods.length) {
     tl.innerHTML = '<div class="tl-status">Нет активных транзитов в этом периоде.</div>';
@@ -2687,7 +2794,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
   const PROG_TICK_H = progPoints.length > 0 ? 28 : 0;
   const PROG_SECTION_H = PROG_ASP_H + PROG_TICK_H;
 
-  const DIR_TICK_H = dirEvents.length > 0 ? 36 : 0;
+  const DIR_TICK_H = dirEvents.length > 0 ? 48 : 0;
 
   let y = HDR_H + PROG_SECTION_H + DIR_TICK_H;
   for (const r of rows) { r.y = y; y += r.h; }
@@ -2780,12 +2887,23 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
     if (i % 2 === 0)
       svgR.appendChild(el('rect', { x:0, y:r.y, width:BARS_W, height:r.h, fill:'#f7f7f4' }));
   });
+  // Helper: attach click + touch navigation to any SVG element
+  const makeNavHit = (elem, cb) => {
+    let _ts = 0;
+    elem.addEventListener('touchstart', e => { _ts = e.touches[0].clientX; }, { passive: true });
+    elem.addEventListener('touchend', e => {
+      if (Math.abs(e.changedTouches[0].clientX - _ts) < 8) cb();
+    });
+    elem.addEventListener('click', () => cb());
+    return elem;
+  };
+
   if (PROG_SECTION_H > 0) {
     svgR.appendChild(el('rect', { x:0, y:HDR_H, width:BARS_W, height:PROG_SECTION_H, fill:'#eeeaf5', opacity:'0.55' }));
     svgR.appendChild(ln(0, HDR_H + PROG_SECTION_H, BARS_W, HDR_H + PROG_SECTION_H,
       { stroke: '#bbb', 'stroke-width': 1 }));
 
-    // ── Aspect bars (top zone) — same style as transit bars ───────────────────
+    // ── Aspect bars (top zone) ─────────────────────────────────────────────────
     for (const p of progAspects) {
       const x1   = xOf(p.startJD);
       const x2   = xOf(p.endJD + 1);
@@ -2797,13 +2915,13 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
         fill: p.color, rx: 1, opacity: '0.82',
       }));
 
-      // White exact-dot at the precise aspect date
-      const xE = xOf(p.jd);
-      svgR.appendChild(circ(xE, barY + BAR_H / 2, 2.5, {
-        fill: '#fff', stroke: p.color, 'stroke-width': 1,
-      }));
+      // Exact dot — clickable
+      const xE  = xOf(p.jd);
+      const dotY = barY + BAR_H / 2;
+      svgR.appendChild(circ(xE, dotY, 3, { fill: '#fff', stroke: p.color, 'stroke-width': 1.2 }));
+      svgR.appendChild(makeNavHit(circ(xE, dotY, 10, { fill: 'transparent', style: 'cursor:pointer' }), () => switchModeAndNavigate('progressed', p.jd)));
 
-      // Label centred on bar (or on exact point when bar is tiny)
+      // Label
       const lblX = barW >= 14 ? x1 + barW / 2 : xE;
       svgR.appendChild(txt(lblX, barY - 3, p.label, {
         'font-size': 10, fill: p.color,
@@ -2813,23 +2931,22 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
 
     // ── Point ticks (bottom zone) — sign / house / phase ──────────────────────
     if (PROG_TICK_H > 0) {
-      const tickBase = HDR_H + PROG_ASP_H;
-      const rowY     = [ tickBase + 2, tickBase + 14 ]; // two alternating rows
-      const TICK_H   = 9;
+      const tickBase  = HDR_H + PROG_ASP_H;
+      const rowY      = [ tickBase + 2, tickBase + 14 ];
       const sortedPts = [...progPoints].sort((a, b) => a.jd - b.jd);
       let lastX = -999, rowIdx = 0;
       for (const ev of sortedPts) {
-        const xE = xOf(ev.jd);
+        const xE   = xOf(ev.jd);
         if (xE - lastX < 36) rowIdx = 1 - rowIdx; else rowIdx = 0;
         lastX = xE;
         const lblY = rowY[rowIdx];
-        svgR.appendChild(ln(xE, lblY + 11, xE, lblY + 11 + TICK_H, {
-          stroke: ev.color, 'stroke-width': 1.2, opacity: '0.85',
-        }));
+        const dotY = lblY + 12;
         svgR.appendChild(txt(xE, lblY, ev.label, {
           'font-size': 10, fill: ev.color,
           'text-anchor': 'middle', 'dominant-baseline': 'hanging',
         }));
+        svgR.appendChild(circ(xE, dotY, 3, { fill: ev.color, opacity: '0.85' }));
+        svgR.appendChild(makeNavHit(circ(xE, dotY, 8, { fill: 'transparent', style: 'cursor:pointer' }), () => switchModeAndNavigate('progressed', ev.jd)));
       }
     }
   }
@@ -2841,19 +2958,21 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
     svgR.appendChild(ln(0, dirY + DIR_TICK_H, BARS_W, dirY + DIR_TICK_H,
       { stroke: '#bbb', 'stroke-width': 1 }));
 
-    const rowY   = [ dirY + 2, dirY + 14, dirY + 26 ]; // three alternating rows
-    const TICK_H = 9;
+    const rowY  = [ dirY + 2, dirY + 18, dirY + 34 ]; // three rows with 16px spacing
     const sorted = [...dirEvents].sort((a, b) => a.jd - b.jd);
     let lastX = -999, rowIdx = 0;
     for (const ev of sorted) {
-      const xE = xOf(ev.jd);
+      const xE   = xOf(ev.jd);
       if (xE - lastX < 36) rowIdx = (rowIdx + 1) % 3; else rowIdx = 0;
       lastX = xE;
       const lblY = rowY[rowIdx];
+      const dotY = lblY + 12;
       svgR.appendChild(txt(xE, lblY, ev.label, {
         'font-size': 10, fill: ev.color,
         'text-anchor': 'middle', 'dominant-baseline': 'hanging',
       }));
+      svgR.appendChild(circ(xE, dotY, 3, { fill: ev.color, opacity: '0.85' }));
+      svgR.appendChild(makeNavHit(circ(xE, dotY, 8, { fill: 'transparent', style: 'cursor:pointer' }), () => switchModeAndNavigate('direction', ev.jd)));
     }
   }
 
@@ -2868,12 +2987,30 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
     if (mJD < jdStart - 1 || mJD > jdEnd + 1) continue;
     const x   = xOf(mJD);
     svgR.appendChild(ln(x, HDR_H - 4, x, TL_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
-    svgR.appendChild(txt(x + 3, 16, MS[md.getMonth()], { 'font-size': 11, fill: '#999' }));
+    const monLbl = md.getMonth() === 0 ? `Янв ${md.getFullYear()}` : MS[md.getMonth()];
+    svgR.appendChild(txt(x + 3, 16, monLbl, { 'font-size': 11, fill: '#999' }));
   }
   svgR.appendChild(ln(0, HDR_H, BARS_W, HDR_H, { stroke: '#ccc', 'stroke-width': 0.8 }));
 
-  // Today line
-  const xT = xOf(jdToday);
+  // Clickable header strip — click/tap to navigate to that date
+  const hdrHit = el('rect', {
+    x: 0, y: 0, width: BARS_W, height: HDR_H,
+    fill: 'transparent', style: 'cursor:pointer',
+  });
+  const hdrXtoJD = clientX => {
+    const x = clientX - svgR.getBoundingClientRect().left;
+    return jdStart + x / PX_PER_DAY;
+  };
+  let hdrTouchStartX = 0;
+  hdrHit.addEventListener('touchstart', e => { hdrTouchStartX = e.touches[0].clientX; }, { passive: true });
+  hdrHit.addEventListener('touchend', e => {
+    if (Math.abs(e.changedTouches[0].clientX - hdrTouchStartX) < 8) applyNavigatedJD(hdrXtoJD(e.changedTouches[0].clientX));
+  });
+  hdrHit.addEventListener('click', e => applyNavigatedJD(hdrXtoJD(e.clientX)));
+  svgR.appendChild(hdrHit);
+
+  // Current date line (synced with biwheel navigation)
+  const xT = xOf(jdCursor ?? jdToday);
   svgR.appendChild(ln(xT, 0, xT, TL_H, { stroke: '#e44', 'stroke-width': 1.2, 'stroke-dasharray': '4,2', opacity: '0.8' }));
   svgR.appendChild(txt(xT + 2, 11, '▼', { 'font-size': 8, fill: '#e44' }));
 
@@ -2888,7 +3025,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
 
       const bar = el('rect', {
         x: x1, y: barY, width: barW, height: BAR_H,
-        fill: p.asp.color, rx: 1, opacity, style: 'cursor:pointer',
+        fill: p.asp.color, rx: 1, opacity,
       });
 
       // Floating tooltip on hover
@@ -2906,29 +3043,20 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
         tooltip.style.top  = (e.clientY - 30) + 'px';
       });
       bar.addEventListener('mouseout', () => { tooltip.style.display = 'none'; });
-
-      // Tap/click → update biwheel to the exact tapped date on the bar
-      const xToJD = clientX => {
-        const svgBounds = svgR.getBoundingClientRect();
-        const x = clientX - svgBounds.left;
-        return jdStart + x / PX_PER_DAY;
-      };
-      let touchStartX = 0;
-      bar.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
-      bar.addEventListener('touchend', e => {
-        const cx = e.changedTouches[0].clientX;
-        if (Math.abs(cx - touchStartX) < 8) renderBiwheelAt(xToJD(cx));
-      });
-      bar.addEventListener('click', e => renderBiwheelAt(xToJD(e.clientX)));
       svgR.appendChild(bar);
 
-      // Exact aspect dots (white circles on the bar)
+      // Exact aspect dots — clickable, with large touch target
       for (const ejd of (p.exactJDs ?? [])) {
         const xE = xOf(ejd);
         if (xE >= x1 - 1 && xE <= x2 + 1) {
-          svgR.appendChild(circ(xE, barY + BAR_H / 2, 2.5, {
-            fill: '#fff', stroke: p.asp.color, 'stroke-width': 1,
+          const dotY = barY + BAR_H / 2;
+          svgR.appendChild(circ(xE, dotY, 3, {
+            fill: '#fff', stroke: p.asp.color, 'stroke-width': 1.2,
           }));
+          svgR.appendChild(makeNavHit(
+            circ(xE, dotY, 10, { fill: 'transparent', style: 'cursor:pointer' }),
+            () => switchModeAndNavigate('transit', ejd)
+          ));
         }
       }
 
@@ -2997,13 +3125,15 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
 
   svgR.appendChild(mkPlusBtn(R_PLUS + 4, () => {
     tlPastYears++;
+    const savedCenter = cachedTimeline?.center;
     cachedTimeline = null; fastCache = {};
-    computeAndRenderTimeline(natalData.planets);
+    computeAndRenderTimeline(natalData.planets, savedCenter);
   }));
   svgR.appendChild(mkPlusBtn(BARS_W - R_PLUS - 4, () => {
     tlFutureYears++;
+    const savedCenter = cachedTimeline?.center;
     cachedTimeline = null; fastCache = {};
-    computeAndRenderTimeline(natalData.planets);
+    computeAndRenderTimeline(natalData.planets, savedCenter);
   }));
 
   // ── Planet filter bar ────────────────────────────────────────────────────────
@@ -3045,8 +3175,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
   modeContent.querySelector('#tl-filter')?.remove();
   modeContent.appendChild(filterBar);
 
-  // range label nav → inside timeline
-  tl.replaceChildren(nav, body);
+  tl.replaceChildren(body);
 
   // Scroll so "today" is ~30 % from the left edge
   requestAnimationFrame(() => {

@@ -147,6 +147,55 @@
   }
   #prog-layout.transit-active #prog-controls { display: block; }
 
+  /* ── Forecast (long-term) page ──────────────────────────── */
+  #forecast-layout { display: none; width: 100%; margin: 0 auto; }
+  #forecast-layout.forecast-active { display: block; }
+  #forecast-left { width: 100%; }
+  #forecast-tl { width: 100%; margin: 8px auto 0; }
+  #forecast-tl .tl-status { padding: 16px; text-align: center; color: #999; font-size: 0.85em; }
+  #forecast-controls {
+    display: none;
+    padding: 8px 6px 4px;
+    border-top: 1px solid #e8e8e4;
+    margin-top: 4px;
+  }
+  #forecast-layout.forecast-active #forecast-controls { display: block; }
+  #forecast-house-bar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 0; flex-wrap: wrap;
+  }
+  .fc-section-lbl { font-size: 0.82em; color: #777; }
+  #forecast-house-btns { display: flex; flex-wrap: wrap; gap: 3px; }
+  .fc-house-btn {
+    min-width: 28px; padding: 3px 6px;
+    border: 1px solid #ccc; border-radius: 4px;
+    background: #f8f8f5; color: #555;
+    font-size: 0.82em; font-weight: 600; cursor: pointer;
+  }
+  .fc-house-btn.active { background: #444; color: #fff; border-color: #444; }
+  #forecast-info {
+    padding: 3px 0; font-size: 0.81em; color: #555; min-height: 18px;
+  }
+  #forecast-range-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 0;
+    border-top: 1px solid #e8e8e4;
+    margin-top: 4px; flex-wrap: wrap;
+  }
+  .fc-range-lbl { font-size: 0.82em; color: #777; display: flex; align-items: center; gap: 4px; }
+  .fc-input {
+    padding: 4px 6px; font-size: 0.88em;
+    border: 1px solid #ccc; border-radius: 4px;
+    background: #f8f8f5; color: #222; outline: none;
+  }
+  .fc-input:focus { border-color: #888; }
+  #fc-calc-btn {
+    padding: 6px 14px; background: #444; color: #fff;
+    border: none; border-radius: 4px;
+    font-size: 0.85em; font-weight: 600; cursor: pointer;
+  }
+  #fc-calc-btn:hover { background: #333; }
+
   /* transit-sub-bar inside prog-controls is always shown */
   #prog-controls #transit-sub-bar {
     display: flex; max-width: none;
@@ -237,6 +286,39 @@
       flex-shrink: 0;
     }
     #prog-layout.transit-active #transit-tl {
+      flex: 1;
+      min-width: 0;
+      margin-top: 0;
+      overflow-y: auto;
+    }
+    #forecast-layout.forecast-active {
+      max-width: none;
+      display: flex !important;
+      align-items: stretch;
+      gap: 16px;
+      height: calc(100vh - 60px);
+    }
+    #forecast-layout.forecast-active #forecast-left {
+      flex: 0 0 50%;
+      width: 50%;
+      display: flex;
+      flex-direction: column;
+    }
+    #forecast-layout.forecast-active #forecast-chart-wrap {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #forecast-layout.forecast-active #forecast-chart-wrap svg {
+      width: 100%; height: 100%;
+      max-width: 100%; max-height: 100%;
+    }
+    #forecast-layout.forecast-active #forecast-controls {
+      flex-shrink: 0;
+    }
+    #forecast-layout.forecast-active #forecast-tl {
       flex: 1;
       min-width: 0;
       margin-top: 0;
@@ -511,6 +593,7 @@
     <div id="header-tabs">
       <button class="tab-btn active" id="tabNatal">Натальная карта</button>
       <button class="tab-btn" id="tabTransit">Прогностика</button>
+      <button class="tab-btn" id="tabForecast">Прогноз</button>
     </div>
     <div id="auth-zone">
       <button id="loginBtn" class="auth-btn primary">Войти</button>
@@ -625,6 +708,25 @@
 </div>
 <div id="tl-tooltip"></div>
 <div id="chart-tooltip"></div>
+
+<div id="forecast-layout">
+  <div id="forecast-left">
+    <div id="forecast-chart-wrap"></div>
+    <div id="forecast-controls">
+      <div id="forecast-house-bar">
+        <span class="fc-section-lbl">Дом:</span>
+        <div id="forecast-house-btns"></div>
+      </div>
+      <div id="forecast-info"></div>
+      <div id="forecast-range-row">
+        <label class="fc-range-lbl">с <input type="number" id="fc-start-year" class="fc-input" style="width:70px"></label>
+        <label class="fc-range-lbl">на <input type="number" id="fc-duration" class="fc-input" value="20" min="5" max="50" style="width:50px"> лет</label>
+        <button id="fc-calc-btn">Рассчитать</button>
+      </div>
+    </div>
+  </div>
+  <div id="forecast-tl"></div>
+</div>
 
 <table id="info-table" style="display:none">
   <thead><tr><th>Планета</th><th>Знак</th><th>Позиция</th><th>Дом</th></tr></thead>
@@ -897,6 +999,28 @@ function getNatalOrb(asp, id1, id2) {
   return 6;
 }
 
+// ── House rulership (classical + modern outer planets) ────────────────────────
+// Index = sign 0=Aries…11=Pisces. Scorpio: Mars+Pluto, Aquarius: Uranus+Saturn, Pisces: Neptune+Jupiter
+const SIGN_RULERS = [
+  [4],      // Aries → Mars
+  [3],      // Taurus → Venus
+  [2],      // Gemini → Mercury
+  [1],      // Cancer → Moon
+  [0],      // Leo → Sun
+  [2],      // Virgo → Mercury
+  [3],      // Libra → Venus
+  [4, 9],   // Scorpio → Mars, Pluto
+  [5],      // Sagittarius → Jupiter
+  [6],      // Capricorn → Saturn
+  [7, 6],   // Aquarius → Uranus, Saturn
+  [8, 5],   // Pisces → Neptune, Jupiter
+];
+
+function getHouseRulerPlanets(houseIdx, cusps) {
+  const signIdx = Math.floor(((cusps[houseIdx] % 360) + 360) % 360 / 30);
+  return (SIGN_RULERS[signIdx] ?? []).map(id => PLANETS.find(p => p.id === id)).filter(Boolean);
+}
+
 // ── Layout (matching SVG template) ───────────────────────────────────────────
 
 const W = 740, H = 740, CX = 370, CY = 370;
@@ -926,6 +1050,7 @@ let hiddenTPlants    = new Set();  // transiting planet IDs hidden from timeline
 let detectedTimezone = null;   // IANA timezone name after geocoding
 let currentTransitJD = null;   // currently displayed JD (null = today)
 let currentMode      = 'transit'; // 'transit' | 'progressed' | 'direction'
+let currentForecastHouse = 7;    // selected house for long-term forecast (1–12)
 
 (async () => {
   try {
@@ -1063,6 +1188,7 @@ function exitChartMode() {
   if (currentUser) document.getElementById('home-charts').style.display = '';
   document.getElementById('app-header').classList.remove('chart-mode');
   document.getElementById('prog-layout').classList.remove('visible', 'transit-active');
+  document.getElementById('forecast-layout').classList.remove('forecast-active');
   document.getElementById('transit-tl').style.display = 'none';
   document.getElementById('info-table').style.display = 'none';
   natalData = null;
@@ -1558,13 +1684,17 @@ function renderTable(planets) {
 function setActiveTab(id) {
   document.getElementById('tabNatal').classList.toggle('active', id === 'natal');
   document.getElementById('tabTransit').classList.toggle('active', id === 'transit');
+  document.getElementById('tabForecast').classList.toggle('active', id === 'forecast');
   const pl = document.getElementById('prog-layout');
   pl.classList.toggle('transit-active', id === 'transit');
-  // Clear any inline display so CSS (incl. media query flex) can take over
-  pl.style.removeProperty('display');
-  // info-table only for natal
+  // Hide prog-layout entirely when forecast tab is active (it would render above otherwise)
+  if (id === 'forecast') pl.style.display = 'none';
+  else pl.style.removeProperty('display');
+  const fl = document.getElementById('forecast-layout');
+  fl.classList.toggle('forecast-active', id === 'forecast');
+  fl.style.removeProperty('display');
   const infoTable = document.getElementById('info-table');
-  if (id === 'transit' && infoTable.style.display !== 'none') {
+  if (id !== 'natal' && infoTable.style.display !== 'none') {
     infoTable.style.display = 'none';
   }
 }
@@ -3184,6 +3314,623 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
 }
 
 function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Long-term Forecast page ───────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+document.getElementById('tabForecast').addEventListener('click', () => {
+  if (!natalData || !swe) return;
+  setActiveTab('forecast');
+  const fcWrap = document.getElementById('forecast-chart-wrap');
+  const natSVG = document.querySelector('#chart-wrap svg');
+  if (natSVG) fcWrap.replaceChildren(natSVG.cloneNode(true));
+  initForecastUI();
+});
+
+function initForecastUI() {
+  // House selector buttons
+  const houseBtns = document.getElementById('forecast-house-btns');
+  houseBtns.innerHTML = '';
+  for (let h = 1; h <= 12; h++) {
+    const btn = document.createElement('button');
+    btn.className = 'fc-house-btn' + (h === currentForecastHouse ? ' active' : '');
+    btn.textContent = ROMAN[h - 1];
+    btn.addEventListener('click', () => {
+      currentForecastHouse = h;
+      document.querySelectorAll('.fc-house-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      updateForecastInfo();
+    });
+    houseBtns.appendChild(btn);
+  }
+  // Default start year = current year (set once)
+  const startInput = document.getElementById('fc-start-year');
+  if (!startInput.value) startInput.value = new Date().getFullYear();
+  // Wire up calculate button (replace listener to avoid duplicates)
+  document.getElementById('fc-calc-btn').onclick = computeAndRenderForecast;
+  updateForecastInfo();
+}
+
+function updateForecastInfo() {
+  if (!natalData) return;
+  const houseIdx  = currentForecastHouse - 1;
+  const cusp      = natalData.cusps[houseIdx];
+  const signIdx   = Math.floor(((cusp % 360) + 360) % 360 / 30);
+  const rulers    = getHouseRulerPlanets(houseIdx, natalData.cusps);
+  const rulerTxt  = rulers.map(r => r.glyph + '\u00A0' + r.name).join(', ');
+  const pInH      = natalData.planets.filter(p => p.house === currentForecastHouse);
+  const plTxt     = pInH.length ? '  ·  ' + pInH.map(p => p.glyph).join('\u202F') : '';
+  document.getElementById('forecast-info').innerHTML =
+    `Дом ${ROMAN[houseIdx]}: ${SIGNS[signIdx]}\u202F${SIGN_NAMES[signIdx]}&nbsp;&middot;&nbsp;Упр:&nbsp;${rulerTxt}${plTxt}`;
+}
+
+function computeAndRenderForecast() {
+  const ftl = document.getElementById('forecast-tl');
+  if (!natalData || !swe) { ftl.innerHTML = '<div class="tl-status">Нет данных карты</div>'; return; }
+  const houseNum  = currentForecastHouse;
+  const houseIdx  = houseNum - 1;
+  const rulers    = getHouseRulerPlanets(houseIdx, natalData.cusps);
+  const rulerIds  = rulers.map(r => r.id);
+  const startYear = parseInt(document.getElementById('fc-start-year').value) || new Date().getFullYear();
+  const duration  = Math.max(5, Math.min(50, parseInt(document.getElementById('fc-duration').value) || 20));
+  const jdStart   = swe.julday(startYear, 1, 1, 0);
+  const jdEnd     = swe.julday(startYear + duration, 1, 1, 0);
+  ftl.innerHTML   = '<div class="tl-status">Вычисление…</div>';
+  setTimeout(() => {
+    try {
+      const dirEvents      = computeLongTermDirections(houseNum, natalData.planets, natalData.cusps, natalData.birthJD, jdStart, jdEnd);
+      const progEvents     = computeLongTermProgressions(houseNum, rulerIds, natalData.planets, natalData.cusps, natalData.birthJD, jdStart, jdEnd);
+      const transitData    = computeLongTermTransits(houseNum, rulerIds, natalData.planets, natalData.cusps, jdStart, jdEnd);
+      renderLongTermTimeline({ dirEvents, progEvents, transitData, jdStart, jdEnd, houseNum });
+    } catch (e) {
+      ftl.innerHTML = `<div class="tl-status">Ошибка: ${e.message}</div>`;
+      console.error(e);
+    }
+  }, 30);
+}
+
+// ── Directions computation (solar arc) ───────────────────────────────────────
+
+function computeLongTermDirections(houseNum, natalPlanets, natalCusps, birthJD, jdStart, jdEnd) {
+  if (!birthJD || !natalCusps) return [];
+  const DAYS        = Math.ceil(jdEnd - jdStart) + 2;
+  const houseIdx    = houseNum - 1;
+  const houseCuspLon = natalCusps[houseIdx];
+  const planetsInH  = natalPlanets.filter(p => findHouse(p.longitude, natalCusps) === houseNum);
+  const rulers      = getHouseRulerPlanets(houseIdx, natalCusps)
+                        .map(r => natalPlanets.find(p => p.id === r.id)).filter(Boolean);
+  const ascLon      = natalCusps[0];
+  const ascSignIdx  = Math.floor(((ascLon % 360) + 360) % 360 / 30);
+  const ascRulers   = (SIGN_RULERS[ascSignIdx] ?? [])
+                        .map(id => natalPlanets.find(p => p.id === id)).filter(Boolean);
+
+  const arcAt  = i  => (jdStart + i - birthJD) / 365.25;
+  const dirLon = (natLon, i) => ((natLon + arcAt(i)) % 360 + 360) % 360;
+
+  const DIR_ASP = [
+    { angle: 0,   color: '#2244bb', symbol: '☌\uFE0E' },
+    { angle: 60,  color: '#228833', symbol: '✶' },
+    { angle: 90,  color: '#cc1111', symbol: '□' },
+    { angle: 120, color: '#228833', symbol: '△' },
+    { angle: 180, color: '#cc1111', symbol: '☍\uFE0E' },
+  ];
+
+  const events = [];
+
+  // Find exact day then compute analytic orb window (arc moves 1°/year → ±orb years)
+  const findDirAspects = (dirNatLon, natTargetLon, dirLbl, natLbl, orbLimit) => {
+    for (const asp of DIR_ASP) {
+      for (let i = 1; i < DAYS - 1; i++) {
+        const orb = j => Math.abs(angDiff(dirLon(dirNatLon, j), natTargetLon) - asp.angle);
+        const d0 = orb(i - 1), d1 = orb(i), d2 = orb(i + 1);
+        if (d1 < d0 && d1 < d2 && d1 < orbLimit) {
+          const jdEx = jdStart + i;
+          events.push({ type: 'bar', jd: jdEx,
+            startJD: Math.max(jdStart, jdEx - orbLimit * 365.25),
+            endJD:   Math.min(jdEnd,   jdEx + orbLimit * 365.25),
+            label: dirLbl + asp.symbol + natLbl, color: asp.color });
+        }
+      }
+    }
+  };
+
+  // Sign changes: directed house cusp
+  for (let i = 1; i < DAYS; i++) {
+    const s0 = Math.floor(dirLon(houseCuspLon, i - 1) / 30);
+    const s1 = Math.floor(dirLon(houseCuspLon, i)     / 30);
+    if (s0 !== s1)
+      events.push({ type: 'tick', jd: jdStart + i, label: ROMAN[houseIdx] + '→' + SIGNS[s1 % 12], color: '#555' });
+  }
+
+  // Sign changes: directed rulers
+  for (const ruler of rulers) {
+    for (let i = 1; i < DAYS; i++) {
+      const s0 = Math.floor(dirLon(ruler.longitude, i - 1) / 30);
+      const s1 = Math.floor(dirLon(ruler.longitude, i)     / 30);
+      if (s0 !== s1)
+        events.push({ type: 'tick', jd: jdStart + i, label: ruler.glyph + '→' + SIGNS[s1 % 12], color: '#555' });
+    }
+  }
+
+  // Aspects: directed house cusp ↔ natal rulers / planets in house (both directions)
+  for (const ruler of rulers) {
+    const orb = (ruler.id === 0 || ruler.id === 1) ? 2 : 1;
+    findDirAspects(houseCuspLon, ruler.longitude, ROMAN[houseIdx], ruler.glyph, orb);
+    findDirAspects(ruler.longitude, houseCuspLon, ruler.glyph, ROMAN[houseIdx], orb);
+  }
+
+  // Aspects between co-rulers (both directions)
+  for (let i = 0; i < rulers.length; i++) {
+    for (let j = i + 1; j < rulers.length; j++) {
+      const rA = rulers[i], rB = rulers[j];
+      const orb = (rA.id === 0 || rA.id === 1 || rB.id === 0 || rB.id === 1) ? 2 : 1;
+      findDirAspects(rA.longitude, rB.longitude, rA.glyph, rB.glyph, orb);
+      findDirAspects(rB.longitude, rA.longitude, rB.glyph, rA.glyph, orb);
+    }
+  }
+
+  // Aspects: directed planet-in-house ↔ natal rulers / cusp (both directions for each)
+  for (const pl of planetsInH) {
+    const orb = (pl.id === 0 || pl.id === 1) ? 2 : 1;
+    // directed cusp ↔ natal planet, AND directed planet ↔ natal cusp
+    findDirAspects(houseCuspLon, pl.longitude, ROMAN[houseIdx], pl.glyph, orb);
+    findDirAspects(pl.longitude, houseCuspLon, pl.glyph, ROMAN[houseIdx], orb);
+    for (const ruler of rulers) {
+      const orbLim = (ruler.id === 0 || ruler.id === 1 || pl.id === 0 || pl.id === 1) ? 2 : 1;
+      // directed ruler ↔ natal planet, AND directed planet ↔ natal ruler
+      findDirAspects(ruler.longitude, pl.longitude, ruler.glyph, pl.glyph, orbLim);
+      findDirAspects(pl.longitude, ruler.longitude, pl.glyph, ruler.glyph, orbLim);
+    }
+  }
+
+  // Aspects: directed ASC ↔ natal house cusp, rulers, planets in house
+  findDirAspects(ascLon, houseCuspLon, 'As', ROMAN[houseIdx], 1);
+  for (const ruler of rulers)
+    findDirAspects(ascLon, ruler.longitude, 'As', ruler.glyph, (ruler.id === 0 || ruler.id === 1) ? 2 : 1);
+  for (const pl of planetsInH)
+    findDirAspects(ascLon, pl.longitude, 'As', pl.glyph, (pl.id === 0 || pl.id === 1) ? 2 : 1);
+
+  // Aspects: directed ASC rulers ↔ natal house cusp, rulers, planets in house
+  for (const ar of ascRulers) {
+    const aOrb = (ar.id === 0 || ar.id === 1) ? 2 : 1;
+    findDirAspects(ar.longitude, houseCuspLon, ar.glyph, ROMAN[houseIdx], aOrb);
+    for (const ruler of rulers)
+      findDirAspects(ar.longitude, ruler.longitude, ar.glyph, ruler.glyph, aOrb);
+    for (const pl of planetsInH)
+      findDirAspects(ar.longitude, pl.longitude, ar.glyph, pl.glyph, aOrb);
+  }
+
+  return events;
+}
+
+// ── Progressions computation (secondary) ─────────────────────────────────────
+
+function computeLongTermProgressions(houseNum, rulerIds, natalPlanets, natalCusps, birthJD, jdStart, jdEnd) {
+  if (!birthJD) return [];
+  const flags    = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const STEP     = 7;
+  const DAYS     = Math.ceil((jdEnd - jdStart) / STEP) + 2;
+  const houseIdx = houseNum - 1;
+  const houseCuspLon = natalCusps[houseIdx];
+  const rulers   = rulerIds.map(id => PLANETS.find(p => p.id === id)).filter(Boolean);
+
+  // Precompute all progressed positions weekly
+  const progLons   = new Map();
+  const progSpeeds = new Map();
+  for (const p of PLANETS) {
+    progLons.set(p.id, new Float64Array(DAYS));
+    progSpeeds.set(p.id, new Float64Array(DAYS));
+  }
+  for (let i = 0; i < DAYS; i++) {
+    const ageYrs = (jdStart + i * STEP - birthJD) / 365.25;
+    const progJD = birthJD + ageYrs;
+    for (const p of PLANETS) {
+      const r = swe.calc_ut(progJD, p.id, flags);
+      progLons.get(p.id)[i]   = ((r[0] % 360) + 360) % 360;
+      progSpeeds.get(p.id)[i] = r[3];
+    }
+  }
+
+  const PROG_ASP = [
+    { angle: 0,   color: '#2244bb', symbol: '☌\uFE0E' },
+    { angle: 60,  color: '#228833', symbol: '✶' },
+    { angle: 90,  color: '#cc1111', symbol: '□' },
+    { angle: 120, color: '#228833', symbol: '△' },
+    { angle: 180, color: '#cc1111', symbol: '☍\uFE0E' },
+  ];
+
+  const events = [];
+
+  const findProgAsp = (lons, natalLon, progLbl, natalLbl, orbLimit) => {
+    for (const asp of PROG_ASP) {
+      let inPeriod = false, pStart = 0, minIdx = -1, minDiff = Infinity;
+      for (let i = 0; i < DAYS; i++) {
+        const diff = Math.abs(angDiff(lons[i], natalLon) - asp.angle);
+        if (diff <= orbLimit) {
+          if (!inPeriod) { inPeriod = true; pStart = i; minIdx = i; minDiff = diff; }
+          else if (diff < minDiff) { minIdx = i; minDiff = diff; }
+        } else if (inPeriod) {
+          events.push({ type: 'bar', jd: jdStart + minIdx * STEP,
+            startJD: jdStart + pStart * STEP, endJD: jdStart + (i - 1) * STEP,
+            label: progLbl + asp.symbol + natalLbl, color: asp.color });
+          inPeriod = false; minIdx = -1; minDiff = Infinity;
+        }
+      }
+      if (inPeriod) events.push({ type: 'bar', jd: jdStart + minIdx * STEP,
+        startJD: jdStart + pStart * STEP, endJD: jdEnd,
+        label: progLbl + asp.symbol + natalLbl, color: asp.color });
+    }
+  };
+
+  const findProgProgAsp = (lons, otherLons, progLbl, otherLbl, orbLimit) => {
+    for (const asp of PROG_ASP) {
+      let inPeriod = false, pStart = 0, minIdx = -1, minDiff = Infinity;
+      for (let i = 0; i < DAYS; i++) {
+        const diff = Math.abs(angDiff(lons[i], otherLons[i]) - asp.angle);
+        if (diff <= orbLimit) {
+          if (!inPeriod) { inPeriod = true; pStart = i; minIdx = i; minDiff = diff; }
+          else if (diff < minDiff) { minIdx = i; minDiff = diff; }
+        } else if (inPeriod) {
+          events.push({ type: 'bar', jd: jdStart + minIdx * STEP,
+            startJD: jdStart + pStart * STEP, endJD: jdStart + (i - 1) * STEP,
+            label: 'пр' + progLbl + asp.symbol + otherLbl, color: asp.color });
+          inPeriod = false; minIdx = -1; minDiff = Infinity;
+        }
+      }
+      if (inPeriod) events.push({ type: 'bar', jd: jdStart + minIdx * STEP,
+        startJD: jdStart + pStart * STEP, endJD: jdEnd,
+        label: 'пр' + progLbl + asp.symbol + otherLbl, color: asp.color });
+    }
+  };
+
+  for (const ruler of rulers) {
+    const lons   = progLons.get(ruler.id);
+    const speeds = progSpeeds.get(ruler.id);
+
+    // Sign changes (progressed ruler)
+    for (let i = 1; i < DAYS; i++) {
+      if (Math.floor(lons[i - 1] / 30) !== Math.floor(lons[i] / 30)) {
+        const ns = Math.floor(lons[i] / 30) % 12;
+        events.push({ type: 'tick', jd: jdStart + i * STEP, label: ruler.glyph + '→' + SIGNS[ns], color: '#777' });
+      }
+    }
+
+    // Direction changes (retrograde / direct)
+    if (ruler.id !== 10 && ruler.id !== 12) {
+      for (let i = 1; i < DAYS; i++) {
+        const s0 = speeds[i - 1], s1 = speeds[i];
+        if (s0 !== 0 && s1 !== 0 && s0 * s1 < 0) {
+          const isR = s1 < 0;
+          events.push({ type: 'tick', jd: jdStart + i * STEP,
+            label: ruler.glyph + (isR ? 'R' : 'D'), color: isR ? '#cc1111' : '#228833' });
+        }
+      }
+    }
+
+    // Progressed ruler ↔ natal house cusp
+    findProgAsp(lons, houseCuspLon, ruler.glyph, ROMAN[houseIdx], (ruler.id === 0 || ruler.id === 1) ? 2 : 1);
+
+    // Progressed ruler ↔ all natal planets
+    for (const na of natalPlanets) {
+      const orb = (ruler.id === 0 || ruler.id === 1 || na.id === 0 || na.id === 1) ? 2 : 1;
+      findProgAsp(lons, na.longitude, ruler.glyph, na.glyph, orb);
+    }
+
+    // Progressed ruler ↔ other progressed planets
+    for (const other of PLANETS) {
+      if (other.id === ruler.id) continue;
+      const orb = (ruler.id === 0 || ruler.id === 1 || other.id === 0 || other.id === 1) ? 2 : 1;
+      findProgProgAsp(lons, progLons.get(other.id), ruler.glyph, other.glyph, orb);
+    }
+  }
+
+  return events;
+}
+
+// ── Transits computation (slow planets) ──────────────────────────────────────
+
+function computeLongTermTransits(houseNum, rulerIds, natalPlanets, natalCusps, jdStart, jdEnd) {
+  const flags    = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const STEP     = 7;
+  const DAYS     = Math.ceil((jdEnd - jdStart) / STEP) + 2;
+  const houseIdx = houseNum - 1;
+
+  const planetsInH  = natalPlanets.filter(p => findHouse(p.longitude, natalCusps) === houseNum);
+  const rulers      = rulerIds.map(id => natalPlanets.find(p => p.id === id)).filter(Boolean)
+                               .filter(r => !planetsInH.find(p => p.id === r.id));
+  const cuspTarget  = { id: -(houseNum * 100), name: 'Куспид ' + ROMAN[houseIdx],
+                        glyph: ROMAN[houseIdx], longitude: natalCusps[houseIdx] };
+
+  // Precompute slow planet positions weekly
+  const slowLons = {};
+  for (const id of SLOW_IDS) {
+    slowLons[id] = new Float64Array(DAYS);
+    for (let i = 0; i < DAYS; i++) {
+      const r = swe.calc_ut(jdStart + i * STEP, id, flags);
+      slowLons[id][i] = ((r[0] % 360) + 360) % 360;
+    }
+  }
+
+  const periods = [];
+
+  const findTrPeriods = (id, targets, aspList) => {
+    const lons     = slowLons[id];
+    const tPlanet  = PLANETS.find(p => p.id === id);
+    const orbLimit = getTransitOrb(id);
+    for (const na of targets) {
+      const asps = (id === 10 || id === 12 || na.id === 10 || na.id === 12)
+        ? aspList.filter(a => a.angle === 0) : aspList;
+      for (const asp of asps) {
+        let inPeriod = false, pStart = 0, minIdx = -1, minDiff = Infinity;
+        for (let i = 0; i < DAYS; i++) {
+          const diff = Math.abs(angDiff(lons[i], na.longitude) - asp.angle);
+          if (diff <= orbLimit) {
+            if (!inPeriod) { inPeriod = true; pStart = i; minIdx = i; minDiff = diff; }
+            else if (diff < minDiff) { minIdx = i; minDiff = diff; }
+          } else if (inPeriod) {
+            const exactJDs = refineLongTermExact(minIdx, id, na.longitude, asp.angle, jdStart, STEP, flags);
+            if (exactJDs.length)
+              periods.push({ tPlanet, na, asp, startJD: jdStart + pStart * STEP, endJD: jdStart + (i - 1) * STEP, exactJDs });
+            inPeriod = false; minIdx = -1; minDiff = Infinity;
+          }
+        }
+        if (inPeriod) {
+          const exactJDs = refineLongTermExact(minIdx, id, na.longitude, asp.angle, jdStart, STEP, flags);
+          if (exactJDs.length)
+            periods.push({ tPlanet, na, asp, startJD: jdStart + pStart * STEP, endJD: jdEnd, exactJDs });
+        }
+      }
+    }
+  };
+
+  const OUTER_IDS = [9, 8, 7, 6]; // Pluto, Neptune, Uranus, Saturn
+  const ALL_ASP   = T_ASPECTS;
+  const CONJ_ASP  = T_ASPECTS.filter(a => a.angle === 0);
+  for (const id of OUTER_IDS) {
+    findTrPeriods(id, [...planetsInH, ...rulers], ALL_ASP);
+    findTrPeriods(id, [cuspTarget], CONJ_ASP);
+  }
+
+  return { periods, planetsInH, rulers, cuspTarget };
+}
+
+function refineLongTermExact(weekIdx, planetId, natalLon, aspAngle, jdStart, STEP, flags) {
+  const centerJD = jdStart + weekIdx * STEP;
+  let minDiff = Infinity, minJD = centerJD;
+  for (let d = -14; d <= 14; d++) {
+    const r   = swe.calc_ut(centerJD + d, planetId, flags);
+    const lon = ((r[0] % 360) + 360) % 360;
+    const diff = Math.abs(angDiff(lon, natalLon) - aspAngle);
+    if (diff < minDiff) { minDiff = diff; minJD = centerJD + d; }
+  }
+  return minDiff <= 0.4 ? [minJD] : [];
+}
+
+// ── Long-term timeline rendering ──────────────────────────────────────────────
+
+function renderLongTermTimeline({ dirEvents, progEvents, transitData, jdStart, jdEnd, houseNum }) {
+  const ftl = document.getElementById('forecast-tl');
+  const { periods, planetsInH, rulers, cuspTarget } = transitData;
+  const houseIdx = houseNum - 1;
+
+  const PX_PER_YEAR = 70;
+  const PX_PER_DAY  = PX_PER_YEAR / 365.25;
+  const LABEL_W     = 52;
+  const HDR_H       = 28;
+  const BAR_H       = 4;
+  const SUB_H       = 18;
+  const SPAN_DAYS   = jdEnd - jdStart;
+  const BARS_W      = Math.ceil(SPAN_DAYS * PX_PER_DAY);
+
+  const xOf = jd => Math.min(Math.max((jd - jdStart) * PX_PER_DAY, 0), BARS_W);
+
+  const hel = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
+  const fmtYear = jd => new Date((jd - 2440587.5) * 86400000).getFullYear();
+
+  // ── Greedy bar packing ───────────────────────────────────────────────────────
+  const packBars = bars => {
+    const sorted = [...bars].sort((a, b) => a.startJD - b.startJD);
+    const ends = [];
+    for (const p of sorted) {
+      let placed = false;
+      for (let s = 0; s < ends.length; s++) {
+        if (p.startJD > ends[s] + 1) { p.sub = s; ends[s] = p.endJD; placed = true; break; }
+      }
+      if (!placed) { p.sub = ends.length; ends.push(p.endJD); }
+    }
+    return Math.max(ends.length, 1);
+  };
+
+  // ── Direction section layout ─────────────────────────────────────────────────
+  const dirBars  = dirEvents.filter(e => e.type === 'bar');
+  const dirTicks = dirEvents.filter(e => e.type === 'tick');
+  const nDirSubs = dirBars.length ? packBars(dirBars) : 0;
+  const DIR_BAR_H  = nDirSubs > 0 ? nDirSubs * SUB_H + 10 : 0;
+  const DIR_TICK_H = dirTicks.length > 0 ? 30 : 0;
+  const DIR_H      = DIR_BAR_H + DIR_TICK_H + (dirEvents.length > 0 ? 6 : 0);
+
+  // ── Progression section layout ───────────────────────────────────────────────
+  const progBars  = progEvents.filter(e => e.type === 'bar');
+  const progTicks = progEvents.filter(e => e.type === 'tick');
+  const nProgSubs = progBars.length ? packBars(progBars) : 0;
+  const PROG_BAR_H  = nProgSubs > 0 ? nProgSubs * SUB_H + 10 : 0;
+  const PROG_TICK_H = progTicks.length > 0 ? 30 : 0;
+  const PROG_H      = PROG_BAR_H + PROG_TICK_H + (progEvents.length > 0 ? 6 : 0);
+
+  // ── Transit section layout (rows per target) ─────────────────────────────────
+  const targets  = [...planetsInH, ...rulers, cuspTarget];
+  const byTarget = {};
+  for (const p of periods) (byTarget[p.na.id] ??= []).push(p);
+
+  // Fixed lane assignment per target row (same transit type → same sub-row)
+  const assignLanes = ps => {
+    const keys = [...new Set([...ps].sort((a, b) => a.tPlanet.id - b.tPlanet.id || a.asp.angle - b.asp.angle)
+                    .map(p => `${p.tPlanet.id}-${p.asp.angle}`))];
+    const laneOf = new Map(keys.map((k, i) => [k, i]));
+    for (const p of ps) p.sub = laneOf.get(`${p.tPlanet.id}-${p.asp.angle}`);
+    return Math.max(laneOf.size, 1);
+  };
+
+  const trRows = targets.map(tgt => {
+    const ps    = byTarget[tgt.id] ?? [];
+    const nSubs = ps.length ? assignLanes(ps) : 1;
+    return { tgt, ps, nSubs, h: nSubs * SUB_H + 20 };
+  }).filter(r => r.ps.length > 0);
+
+  // ── Y positions ──────────────────────────────────────────────────────────────
+  const dirY  = HDR_H;
+  const progY = dirY  + DIR_H;
+  let   trY   = progY + PROG_H;
+  for (const r of trRows) { r.y = trY; trY += r.h; }
+  const TL_H = trY + 4;
+
+  // ── Left panel SVG ───────────────────────────────────────────────────────────
+  const svgL = el('svg', { id: 'tl-svg-left', width: LABEL_W, height: TL_H });
+  svgL.appendChild(el('rect', { x: 0, y: 0, width: LABEL_W, height: TL_H, fill: '#fff' }));
+
+  const addSectionLbl = (y, h, bgColor, lbl) => {
+    svgL.appendChild(el('rect', { x: 0, y, width: LABEL_W, height: h, fill: bgColor }));
+    svgL.appendChild(txt(LABEL_W / 2, y + h / 2, lbl, {
+      'font-size': 9, fill: '#aaa', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-style': 'italic',
+    }));
+    svgL.appendChild(ln(0, y + h, LABEL_W, y + h, { stroke: '#bbb', 'stroke-width': 1 }));
+  };
+
+  if (DIR_H > 0) addSectionLbl(dirY, DIR_H, '#f5ede0', 'Дир');
+  if (PROG_H > 0) addSectionLbl(progY, PROG_H, '#eeeaf5', 'Пр');
+
+  trRows.forEach((r, i) => {
+    if (i % 2 === 0) svgL.appendChild(el('rect', { x: 0, y: r.y, width: LABEL_W, height: r.h, fill: '#f7f7f4' }));
+    svgL.appendChild(ln(0, r.y, LABEL_W, r.y, { stroke: '#e8e8e4', 'stroke-width': 0.5 }));
+    svgL.appendChild(txt(LABEL_W / 2, r.y + r.h / 2, r.tgt.glyph, {
+      'font-size': 15, fill: '#333', 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    }));
+  });
+  svgL.appendChild(ln(0, HDR_H, LABEL_W, HDR_H, { stroke: '#ccc', 'stroke-width': 0.8 }));
+  svgL.appendChild(ln(LABEL_W - 0.5, 0, LABEL_W - 0.5, TL_H, { stroke: '#ccc', 'stroke-width': 1 }));
+
+  // ── Right panel SVG ───────────────────────────────────────────────────────────
+  const svgR = el('svg', { id: 'tl-svg-right', width: BARS_W, height: TL_H, style: 'display:block' });
+  svgR.appendChild(el('rect', { x: 0, y: 0, width: BARS_W, height: TL_H, fill: '#fff' }));
+
+  // Section backgrounds
+  if (DIR_H > 0) {
+    svgR.appendChild(el('rect', { x: 0, y: dirY, width: BARS_W, height: DIR_H, fill: '#f5ede0', opacity: '0.55' }));
+    svgR.appendChild(ln(0, dirY + DIR_H, BARS_W, dirY + DIR_H, { stroke: '#bbb', 'stroke-width': 1 }));
+  }
+  if (PROG_H > 0) {
+    svgR.appendChild(el('rect', { x: 0, y: progY, width: BARS_W, height: PROG_H, fill: '#eeeaf5', opacity: '0.55' }));
+    svgR.appendChild(ln(0, progY + PROG_H, BARS_W, progY + PROG_H, { stroke: '#bbb', 'stroke-width': 1 }));
+  }
+  trRows.forEach((r, i) => {
+    if (i % 2 === 0) svgR.appendChild(el('rect', { x: 0, y: r.y, width: BARS_W, height: r.h, fill: '#f7f7f4' }));
+    svgR.appendChild(ln(0, r.y, BARS_W, r.y, { stroke: '#e8e8e4', 'stroke-width': 0.5 }));
+  });
+
+  // ── Helper: draw bar events (shared for dir / prog / transit) ────────────────
+  const drawBarsSection = (bars, baseY) => {
+    for (const p of bars) {
+      const x1   = xOf(p.startJD);
+      const x2   = xOf(p.endJD + 1);
+      const barW = Math.max(x2 - x1, 2);
+      const barY = baseY + 6 + p.sub * SUB_H + (SUB_H - BAR_H) / 2;
+      const color = p.color ?? p.asp?.color ?? '#888';
+      svgR.appendChild(el('rect', { x: x1, y: barY, width: barW, height: BAR_H,
+        fill: color, rx: 1, opacity: '0.82' }));
+      const xE = xOf(p.jd ?? (p.exactJDs?.[0] ?? (p.startJD + p.endJD) / 2));
+      const dY = barY + BAR_H / 2;
+      svgR.appendChild(circ(xE, dY, 3, { fill: '#fff', stroke: color, 'stroke-width': 1.2 }));
+      if (barW >= 10) {
+        const lbl = p.label ?? (p.tPlanet?.glyph + p.asp?.symbol);
+        svgR.appendChild(txt(x1 + barW / 2, barY - 3, lbl, {
+          'font-size': 10, fill: color, 'text-anchor': 'middle', 'dominant-baseline': 'auto',
+        }));
+      }
+    }
+  };
+
+  // ── Helper: draw tick events (sign changes, direction changes) ───────────────
+  const drawTicks = (ticks, baseY, sectionH) => {
+    const sorted = [...ticks].sort((a, b) => a.jd - b.jd);
+    const rowYs = [baseY + 2, baseY + 14];
+    let lastX = -999, rowIdx = 0;
+    for (const ev of sorted) {
+      const xE = xOf(ev.jd);
+      if (xE - lastX < 36) rowIdx = 1 - rowIdx; else rowIdx = 0;
+      lastX = xE;
+      svgR.appendChild(txt(xE, rowYs[rowIdx], ev.label, {
+        'font-size': 10, fill: ev.color, 'text-anchor': 'middle', 'dominant-baseline': 'hanging',
+      }));
+      svgR.appendChild(circ(xE, rowYs[rowIdx] + 12, 3, { fill: ev.color, opacity: '0.85' }));
+    }
+  };
+
+  // ── Direction events ─────────────────────────────────────────────────────────
+  if (dirBars.length)  drawBarsSection(dirBars, dirY);
+  if (dirTicks.length) drawTicks(dirTicks, dirY + DIR_BAR_H, DIR_TICK_H);
+
+  // ── Progression events ───────────────────────────────────────────────────────
+  if (progBars.length)  drawBarsSection(progBars, progY);
+  if (progTicks.length) drawTicks(progTicks, progY + PROG_BAR_H, PROG_TICK_H);
+
+  // ── Transit rows ─────────────────────────────────────────────────────────────
+  for (const r of trRows) {
+    for (const p of r.ps) {
+      const x1   = xOf(p.startJD);
+      const x2   = xOf(p.endJD + 1);
+      const barW = Math.max(x2 - x1, 2);
+      const barY = r.y + 10 + p.sub * SUB_H + (SUB_H - BAR_H) / 2;
+      svgR.appendChild(el('rect', { x: x1, y: barY, width: barW, height: BAR_H,
+        fill: p.asp.color, rx: 1, opacity: '0.82' }));
+      for (const ejd of (p.exactJDs ?? [])) {
+        const xE = xOf(ejd);
+        if (xE >= x1 - 1 && xE <= x2 + 1)
+          svgR.appendChild(circ(xE, barY + BAR_H / 2, 3, { fill: '#fff', stroke: p.asp.color, 'stroke-width': 1.2 }));
+      }
+      if (barW >= 10) {
+        svgR.appendChild(txt(x1 + barW / 2, barY - 3, p.tPlanet.glyph + p.asp.symbol, {
+          'font-size': 10, fill: p.asp.color, 'text-anchor': 'middle', 'dominant-baseline': 'auto',
+        }));
+      }
+    }
+  }
+
+  // ── Year grid + labels ───────────────────────────────────────────────────────
+  const startDate = new Date((jdStart - 2440587.5) * 86400000);
+  const startYear = startDate.getFullYear();
+  const endYear   = fmtYear(jdEnd) + 1;
+  for (let yr = startYear; yr <= endYear; yr++) {
+    const jdYr = swe.julday(yr, 1, 1, 0);
+    if (jdYr < jdStart - 1 || jdYr > jdEnd + 1) continue;
+    const x = xOf(jdYr);
+    svgR.appendChild(ln(x, HDR_H - 4, x, TL_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
+    svgR.appendChild(txt(x + 3, 16, String(yr), { 'font-size': 11, fill: '#999' }));
+  }
+  svgR.appendChild(ln(0, HDR_H, BARS_W, HDR_H, { stroke: '#ccc', 'stroke-width': 0.8 }));
+
+  // ── Today marker ─────────────────────────────────────────────────────────────
+  const now    = new Date();
+  const jdNow  = swe.julday(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), 0);
+  if (jdNow >= jdStart && jdNow <= jdEnd) {
+    const xN = xOf(jdNow);
+    svgR.appendChild(ln(xN, 0, xN, TL_H, { stroke: '#e44', 'stroke-width': 1.2, 'stroke-dasharray': '4,2', opacity: '0.8' }));
+    svgR.appendChild(txt(xN + 2, 11, '▼', { 'font-size': 8, fill: '#e44' }));
+  }
+
+  // ── Assemble ─────────────────────────────────────────────────────────────────
+  const scrollWrap = hel('div'); scrollWrap.id = 'tl-scroll';
+  scrollWrap.appendChild(svgR);
+  const body = hel('div'); body.id = 'tl-body';
+  body.append(svgL, scrollWrap);
+  ftl.replaceChildren(body);
+
+  // Scroll so today is ~25% from left
+  requestAnimationFrame(() => {
+    const xN = xOf(swe.julday(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate(), 0));
+    scrollWrap.scrollLeft = Math.max(0, xN - scrollWrap.clientWidth * 0.25);
+  });
+}
 </script>
 </body>
 </html>

@@ -1047,6 +1047,7 @@ let tlFutureYears    = 0;      // extra years extended into the future
 let expandedRows     = new Set();  // natal planet IDs whose row is expanded
 let fastCache        = {};         // natal planet id → fast-transit periods[]
 let hiddenTPlants    = new Set();  // transiting planet IDs hidden from timeline
+let moonBandCollapsed = false;     // whether progressed Moon band is collapsed
 let detectedTimezone = null;   // IANA timezone name after geocoding
 let currentTransitJD = null;   // currently displayed JD (null = today)
 let currentMode      = 'transit'; // 'transit' | 'progressed' | 'direction'
@@ -1234,7 +1235,7 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     natalData = { planets, cusps, asc, mc, birthJD: jd, lat, lon };
     cachedTimeline = null;
     tlPastYears = 0; tlFutureYears = 0;
-    expandedRows = new Set(); fastCache = {}; hiddenTPlants = new Set();
+    expandedRows = new Set(); fastCache = {}; hiddenTPlants = new Set(); moonBandCollapsed = false;
 
     const chartName = pendingChartName || document.getElementById('birthPlace').value || 'Карта';
     pendingChartName = null;
@@ -2416,8 +2417,26 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
     }
   }
 
-  const events = []; // { planetId, type, jd, label, color }
+  const events = []; // { planetId, type, jd, exactJD, label, color }
   const plById = new Map(PLANETS.map(p => [p.id, p]));
+
+  // Extrapolate the true exact date when the minimum is at the window boundary.
+  // orbFn(i) returns the orb in degrees at day i.
+  // bestI is the index with minimum orb found in the scan.
+  const orbExact = (orbFn, bestI) => {
+    if (bestI >= DAYS - 2) {
+      // Orb still decreasing at end → exact date is after window
+      const d1 = orbFn(DAYS - 2), d2 = orbFn(DAYS - 1);
+      const rate = d2 - d1; // negative = decreasing
+      if (rate < -1e-9) return jdStart + (DAYS - 1) + d2 / (-rate);
+    } else if (bestI <= 1) {
+      // Orb was decreasing before window → exact date is before window
+      const d0 = orbFn(0), d1 = orbFn(1);
+      const rate = d1 - d0; // positive = now increasing = was exact before window
+      if (rate > 1e-9) return jdStart - d0 / rate;
+    }
+    return jdStart + bestI; // minimum inside window — no extrapolation needed
+  };
 
   // 1. Sign changes — all planets; label: plGlyph + → + signGlyph
   for (const p of PLANETS) {
@@ -2445,6 +2464,7 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
   }
 
   // 3. Exact aspects — Sun, Mercury, Venus, Mars only (Moon excluded)
+  // State-machine scan: shows bar whenever orb < limit, even if exact date is outside window.
   // Orb: 2° if Sun (id=0) or Moon (id=1) is involved, else 1°
   const PROG_ASPECTS = [
     { angle: 0,   color: '#2244bb', symbol: '☌' },
@@ -2453,29 +2473,119 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
     { angle: 120, color: '#228833', symbol: '△' },
     { angle: 180, color: '#cc1111', symbol: '☍' },
   ];
-  for (const pid of [0, 2, 3, 4]) { // Sun, Mercury, Venus, Mars — no Moon
+  for (const pid of [0, 2, 3, 4]) {
     const pl   = plById.get(pid);
     const lons = progLons.get(pid);
     for (const na of natalPlanets) {
       const progOrb = (pid === 0 || na.id === 0 || na.id === 1) ? 2.0 : 1.0;
       for (const asp of PROG_ASPECTS) {
-        for (let i = 1; i < DAYS - 1; i++) {
-          const orb = j => Math.abs(angDiff(lons[j], na.longitude) - asp.angle);
-          const d0 = orb(i-1), d1 = orb(i), d2 = orb(i+1);
-          if (d1 < d0 && d1 < d2 && d1 < progOrb) {
-            // Walk back/forward to find full orb window
-            let iS = i; while (iS > 0      && orb(iS - 1) < progOrb) iS--;
-            let iE = i; while (iE < DAYS-1 && orb(iE + 1) < progOrb) iE++;
-            events.push({ planetId: pid, type: 'aspect', jd: jdStart + i,
-              startJD: jdStart + iS, endJD: jdStart + iE,
-              label: pl.glyph + asp.symbol + na.glyph, color: asp.color });
-          }
+        let inPeriod = false, iS = 0, bestI = 0, bestD = Infinity;
+        const flushPN = iE => {
+          const exactJD = orbExact(j => Math.abs(angDiff(lons[j], na.longitude) - asp.angle), bestI);
+          events.push({ planetId: pid, type: 'aspect', jd: jdStart + bestI, exactJD,
+            startJD: jdStart + iS, endJD: jdStart + iE,
+            label: pl.glyph + asp.symbol + na.glyph, color: asp.color });
+          inPeriod = false; bestI = 0; bestD = Infinity;
+        };
+        for (let i = 0; i < DAYS; i++) {
+          const d = Math.abs(angDiff(lons[i], na.longitude) - asp.angle);
+          if (d < progOrb) {
+            if (!inPeriod) { inPeriod = true; iS = i; }
+            if (d < bestD) { bestD = d; bestI = i; }
+          } else if (inPeriod) { flushPN(i - 1); }
         }
+        if (inPeriod) flushPN(DAYS - 1);
       }
     }
   }
 
-  // 4. Progressed Moon / Sun phases — every 45°; label: ☽ phaseSymbol ☉
+  // 4. Progressed → progressed aspects (at least one planet id ≤ 4 = fast)
+  // Same state-machine: bar shown as soon as orb < 1°, even if exact date is outside window.
+  const PROG_ORB_PP = 1.0;
+  for (let pi = 0; pi < PLANETS.length; pi++) {
+    for (let pj = pi + 1; pj < PLANETS.length; pj++) {
+      const p1 = PLANETS[pi], p2 = PLANETS[pj];
+      // Moon is handled separately in the moon band — exclude from here entirely
+      if (p1.id === 1 || p2.id === 1) continue;
+      // At least one must be a fast non-Moon planet (Sun/Mercury/Venus/Mars)
+      const FAST_NO_MOON = [0, 2, 3, 4];
+      if (!FAST_NO_MOON.includes(p1.id) && !FAST_NO_MOON.includes(p2.id)) continue;
+      const l1 = progLons.get(p1.id), l2 = progLons.get(p2.id);
+      if (!l1 || !l2) continue;
+      for (const asp of PROG_ASPECTS) {
+        let inPeriod = false, iS = 0, bestI = 0, bestD = Infinity;
+        const flushPP = iE => {
+          const exactJD = orbExact(j => Math.abs(angDiff(l1[j], l2[j]) - asp.angle), bestI);
+          events.push({ type: 'aspect', jd: jdStart + bestI, exactJD,
+            startJD: jdStart + iS, endJD: jdStart + iE,
+            label: 'p' + p1.glyph + asp.symbol + 'p' + p2.glyph, color: asp.color });
+          inPeriod = false; bestI = 0; bestD = Infinity;
+        };
+        for (let i = 0; i < DAYS; i++) {
+          const d = Math.abs(angDiff(l1[i], l2[i]) - asp.angle);
+          if (d < PROG_ORB_PP) {
+            if (!inPeriod) { inPeriod = true; iS = i; }
+            if (d < bestD) { bestD = d; bestI = i; }
+          } else if (inPeriod) { flushPP(i - 1); }
+        }
+        if (inPeriod) flushPP(DAYS - 1);
+      }
+    }
+  }
+
+  // 5. Progressed Moon → natal planets + progressed planets (Moon band, orb 1°)
+  const moonLons = progLons.get(1);
+  if (moonLons) {
+    // 5a. Moon → natal
+    for (const na of natalPlanets) {
+      for (const asp of PROG_ASPECTS) {
+        let inPeriod = false, iS = 0, bestI = 0, bestD = Infinity;
+        const flushMoon = iE => {
+          const exactJD = orbExact(j => Math.abs(angDiff(moonLons[j], na.longitude) - asp.angle), bestI);
+          events.push({ type: 'moon_aspect', jd: jdStart + bestI, exactJD,
+            startJD: jdStart + iS, endJD: jdStart + iE,
+            label: '☽\uFE0E' + asp.symbol + na.glyph, color: asp.color });
+          inPeriod = false; bestI = 0; bestD = Infinity;
+        };
+        for (let i = 0; i < DAYS; i++) {
+          const d = Math.abs(angDiff(moonLons[i], na.longitude) - asp.angle);
+          if (d < 1.0) {
+            if (!inPeriod) { inPeriod = true; iS = i; }
+            if (d < bestD) { bestD = d; bestI = i; }
+          } else if (inPeriod) { flushMoon(i - 1); }
+        }
+        if (inPeriod) flushMoon(DAYS - 1);
+      }
+    }
+
+    // 5b. Moon → progressed planets (skip Moon↔Moon)
+    for (const p2 of PLANETS) {
+      if (p2.id === 1) continue; // skip self
+      const l2 = progLons.get(p2.id);
+      if (!l2) continue;
+      for (const asp of PROG_ASPECTS) {
+        let inPeriod = false, iS = 0, bestI = 0, bestD = Infinity;
+        const flushMoonP = iE => {
+          const exactJD = orbExact(j => Math.abs(angDiff(moonLons[j], l2[j]) - asp.angle), bestI);
+          events.push({ type: 'moon_aspect', jd: jdStart + bestI, exactJD,
+            startJD: jdStart + iS, endJD: jdStart + iE,
+            label: 'p☽\uFE0E' + asp.symbol + 'p' + p2.glyph, color: asp.color });
+          inPeriod = false; bestI = 0; bestD = Infinity;
+        };
+        for (let i = 0; i < DAYS; i++) {
+          const d = Math.abs(angDiff(moonLons[i], l2[i]) - asp.angle);
+          if (d < 1.0) {
+            if (!inPeriod) { inPeriod = true; iS = i; }
+            if (d < bestD) { bestD = d; bestI = i; }
+          } else if (inPeriod) { flushMoonP(i - 1); }
+        }
+        if (inPeriod) flushMoonP(DAYS - 1);
+      }
+    }
+
+  }
+
+  // 6. Progressed Moon / Sun phases — every 45°; label: ☽ phaseSymbol ☉
   const moonL = progLons.get(1);
   const sunL  = progLons.get(0);
   const PHASES = [
@@ -2630,6 +2740,8 @@ function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
       const jdStart = center - 182 - tlPastYears * 365;
       const jdEnd   = center + 183 + tlFutureYears * 365;
       const transitData = computeTransits(natalPlanets, jdStart, jdEnd);
+      const returnPeriods = computeReturnPeriods(natalPlanets, transitData.jdStart, transitData.jdEnd);
+      transitData.periods.push(...returnPeriods);
       const progEvents  = natalData?.birthJD
         ? computeProgressedEvents(natalPlanets, natalData.cusps, natalData.birthJD, transitData.jdStart, transitData.jdEnd)
         : [];
@@ -2825,6 +2937,80 @@ function computeFastTransits(natalPlanet, jdStart, jdEnd) {
   return periods;
 }
 
+// ── Planet Returns ────────────────────────────────────────────────────────────
+// Computes solar/planetary returns for Sun, Mercury, Venus, Mars.
+// A return = transiting planet ☌ its own natal position (orb 1°).
+// Results are in the same period format as computeTransits — they integrate
+// into the transit rows automatically.
+
+const RETURN_ASP = { angle: 0, color: '#cc7700', symbol: '↩', type: 'return' };
+
+function computeReturnPeriods(natalPlanets, jdStart, jdEnd) {
+  const flags  = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const DAYS   = Math.ceil(jdEnd - jdStart) + 2;
+  const ORB    = 1.0;
+  const periods = [];
+
+  for (const id of FAST_IDS) {
+    const natalPl = natalPlanets.find(p => p.id === id);
+    if (!natalPl) continue;
+    const tPlanet = PLANETS.find(p => p.id === id);
+    const lons    = new Float64Array(DAYS);
+    for (let i = 0; i < DAYS; i++) {
+      const r = swe.calc_ut(jdStart + i, id, flags);
+      lons[i] = ((r[0] % 360) + 360) % 360;
+    }
+
+    let inPeriod = false, pStart = 0;
+    let prevDiff = Infinity, wasDecreasing = false;
+    let curMinDay = -1, curMinDiff = Infinity;
+    let localMinima = [];
+
+    const closePeriod = endIdx => {
+      if (wasDecreasing && curMinDay >= 0)
+        localMinima.push({ day: curMinDay, diff: curMinDiff });
+      if (localMinima.length) {
+        // Fast planets move ~1°/day so daily minimum may be 0.3-0.7° — too large for
+        // refineExactAspects (EXACT_THRESH=0.1°). Use our own hourly scan instead.
+        const best = localMinima.reduce((a, b) => a.diff < b.diff ? a : b);
+        let minD = Infinity, minJD = jdStart + best.day;
+        for (let h = -24; h <= 24; h++) {
+          const jd  = jdStart + best.day + h / 24;
+          const r   = swe.calc_ut(jd, id, flags);
+          const lon = ((r[0] % 360) + 360) % 360;
+          const d   = Math.abs(angDiff(lon, natalPl.longitude));
+          if (d < minD) { minD = d; minJD = jd; }
+        }
+        if (minD < 0.5) // planet genuinely returns to within 0.5° of natal
+          periods.push({ tPlanet, na: natalPl, asp: RETURN_ASP,
+            startJD: jdStart + pStart, endJD: jdStart + endIdx, exactJDs: [minJD] });
+      }
+      inPeriod = false; prevDiff = Infinity; wasDecreasing = false;
+      curMinDay = -1; curMinDiff = Infinity; localMinima = [];
+    };
+
+    for (let i = 0; i < DAYS; i++) {
+      const diff = Math.abs(angDiff(lons[i], natalPl.longitude));
+      if (diff <= ORB) {
+        if (!inPeriod) {
+          inPeriod = true; pStart = i;
+          prevDiff = diff; wasDecreasing = false;
+          curMinDay = i; curMinDiff = diff;
+        } else {
+          if (diff < prevDiff) { wasDecreasing = true; curMinDay = i; curMinDiff = diff; }
+          else if (diff > prevDiff + 0.005 && wasDecreasing) {
+            localMinima.push({ day: curMinDay, diff: curMinDiff });
+            wasDecreasing = false;
+          }
+          prevDiff = diff;
+        }
+      } else if (inPeriod) { closePeriod(i - 1); }
+    }
+    if (inPeriod) closePeriod(DAYS - 1);
+  }
+  return periods;
+}
+
 function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dirEvents = [], jdCursor = null }) {
   const tl = document.getElementById('transit-tl');
   if (!periods.length) {
@@ -2841,6 +3027,14 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
   const BARS_W     = Math.ceil(SPAN * PX_PER_DAY);
 
   const xOf = jd => Math.min(Math.max((jd - jdStart) * PX_PER_DAY, 0), BARS_W);
+
+  const tooltip = document.getElementById('tl-tooltip');
+  const addTip = (elem, text) => {
+    elem.addEventListener('mouseover', () => { tooltip.textContent = text; tooltip.style.display = 'block'; });
+    elem.addEventListener('mousemove', e => { tooltip.style.left = (e.clientX + 14) + 'px'; tooltip.style.top = (e.clientY - 30) + 'px'; });
+    elem.addEventListener('mouseout',  () => { tooltip.style.display = 'none'; });
+    return elem;
+  };
 
   // ── Row layout ──────────────────────────────────────────────────────────────
   const byNatal = {};
@@ -2904,11 +3098,13 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
     });
 
   // ── Progressed events section layout ──────────────────────────────────────────
-  const progAspects = progEvents.filter(e => e.type === 'aspect');
-  const progPoints  = progEvents.filter(e => e.type !== 'aspect');
+  const progAspects   = progEvents.filter(e => e.type === 'aspect');
+  const progMoonAsps  = progEvents.filter(e => e.type === 'moon_aspect');
+  const progPoints    = progEvents.filter(e => e.type !== 'aspect' && e.type !== 'moon_aspect');
 
-  // Greedy-pack aspect bars so overlapping bars go on separate sub-rows
-  { const sorted = [...progAspects].sort((a,b) => a.startJD - b.startJD);
+  // Greedy-pack helper
+  const greedyPack = arr => {
+    const sorted = [...arr].sort((a,b) => a.startJD - b.startJD);
     const ends = [];
     for (const p of sorted) {
       let placed = false;
@@ -2917,12 +3113,17 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
       }
       if (!placed) { p.sub = ends.length; ends.push(p.endJD); }
     }
-  }
-  const nProgAspSubs = progAspects.length ? Math.max(...progAspects.map(p => p.sub + 1)) : 0;
+    return sorted.length ? Math.max(...sorted.map(p => p.sub + 1)) : 0;
+  };
 
-  const PROG_ASP_H  = nProgAspSubs > 0 ? nProgAspSubs * SUB_H + 10 : 0;
-  const PROG_TICK_H = progPoints.length > 0 ? 28 : 0;
-  const PROG_SECTION_H = PROG_ASP_H + PROG_TICK_H;
+  const nProgAspSubs  = greedyPack(progAspects);
+  const nMoonAspSubs  = greedyPack(progMoonAsps);
+
+  const PROG_ASP_H       = nProgAspSubs > 0 ? nProgAspSubs * SUB_H + 10 : 0;
+  const PROG_MOON_FULL_H = nMoonAspSubs > 0 ? nMoonAspSubs * SUB_H + 10 : 0;
+  const PROG_MOON_H      = PROG_MOON_FULL_H > 0 ? (moonBandCollapsed ? 16 : PROG_MOON_FULL_H) : 0;
+  const PROG_TICK_H      = progPoints.length > 0 ? 28 : 0;
+  const PROG_SECTION_H = PROG_ASP_H + PROG_MOON_H + PROG_TICK_H;
 
   const DIR_TICK_H = dirEvents.length > 0 ? 48 : 0;
 
@@ -2946,10 +3147,39 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
   svgL.appendChild(el('rect', { x:0, y:0, width:LABEL_W, height:TL_H, fill:'#fff' }));
   if (PROG_SECTION_H > 0) {
     svgL.appendChild(el('rect', { x:0, y:HDR_H, width:LABEL_W, height:PROG_SECTION_H, fill:'#eeeaf5' }));
-    svgL.appendChild(txt(LABEL_W/2, HDR_H + PROG_SECTION_H/2, 'Пр', {
-      'font-size': 9, fill: '#aaa', 'text-anchor': 'middle', 'dominant-baseline': 'central',
-      'font-style': 'italic',
-    }));
+    // "Пр" label centred on non-moon part
+    const prH = PROG_ASP_H + PROG_TICK_H;
+    if (prH > 0)
+      svgL.appendChild(txt(LABEL_W/2, HDR_H + prH/2, 'Пр', {
+        'font-size': 9, fill: '#aaa', 'text-anchor': 'middle', 'dominant-baseline': 'central',
+        'font-style': 'italic',
+      }));
+    // Moon band label + collapse toggle
+    if (PROG_MOON_H > 0) {
+      const moonBandY = HDR_H + PROG_ASP_H;
+      svgL.appendChild(el('rect', { x:0, y:moonBandY, width:LABEL_W, height:PROG_MOON_H, fill:'#dde8f5' }));
+      svgL.appendChild(txt(LABEL_W/2, moonBandY + PROG_MOON_H/2, '☽\uFE0E', {
+        'font-size': 13, fill: '#7799cc', 'text-anchor': 'middle', 'dominant-baseline': 'central',
+      }));
+      svgL.appendChild(txt(LABEL_W/2, moonBandY + PROG_MOON_H - 3,
+        moonBandCollapsed ? '▸' : '▾', {
+        'font-size': 8, fill: '#7799cc',
+        'text-anchor': 'middle', 'dominant-baseline': 'auto',
+      }));
+      svgL.appendChild(ln(0, moonBandY, LABEL_W, moonBandY, { stroke: '#c8d8ee', 'stroke-width': 0.8 }));
+      svgL.appendChild(ln(0, moonBandY + PROG_MOON_H, LABEL_W, moonBandY + PROG_MOON_H,
+        { stroke: '#c8d8ee', 'stroke-width': 0.8 }));
+      // Invisible hit area for toggle
+      const moonHit = el('rect', {
+        x: 0, y: moonBandY, width: LABEL_W, height: PROG_MOON_H,
+        fill: 'transparent', style: 'cursor:pointer',
+      });
+      moonHit.addEventListener('click', () => {
+        moonBandCollapsed = !moonBandCollapsed;
+        renderTimeline(cachedTimeline);
+      });
+      svgL.appendChild(moonHit);
+    }
     svgL.appendChild(ln(0, HDR_H + PROG_SECTION_H, LABEL_W, HDR_H + PROG_SECTION_H,
       { stroke: '#bbb', 'stroke-width': 1 }));
   }
@@ -3040,10 +3270,9 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
       const barW = Math.max(x2 - x1, 2);
       const barY = HDR_H + 6 + p.sub * SUB_H + (SUB_H - BAR_H) / 2;
 
-      svgR.appendChild(el('rect', {
-        x: x1, y: barY, width: barW, height: BAR_H,
-        fill: p.color, rx: 1, opacity: '0.82',
-      }));
+      const bar = el('rect', { x: x1, y: barY, width: barW, height: BAR_H, fill: p.color, rx: 1, opacity: '0.82' });
+      addTip(bar, `пр ${p.label}  ·  ${fmtDate(p.exactJD ?? p.jd)}`);
+      svgR.appendChild(bar);
 
       // Exact dot — clickable
       const xE  = xOf(p.jd);
@@ -3059,9 +3288,35 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
       }));
     }
 
+    // ── Progressed Moon → natal aspect bars ───────────────────────────────────
+    if (PROG_MOON_H > 0 && !moonBandCollapsed) {
+      const moonBandY = HDR_H + PROG_ASP_H;
+      svgR.appendChild(el('rect', { x:0, y:moonBandY, width:BARS_W, height:PROG_MOON_H, fill:'#dde8f5', opacity:'0.55' }));
+      svgR.appendChild(ln(0, moonBandY, BARS_W, moonBandY, { stroke: '#c8d8ee', 'stroke-width': 0.8 }));
+      svgR.appendChild(ln(0, moonBandY + PROG_MOON_H, BARS_W, moonBandY + PROG_MOON_H, { stroke: '#c8d8ee', 'stroke-width': 0.8 }));
+      for (const p of progMoonAsps) {
+        const x1   = xOf(p.startJD);
+        const x2   = xOf(p.endJD + 1);
+        const barW = Math.max(x2 - x1, 2);
+        const barY = moonBandY + 6 + p.sub * SUB_H + (SUB_H - BAR_H) / 2;
+        const mBar = el('rect', { x: x1, y: barY, width: barW, height: BAR_H, fill: p.color, rx: 1, opacity: '0.82' });
+        addTip(mBar, `пр ${p.label}  ·  ${fmtDate(p.exactJD ?? p.jd)}`);
+        svgR.appendChild(mBar);
+        const xE  = xOf(p.jd);
+        const dotY = barY + BAR_H / 2;
+        svgR.appendChild(circ(xE, dotY, 3, { fill: '#fff', stroke: p.color, 'stroke-width': 1.2 }));
+        svgR.appendChild(makeNavHit(circ(xE, dotY, 10, { fill: 'transparent', style: 'cursor:pointer' }), () => switchModeAndNavigate('progressed', p.jd)));
+        const lblX = barW >= 14 ? x1 + barW / 2 : xE;
+        svgR.appendChild(txt(lblX, barY - 3, p.label, {
+          'font-size': 10, fill: p.color,
+          'text-anchor': 'middle', 'dominant-baseline': 'auto',
+        }));
+      }
+    }
+
     // ── Point ticks (bottom zone) — sign / house / phase ──────────────────────
     if (PROG_TICK_H > 0) {
-      const tickBase  = HDR_H + PROG_ASP_H;
+      const tickBase  = HDR_H + PROG_ASP_H + PROG_MOON_H;
       const rowY      = [ tickBase + 2, tickBase + 14 ];
       const sortedPts = [...progPoints].sort((a, b) => a.jd - b.jd);
       let lastX = -999, rowIdx = 0;
@@ -3076,7 +3331,9 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
           'text-anchor': 'middle', 'dominant-baseline': 'hanging',
         }));
         svgR.appendChild(circ(xE, dotY, 3, { fill: ev.color, opacity: '0.85' }));
-        svgR.appendChild(makeNavHit(circ(xE, dotY, 8, { fill: 'transparent', style: 'cursor:pointer' }), () => switchModeAndNavigate('progressed', ev.jd)));
+        const pHit = makeNavHit(circ(xE, dotY, 8, { fill: 'transparent', style: 'cursor:pointer' }), () => switchModeAndNavigate('progressed', ev.jd));
+        addTip(pHit, `пр ${ev.label}  ·  ${fmtDate(ev.jd)}`);
+        svgR.appendChild(pHit);
       }
     }
   }
@@ -3102,7 +3359,9 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
         'text-anchor': 'middle', 'dominant-baseline': 'hanging',
       }));
       svgR.appendChild(circ(xE, dotY, 3, { fill: ev.color, opacity: '0.85' }));
-      svgR.appendChild(makeNavHit(circ(xE, dotY, 8, { fill: 'transparent', style: 'cursor:pointer' }), () => switchModeAndNavigate('direction', ev.jd)));
+      const dHit = makeNavHit(circ(xE, dotY, 8, { fill: 'transparent', style: 'cursor:pointer' }), () => switchModeAndNavigate('direction', ev.jd));
+      addTip(dHit, `дир ${ev.label}  ·  ${fmtDate(ev.jd)}`);
+      svgR.appendChild(dHit);
     }
   }
 
@@ -3145,16 +3404,17 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
   svgR.appendChild(txt(xT + 2, 11, '▼', { 'font-size': 8, fill: '#e44' }));
 
   // Helper: draw bars + dots + labels for a set of periods
-  const tooltip = document.getElementById('tl-tooltip');
   const drawBars = (ps, baseY, opacity = '0.82') => {
     for (const p of ps) {
       const x1   = xOf(p.startJD);
       const x2   = xOf(p.endJD + 1);
       const barW = Math.max(x2 - x1, 2);
-      const barY = baseY + 10 + p.sub * SUB_H + (SUB_H - BAR_H) / 2;
+      const isReturn = p.asp.type === 'return';
+      const barH = isReturn ? 6 : BAR_H;
+      const barY = baseY + 10 + p.sub * SUB_H + (SUB_H - barH) / 2;
 
       const bar = el('rect', {
-        x: x1, y: barY, width: barW, height: BAR_H,
+        x: x1, y: barY, width: Math.max(barW, isReturn ? 4 : 2), height: barH,
         fill: p.asp.color, rx: 1, opacity,
       });
 
@@ -3179,8 +3439,8 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
       for (const ejd of (p.exactJDs ?? [])) {
         const xE = xOf(ejd);
         if (xE >= x1 - 1 && xE <= x2 + 1) {
-          const dotY = barY + BAR_H / 2;
-          svgR.appendChild(circ(xE, dotY, 3, {
+          const dotY = barY + barH / 2;
+          svgR.appendChild(circ(xE, dotY, isReturn ? 4 : 3, {
             fill: '#fff', stroke: p.asp.color, 'stroke-width': 1.2,
           }));
           svgR.appendChild(makeNavHit(
@@ -3191,12 +3451,17 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
       }
 
 
-      if (barW >= 10) {
+      {
+        const isReturn = p.asp.type === 'return';
+        const lblX = (isReturn || barW < 10) ? xOf(p.exactJDs?.[0] ?? (p.startJD + p.endJD) / 2) : x1 + barW / 2;
         const barLbl = p.tPlanet.glyph + p.asp.symbol;
-        svgR.appendChild(txt(x1 + barW / 2, barY - 3, barLbl, {
-          'font-size': 10, fill: p.asp.color,
-          'text-anchor': 'middle', 'dominant-baseline': 'auto',
-        }));
+        if (barW >= 10 || isReturn) {
+          svgR.appendChild(txt(lblX, barY - 3, barLbl, {
+            'font-size': isReturn ? 12 : 10, fill: p.asp.color,
+            'text-anchor': 'middle', 'dominant-baseline': 'auto',
+            'font-weight': isReturn ? 'bold' : 'normal',
+          }));
+        }
       }
     }
   };

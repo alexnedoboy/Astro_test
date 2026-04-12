@@ -352,6 +352,17 @@
   #tl-filter label.tl-f-off { opacity: 0.35; }
   #tl-filter input[type=checkbox] { accent-color: #444; width: 12px; height: 12px; margin: 0; }
 
+  #tl-settings-menu {
+    position: fixed; z-index: 9999;
+    background: #fff; border: 1px solid #ddd; border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    padding: 4px 0; min-width: 130px;
+  }
+  .tl-sm-item {
+    padding: 7px 16px; font-size: 0.85em; color: #444; cursor: pointer;
+  }
+  .tl-sm-item:hover { background: #f4f4f0; }
+  .tl-sm-item.tl-sm-active { color: #5544aa; font-weight: 600; }
   #tl-nav {
     padding: 2px 0 4px;
     text-align: center;
@@ -1047,6 +1058,7 @@ let tlFutureYears    = 0;      // extra years extended into the future
 let expandedRows     = new Set();  // natal planet IDs whose row is expanded
 let fastCache        = {};         // natal planet id → fast-transit periods[]
 let hiddenTPlants    = new Set();  // transiting planet IDs hidden from timeline
+let tlYearScale      = false;      // year-scale vs month-scale timeline
 let moonBandCollapsed = false;     // whether progressed Moon band is collapsed
 let detectedTimezone = null;   // IANA timezone name after geocoding
 let currentTransitJD = null;   // currently displayed JD (null = today)
@@ -2737,8 +2749,9 @@ function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
       const jdToday = swe.julday(now.getUTCFullYear(), now.getUTCMonth() + 1,
         now.getUTCDate(), now.getUTCHours() + now.getUTCMinutes() / 60);
       const center  = centerOverride ?? currentTransitJD ?? jdToday;
-      const jdStart = center - 182 - tlPastYears * 365;
-      const jdEnd   = center + 183 + tlFutureYears * 365;
+      const baseHalf = tlYearScale ? 5 * 365 : 182;
+      const jdStart = center - baseHalf - tlPastYears * 365;
+      const jdEnd   = center + baseHalf + 1 + tlFutureYears * 365;
       const transitData = computeTransits(natalPlanets, jdStart, jdEnd);
       const returnPeriods = computeReturnPeriods(natalPlanets, transitData.jdStart, transitData.jdEnd);
       transitData.periods.push(...returnPeriods);
@@ -3018,7 +3031,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
     return;
   }
 
-  const PX_PER_DAY = 3;          // 3 px / day → 1 year ≈ 1095 px (scrollable on mobile)
+  const PX_PER_DAY = tlYearScale ? 70 / 365.25 : 3;  // year mode: 70px/yr; month mode: 3px/day
   const LABEL_W    = 44;
   const HDR_H      = 28;
   const BAR_H      = 4;
@@ -3041,11 +3054,11 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
   for (const p of periods) {
     if (!p.exactJDs?.length) continue;               // skip non-perfecting
     if (hiddenTPlants.has(p.tPlanet.id)) continue;   // skip filtered planets
+    if (tlYearScale && p.asp.type === 'return' && [0,2,3,4].includes(p.tPlanet.id)) continue; // hide fast-planet returns in year view
     (byNatal[p.na.id] ??= []).push(p);
   }
 
-  // Fixed lane assignment: same transit (planet + aspect) → always same sub-row.
-  // Lanes sorted by transiting planet id, then aspect angle for stable ordering.
+  // Fixed lane assignment: same transit (planet + aspect) → always same sub-row
   const assignLanes = (ps) => {
     const keys = [...new Set(
       [...ps]
@@ -3057,25 +3070,25 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
     return { ps, nSubs: Math.max(laneOf.size, 1) };
   };
 
-  // Greedy packing for fast transits (many short periods, overlap matters more)
-  const packRows = (ps) => {
+  // Greedy lane packing: sort by start, reuse lane once previous transit ended + gap days
+  const packRows = (ps, gap = 1) => {
     const sorted = [...ps].sort((a, b) => a.startJD - b.startJD);
-    const subEnds = [];
+    const laneEnds = [];
     for (const p of sorted) {
       let placed = false;
-      for (let s = 0; s < subEnds.length; s++) {
-        if (p.startJD > subEnds[s] + 1) { p.sub = s; subEnds[s] = p.endJD; placed = true; break; }
+      for (let s = 0; s < laneEnds.length; s++) {
+        if (p.startJD > laneEnds[s] + gap) { p.sub = s; laneEnds[s] = p.endJD; placed = true; break; }
       }
-      if (!placed) { p.sub = subEnds.length; subEnds.push(p.endJD); }
+      if (!placed) { p.sub = laneEnds.length; laneEnds.push(p.endJD); }
     }
-    return { ps: sorted, nSubs: Math.max(subEnds.length, 1) };
+    return { ps: sorted, nSubs: Math.max(laneEnds.length, 1) };
   };
 
   const rows = PLANETS
     .filter(pl => byNatal[pl.id]?.length)
     .map(pl => {
-      // Slow planets: fixed lanes so same transit always on same row
-      const { ps, nSubs } = assignLanes(byNatal[pl.id]);
+      // Month mode: fixed lanes; year mode: greedy packing
+      const { ps, nSubs } = tlYearScale ? packRows(byNatal[pl.id], 30) : assignLanes(byNatal[pl.id]);
       const slowH = nSubs * SUB_H + 20;
 
       // Fast planets section (if expanded)
@@ -3239,6 +3252,42 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
   svgL.appendChild(ln(0, HDR_H, LABEL_W, HDR_H, { stroke: '#ccc', 'stroke-width': 0.8 }));
   svgL.appendChild(ln(LABEL_W - 0.5, 0, LABEL_W - 0.5, TL_H, { stroke: '#ccc', 'stroke-width': 1 }));
 
+  // ── Settings gear in header ──────────────────────────────────────────────────
+  const gearG = el('g', { style: 'cursor:pointer' });
+  gearG.appendChild(txt(LABEL_W / 2, HDR_H / 2, '⚙\uFE0E', {
+    'font-size': 14, fill: '#aaa', 'text-anchor': 'middle', 'dominant-baseline': 'central',
+  }));
+  const gearHit = el('rect', { x: 0, y: 0, width: LABEL_W, height: HDR_H, fill: 'transparent' });
+  gearHit.addEventListener('click', e => {
+    e.stopPropagation();
+    let menu = document.getElementById('tl-settings-menu');
+    if (!menu) return;
+    const rect = svgL.getBoundingClientRect();
+    menu.style.left = rect.left + 'px';
+    menu.style.top  = (rect.top + HDR_H) + 'px';
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  });
+  gearG.appendChild(gearHit);
+  svgL.appendChild(gearG);
+
+  // ── Settings dropdown menu (created once, reused) ────────────────────────────
+  let menu = document.getElementById('tl-settings-menu');
+  if (!menu) {
+    menu = hel('div'); menu.id = 'tl-settings-menu'; menu.style.display = 'none';
+    document.body.appendChild(menu);
+    document.addEventListener('click', () => { menu.style.display = 'none'; }, { capture: true });
+  }
+  // Rebuild menu items each render so active state is current
+  menu.innerHTML = '';
+  const mkItem = (label, active, onClick) => {
+    const item = hel('div'); item.className = 'tl-sm-item' + (active ? ' tl-sm-active' : '');
+    item.textContent = label;
+    item.addEventListener('click', e => { e.stopPropagation(); menu.style.display = 'none'; onClick(); });
+    menu.appendChild(item);
+  };
+  mkItem('по месяцам', !tlYearScale, () => { if (tlYearScale) { tlYearScale = false; const c = cachedTimeline?.center; cachedTimeline = null; fastCache = {}; computeAndRenderTimeline(natalData.planets, c); } });
+  mkItem('по годам',  tlYearScale,  () => { if (!tlYearScale) { tlYearScale = true; const c = cachedTimeline?.center; cachedTimeline = null; fastCache = {}; computeAndRenderTimeline(natalData.planets, c); } });
+
   // ── Right SVG (scrollable bars + grid) ──────────────────────────────────────
   const svgR = el('svg', { id: 'tl-svg-right', width: BARS_W, height: TL_H, style: 'display:block' });
 
@@ -3365,19 +3414,29 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
     }
   }
 
-  // Month grid + labels
-  const MS = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
-  const sd = new Date((jdStart - 2440587.5) * 86400000);
-  sd.setDate(1); sd.setHours(0, 0, 0, 0);
-  const numMonths = Math.ceil(SPAN / 28) + 3;
-  for (let m = 0; m <= numMonths; m++) {
-    const md  = new Date(sd); md.setMonth(sd.getMonth() + m);
-    const mJD = swe.julday(md.getFullYear(), md.getMonth() + 1, 1, 0);
-    if (mJD < jdStart - 1 || mJD > jdEnd + 1) continue;
-    const x   = xOf(mJD);
-    svgR.appendChild(ln(x, HDR_H - 4, x, TL_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
-    const monLbl = md.getMonth() === 0 ? `Янв ${md.getFullYear()}` : MS[md.getMonth()];
-    svgR.appendChild(txt(x + 3, 16, monLbl, { 'font-size': 11, fill: '#999' }));
+  // Grid + labels (year mode: annual ticks; month mode: monthly ticks)
+  if (tlYearScale) {
+    const startYear = new Date((jdStart - 2440587.5) * 86400000).getFullYear();
+    const endYear   = new Date((jdEnd   - 2440587.5) * 86400000).getFullYear() + 1;
+    for (let yr = startYear; yr <= endYear; yr++) {
+      const xYr = xOf(swe.julday(yr, 1, 1, 0));
+      svgR.appendChild(ln(xYr, HDR_H - 4, xYr, TL_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
+      svgR.appendChild(txt(xYr + 3, 16, String(yr), { 'font-size': 11, fill: '#999' }));
+    }
+  } else {
+    const MS = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+    const sd = new Date((jdStart - 2440587.5) * 86400000);
+    sd.setDate(1); sd.setHours(0, 0, 0, 0);
+    const numMonths = Math.ceil(SPAN / 28) + 3;
+    for (let m = 0; m <= numMonths; m++) {
+      const md  = new Date(sd); md.setMonth(sd.getMonth() + m);
+      const mJD = swe.julday(md.getFullYear(), md.getMonth() + 1, 1, 0);
+      if (mJD < jdStart - 1 || mJD > jdEnd + 1) continue;
+      const x   = xOf(mJD);
+      svgR.appendChild(ln(x, HDR_H - 4, x, TL_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
+      const monLbl = md.getMonth() === 0 ? `Янв ${md.getFullYear()}` : MS[md.getMonth()];
+      svgR.appendChild(txt(x + 3, 16, monLbl, { 'font-size': 11, fill: '#999' }));
+    }
   }
   svgR.appendChild(ln(0, HDR_H, BARS_W, HDR_H, { stroke: '#ccc', 'stroke-width': 0.8 }));
 

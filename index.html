@@ -1563,7 +1563,7 @@ function drawAspects(g, planets, asc) {
 // ── Planets ───────────────────────────────────────────────────────────────────
 
 function drawPlanets(g, planets, asc) {
-  const GLYPH_R  = 230;
+  const GLYPH_R  = 220;
   const THR_RAD  = 0.18;  // ~10° cluster threshold
   const STEP_PX  = 22;
 
@@ -1617,9 +1617,9 @@ function drawPlanets(g, planets, asc) {
     const deg = Math.floor(p.longitude % 30);
     const tipText = `${p.glyph} ${p.name}  ${fmtLon(p.longitude)}${p.house ? `  Дом ${ROMAN[p.house - 1]}` : ''}${p.retrograde ? '  R' : ''}`;
     const t = el('text', {
-      x: pos.x, y: pos.y,
+      x: pos.x, y: pos.y + 9,
       'font-size': 24, fill: '#111',
-      'text-anchor': 'middle', 'dominant-baseline': 'central',
+      'text-anchor': 'middle',
       style: 'cursor:default',
     });
     t.appendChild(el('tspan', {}, p.glyph));
@@ -1629,7 +1629,7 @@ function drawPlanets(g, planets, asc) {
     t.addEventListener('mouseout', hideChartTip);
     g.appendChild(t);
     if (p.retrograde) {
-      g.appendChild(txt(pos.x + 11, pos.y + 4, 'R', {
+      g.appendChild(txt(pos.x + 9, pos.y + 9, 'R', {
         'font-size': 12, fill: '#111', 'font-weight': 'semi-bold',
       }));
     }
@@ -2198,8 +2198,8 @@ function renderBiwheelAt(jd) {
 
 const R_BW_INNER = 128;   // inner circle in biwheel (smaller to fit two rings)
 const R_DIVIDER  = 196;   // divider circle: midpoint of doubled gap (260→196→128)
-const R_T_PLANET = 230;   // transit glyph radius (between R_ZOD_IN 260 and R_DIVIDER 196)
-const R_N_PLANET = 160;   // natal glyph radius (between R_DIVIDER 196 and R_BW_INNER 128)
+const R_T_PLANET = 220;   // transit glyph radius (between R_ZOD_IN 260 and R_DIVIDER 196)
+const R_N_PLANET = 150;   // natal glyph radius (between R_DIVIDER 196 and R_BW_INNER 128)
 
 function renderBiwheel(natal, transit, cusps, asc) {
   const svg = el('svg', { viewBox: VIEWBOX, width: '100%', style: 'display:block' });
@@ -2311,10 +2311,10 @@ function drawBiwheelPlanets(g, planets, asc, rDot, rGlyph, dotColor = '#9aaa00',
     const deg = Math.floor(p.longitude % 30);
     const tipText = `${p.glyph} ${p.name}  ${fmtLon(p.longitude)}${p.house ? `  Дом ${ROMAN[p.house - 1]}` : ''}${p.retrograde ? '  R' : ''}`;
     const t = el('text', {
-      x: pos.x, y: pos.y,
+      x: pos.x, y: pos.y + 9,
       'font-size': 22, fill: glyphColor,
       'font-weight': 'semi-bold',
-      'text-anchor': 'middle', 'dominant-baseline': 'central',
+      'text-anchor': 'middle',
       style: 'cursor:default',
     });
     t.appendChild(el('tspan', {}, p.glyph));
@@ -2324,8 +2324,8 @@ function drawBiwheelPlanets(g, planets, asc, rDot, rGlyph, dotColor = '#9aaa00',
     t.addEventListener('mouseout', hideChartTip);
     g.appendChild(t);
     if (p.retrograde) {
-      g.appendChild(txt(pos.x + 9, pos.y + 3, 'R', {
-        'font-size': 10, fill: '#111', 'font-weight': 'semi-bold',
+      g.appendChild(txt(pos.x + 9, pos.y + 9, 'R', {
+        'font-size': 11, fill: '#111', 'font-weight': 'semi-bold',
       }));
     }
   });

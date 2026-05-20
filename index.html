@@ -375,6 +375,11 @@
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
   }
+  #tl-hdr-sticky {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; background: #fff;
+  }
+  #tl-hdr-scroll { overflow: hidden; flex: 1; }
 
   #tab-bar {
     display: none;
@@ -1046,7 +1051,7 @@ const R_ZOD_OUT = R_RING + RING_W / 2;   // 286 – outer edge of ring
 const R_ZOD_IN  = R_RING - RING_W / 2;   // 260 – inner edge of ring
 const R_INNER   = 196;                   // inner circle (natal chart)
 const R_PLANET = R_INNER + 12;                   // planet glyphs — closer to inner circle
-const R_LABEL   = 298;                   // cusp labels just outside ring
+const R_LABEL   = 304;                   // cusp labels just outside ring
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
@@ -1474,17 +1479,17 @@ const ANGULAR_NAMES = { 0: 'Асцендент', 3: 'IC', 6: 'Десценден
 
 function drawHouseLabels(g, cusps, asc) {
   cusps.forEach((cusp, i) => {
-    const a    = lonToRad(cusp + 5, asc);   // +5 degrees offset past cusp line
-    const p    = polar(a, R_LABEL);
+    const a    = lonToRad(cusp + 3, asc);   // +5 degrees offset past cusp line
+    const p    = polar(a, R_LABEL - 6);
     const deg  = Math.floor(cusp % 30);
     const name = ANGULAR[i] ?? ROMAN[i];
     const isAng = ANGULAR[i] !== undefined;
     const tipText = `${ROMAN[i]} дом${isAng ? `  ${ANGULAR_NAMES[i]}` : ''}  ${fmtLon(cusp)}`;
 
     const labelEl = lblSup(p.x, p.y, name, deg, {
-      'font-size': isAng ? 13 : 11,
+      'font-size': 14,
       fill: isAng ? '#111' : '#555',
-      'font-weight': isAng ? 'bold' : 'normal',
+      'font-weight': 'bold',
       'text-anchor': 'middle',
       'dominant-baseline': 'central',
       style: 'cursor:default',
@@ -1618,7 +1623,7 @@ function drawPlanets(g, planets, asc) {
       style: 'cursor:default',
     });
     t.appendChild(el('tspan', {}, p.glyph));
-    t.appendChild(el('tspan', { dy: '-7', 'font-size': '10', fill: '#555' }, String(deg)));
+    t.appendChild(el('tspan', { dy: '-12', 'font-size': '12', fill: '#555', 'font-weight': 'bold' }, String(deg)));
     t.addEventListener('mouseover', e => showChartTip(tipText, e));
     t.addEventListener('mousemove', moveChartTip);
     t.addEventListener('mouseout', hideChartTip);
@@ -2307,12 +2312,13 @@ function drawBiwheelPlanets(g, planets, asc, rDot, rGlyph, dotColor = '#9aaa00',
     const tipText = `${p.glyph} ${p.name}  ${fmtLon(p.longitude)}${p.house ? `  Дом ${ROMAN[p.house - 1]}` : ''}${p.retrograde ? '  R' : ''}`;
     const t = el('text', {
       x: pos.x, y: pos.y,
-      'font-size': 19, fill: glyphColor,
+      'font-size': 22, fill: glyphColor,
+      'font-weight': 'semi-bold',
       'text-anchor': 'middle', 'dominant-baseline': 'central',
       style: 'cursor:default',
     });
     t.appendChild(el('tspan', {}, p.glyph));
-    t.appendChild(el('tspan', { dy: '-6', 'font-size': '9', fill: glyphColor === '#111' ? '#555' : glyphColor }, String(deg)));
+    t.appendChild(el('tspan', { dy: '-10', 'font-size': '10', 'font-weight': 'bold', fill: glyphColor === '#111' ? '#555' : glyphColor }, String(deg)));
     t.addEventListener('mouseover', e => showChartTip(tipText, e));
     t.addEventListener('mousemove', moveChartTip);
     t.addEventListener('mouseout', hideChartTip);
@@ -3414,14 +3420,18 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
     }
   }
 
-  // Grid + labels (year mode: annual ticks; month mode: monthly ticks)
+  // Grid + labels — drawn into svgHdr (sticky) + vertical lines into svgR
+  const svgHdr = el('svg', { id: 'tl-svg-hdr', width: BARS_W, height: HDR_H, style: 'display:block' });
+  svgHdr.appendChild(el('rect', { x:0, y:0, width:BARS_W, height:HDR_H, fill:'#fff' }));
+
   if (tlYearScale) {
     const startYear = new Date((jdStart - 2440587.5) * 86400000).getFullYear();
     const endYear   = new Date((jdEnd   - 2440587.5) * 86400000).getFullYear() + 1;
     for (let yr = startYear; yr <= endYear; yr++) {
       const xYr = xOf(swe.julday(yr, 1, 1, 0));
-      svgR.appendChild(ln(xYr, HDR_H - 4, xYr, TL_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
-      svgR.appendChild(txt(xYr + 3, 16, String(yr), { 'font-size': 11, fill: '#999' }));
+      svgHdr.appendChild(ln(xYr, 0, xYr, HDR_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
+      svgHdr.appendChild(txt(xYr + 3, 16, String(yr), { 'font-size': 11, fill: '#999' }));
+      svgR.appendChild(ln(xYr, 0, xYr, TL_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
     }
   } else {
     const MS = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
@@ -3433,20 +3443,21 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
       const mJD = swe.julday(md.getFullYear(), md.getMonth() + 1, 1, 0);
       if (mJD < jdStart - 1 || mJD > jdEnd + 1) continue;
       const x   = xOf(mJD);
-      svgR.appendChild(ln(x, HDR_H - 4, x, TL_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
+      svgHdr.appendChild(ln(x, 0, x, HDR_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
       const monLbl = md.getMonth() === 0 ? `Янв ${md.getFullYear()}` : MS[md.getMonth()];
-      svgR.appendChild(txt(x + 3, 16, monLbl, { 'font-size': 11, fill: '#999' }));
+      svgHdr.appendChild(txt(x + 3, 16, monLbl, { 'font-size': 11, fill: '#999' }));
+      svgR.appendChild(ln(x, 0, x, TL_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
     }
   }
-  svgR.appendChild(ln(0, HDR_H, BARS_W, HDR_H, { stroke: '#ccc', 'stroke-width': 0.8 }));
+  svgHdr.appendChild(ln(0, HDR_H - 1, BARS_W, HDR_H - 1, { stroke: '#ccc', 'stroke-width': 0.8 }));
 
-  // Clickable header strip — click/tap to navigate to that date
+  // Clickable header strip — in svgHdr
   const hdrHit = el('rect', {
     x: 0, y: 0, width: BARS_W, height: HDR_H,
     fill: 'transparent', style: 'cursor:pointer',
   });
   const hdrXtoJD = clientX => {
-    const x = clientX - svgR.getBoundingClientRect().left;
+    const x = clientX - svgHdr.getBoundingClientRect().left;
     return jdStart + x / PX_PER_DAY;
   };
   let hdrTouchStartX = 0;
@@ -3455,12 +3466,13 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
     if (Math.abs(e.changedTouches[0].clientX - hdrTouchStartX) < 8) applyNavigatedJD(hdrXtoJD(e.changedTouches[0].clientX));
   });
   hdrHit.addEventListener('click', e => applyNavigatedJD(hdrXtoJD(e.clientX)));
-  svgR.appendChild(hdrHit);
+  svgHdr.appendChild(hdrHit);
 
-  // Current date line (synced with biwheel navigation)
+  // Current date line (full height in svgR) + marker in svgHdr
   const xT = xOf(jdCursor ?? jdToday);
   svgR.appendChild(ln(xT, 0, xT, TL_H, { stroke: '#e44', 'stroke-width': 1.2, 'stroke-dasharray': '4,2', opacity: '0.8' }));
-  svgR.appendChild(txt(xT + 2, 11, '▼', { 'font-size': 8, fill: '#e44' }));
+  svgHdr.appendChild(ln(xT, 0, xT, HDR_H, { stroke: '#e44', 'stroke-width': 1.2, 'stroke-dasharray': '4,2', opacity: '0.8' }));
+  svgHdr.appendChild(txt(xT + 2, 11, '▼', { 'font-size': 8, fill: '#e44' }));
 
   // Helper: draw bars + dots + labels for a set of periods
   const drawBars = (ps, baseY, opacity = '0.82') => {
@@ -3624,16 +3636,29 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
   const body = hel('div'); body.id = 'tl-body';
   body.append(svgL, scrollWrap);
 
+  // Sticky header row
+  const hdrScrollWrap = hel('div'); hdrScrollWrap.id = 'tl-hdr-scroll';
+  hdrScrollWrap.appendChild(svgHdr);
+  const hdrLeft = hel('div');
+  hdrLeft.style.cssText = `width:${LABEL_W}px; flex-shrink:0; background:#fff`;
+  const hdrSticky = hel('div'); hdrSticky.id = 'tl-hdr-sticky';
+  hdrSticky.append(hdrLeft, hdrScrollWrap);
+
+  // Sync horizontal scroll between header and body
+  scrollWrap.addEventListener('scroll', () => { hdrScrollWrap.scrollLeft = scrollWrap.scrollLeft; });
+  hdrScrollWrap.addEventListener('scroll', () => { scrollWrap.scrollLeft = hdrScrollWrap.scrollLeft; });
+
   // filterBar → transit-mode-content in left panel
   const modeContent = document.getElementById('transit-mode-content');
   modeContent.querySelector('#tl-filter')?.remove();
   modeContent.appendChild(filterBar);
 
-  tl.replaceChildren(body);
+  tl.replaceChildren(hdrSticky, body);
 
   // Scroll so "today" is ~30 % from the left edge
   requestAnimationFrame(() => {
     scrollWrap.scrollLeft = xT - scrollWrap.clientWidth * 0.3;
+    hdrScrollWrap.scrollLeft = scrollWrap.scrollLeft;
   });
 }
 

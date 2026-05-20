@@ -1565,7 +1565,7 @@ function drawAspects(g, planets, asc) {
 function drawPlanets(g, planets, asc) {
   const GLYPH_R  = 220;
   const THR_RAD  = 0.18;  // ~10° cluster threshold
-  const STEP_PX  = 22;
+  const STEP_PX  = 26;
 
   const items = planets
     .map(p => ({ ...p, dotAngle: lonToRad(p.longitude, asc) }))
@@ -2256,7 +2256,7 @@ function renderBiwheel(natal, transit, cusps, asc) {
 
 function drawBiwheelPlanets(g, planets, asc, rDot, rGlyph, dotColor = '#9aaa00', glyphColor = '#111') {
   const THR_RAD = 0.18;   // ~10° cluster threshold
-  const STEP_PX = 18;
+  const STEP_PX = 22;
 
   const items = planets
     .map(p => ({ ...p, dotAngle: lonToRad(p.longitude, asc) }))

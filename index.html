@@ -1051,22 +1051,28 @@ const CHART = {
 
   // Одиночная карта
   R_INNER:        196,  // граница внутреннего круга
-  R_GLYPH:        220,  // радиус глифов планет
   R_LABEL:        304,  // подписи домов (снаружи кольца)
-  R_CONJ_ELLIPSE: 208,  // центр эллипса соединений (R_INNER + 12)
+  R_CONJ_ELLIPSE: 208,  // центр эллипса соединений (drawClusters)
 
-  // Кластеризация планет — одиночная карта
-  CLUSTER_THR:  0.18,  // ~10° — порог объединения в кластер
-  CLUSTER_STEP:   26,  // px между глифами в кластере
+  // Одиночная карта — радиальные уровни глифов (196 → 260 — доступное пространство)
+  R_TICK:        196,   // точка истинной позиции (на границе внутреннего круга)
+  R_GLYPH_L0:    214,   // уровень 0: основная дорожка глифов
+  R_GLYPH_L1:    236,   // уровень 1: внешняя дорожка (кластеры 3+ планет)
+  GLYPH_MIN_GAP: 0.105, // ~6° — минимальный угловой зазор между глифами на одном уровне
 
   // Биколесо (транзиты / дирекции / прогрессии)
-  BW_R_INNER:         128,  // внутренняя граница
-  BW_R_DIVIDER:       196,  // разделитель натал / внешнее кольцо
-  BW_R_TRANSIT_GLYPH: 220,  // глифы внешнего кольца (транзиты/дирекции)
-  BW_R_NATAL_GLYPH:   150,  // глифы внутреннего кольца (натал в биколесе)
+  BW_R_INNER:   128,  // внутренняя граница
+  BW_R_DIVIDER: 196,  // разделитель натал / внешнее кольцо
 
-  // Кластеризация планет — биколесо
-  BW_CLUSTER_STEP: 22,  // px между глифами в кластере биколеса
+  // Биколесо — уровни глифов, натальное кольцо (128 → 196)
+  BW_R_NATAL_GLYPH:    150,  // уровень 0
+  BW_R_NATAL_GLYPH_L1: 170,  // уровень 1
+
+  // Биколесо — уровни глифов, внешнее кольцо (196 → 260)
+  BW_R_TRANSIT_GLYPH:    218,  // уровень 0
+  BW_R_TRANSIT_GLYPH_L1: 240, // уровень 1
+
+  BW_GLYPH_MIN_GAP: 0.105,  // ~6° — тот же порог для биколеса
 };
 
 // Производные значения (вычисляются из CHART, не редактировать напрямую)
@@ -1598,57 +1604,72 @@ function drawAspects(g, planets, asc) {
 // ── Planets ───────────────────────────────────────────────────────────────────
 
 function drawPlanets(g, planets, asc) {
-  const GLYPH_R  = CHART.R_GLYPH;
-  const THR_RAD  = CHART.CLUSTER_THR;
-  const STEP_PX  = CHART.CLUSTER_STEP;
+  const R_TICK  = CHART.R_TICK;
+  const R_L0    = CHART.R_GLYPH_L0;
+  const R_L1    = CHART.R_GLYPH_L1;
+  const MIN_GAP = CHART.GLYPH_MIN_GAP;
 
+  // Сортируем по углу
   const items = planets
-    .map(p => ({ ...p, dotAngle: lonToRad(p.longitude, asc) }))
-    .sort((a, b) => a.dotAngle - b.dotAngle);
+    .map(p => ({ ...p, angle: lonToRad(p.longitude, asc) }))
+    .sort((a, b) => a.angle - b.angle);
 
+  // Шаг 1: находим кластеры (планеты ближе MIN_GAP друг к другу)
   const clusters = [];
-  let current = [items[0]];
+  let cur = [items[0]];
   for (let i = 1; i < items.length; i++) {
-    let da = Math.abs(items[i].dotAngle - items[i - 1].dotAngle);
+    let da = Math.abs(items[i].angle - items[i - 1].angle);
     da = Math.min(da, Math.PI * 2 - da);
-    if (da < THR_RAD) current.push(items[i]);
-    else { clusters.push(current); current = [items[i]]; }
+    if (da < MIN_GAP) cur.push(items[i]);
+    else { clusters.push(cur); cur = [items[i]]; }
   }
-  clusters.push(current);
+  clusters.push(cur);
 
-  const stepRad = STEP_PX / GLYPH_R;
-  const labeled = [];
-  for (const cluster of clusters) {
-    const centerAngle = cluster.reduce((s, p) => s + p.dotAngle, 0) / cluster.length;
-    const startAngle  = centerAngle - stepRad * (cluster.length - 1) / 2;
-    cluster.forEach((p, i) => labeled.push({
-      ...p,
-      labelAngle: startAngle + i * stepRad,
-      inCluster: cluster.length > 1,
-    }));
+  // Шаг 2: назначаем уровни (0 = внутренний, 1 = внешний)
+  // 1–2 планеты → все на уровень 0
+  // 3+ планет → жадное распределение по двум уровням
+  function assignLevels(cluster) {
+    if (cluster.length <= 2) return cluster.map(p => ({ ...p, level: 0 }));
+    const result = [];
+    let last0 = -Infinity, last1 = -Infinity;
+    for (const p of cluster) {
+      if (p.angle - last0 >= MIN_GAP) {
+        result.push({ ...p, level: 0 }); last0 = p.angle;
+      } else if (p.angle - last1 >= MIN_GAP) {
+        result.push({ ...p, level: 1 }); last1 = p.angle;
+      } else {
+        const lv = (p.angle - last0 >= p.angle - last1) ? 0 : 1;
+        result.push({ ...p, level: lv });
+        if (lv === 0) last0 = p.angle; else last1 = p.angle;
+      }
+    }
+    return result;
   }
 
-  // 1. Dots at exact positions on R_INNER
+  const labeled = clusters.flatMap(assignLevels);
+
+  // 1. Точки истинной позиции на R_TICK
   labeled.forEach(p => {
-    const dot = polar(p.dotAngle, R_INNER);
-    g.appendChild(circ(dot.x, dot.y, 2.5, {
+    const pos = polar(p.angle, R_TICK);
+    g.appendChild(circ(pos.x, pos.y, 2.5, {
       fill: '#c6c300', stroke: '#000', 'stroke-width': 0.6,
     }));
   });
 
-  // 2. Leader lines for clusters only
+  // 2. Линии-лидеры только для уровня 1 (глиф смещён наружу)
   labeled.forEach(p => {
-    if (!p.inCluster) return;
-    const dot = polar(p.dotAngle,   R_INNER + 3);
-    const lbl = polar(p.labelAngle, GLYPH_R - 14);
-    g.appendChild(ln(dot.x, dot.y, lbl.x, lbl.y, {
+    if (p.level !== 1) return;
+    const tick  = polar(p.angle, R_TICK + 3);
+    const glyph = polar(p.angle, R_L1 - 14);
+    g.appendChild(ln(tick.x, tick.y, glyph.x, glyph.y, {
       stroke: '#aaa', 'stroke-width': 0.6, 'stroke-dasharray': '2,2.5',
     }));
   });
 
-  // 3. Glyphs at spread positions
+  // 3. Глифы на своём уровне (угол не меняется — только радиус)
   labeled.forEach(p => {
-    const pos = polar(p.labelAngle, GLYPH_R);
+    const r   = p.level === 0 ? R_L0 : R_L1;
+    const pos = polar(p.angle, r);
     const deg = Math.floor(p.longitude % 30);
     const tipText = `${p.glyph} ${p.name}  ${fmtLon(p.longitude)}${p.house ? `  Дом ${ROMAN[p.house - 1]}` : ''}${p.retrograde ? '  R' : ''}`;
     const t = el('text', {
@@ -1943,10 +1964,10 @@ function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) 
   drawDirectionAspects(g, addSouthNode(natal, natalCusps), addSouthNode(directed), 0);
 
   // 9. Natal planets (inner ring) — include South Node
-  drawBiwheelPlanets(g, addSouthNode(natal, natalCusps), 0, R_BW_INNER, R_N_PLANET);
+  drawBiwheelPlanets(g, addSouthNode(natal, natalCusps), 0, R_BW_INNER, R_N_PLANET, CHART.BW_R_NATAL_GLYPH_L1);
 
   // 10. Directed planets (outer ring) — include South Node
-  drawBiwheelPlanets(g, addSouthNode(directed),           0, R_DIVIDER, R_T_PLANET, '#111', '#111');
+  drawBiwheelPlanets(g, addSouthNode(directed),           0, R_DIVIDER, R_T_PLANET, CHART.BW_R_TRANSIT_GLYPH_L1, '#111', '#111');
 
   // 11. House labels outside ring (natal)
   drawHouseLabels(g, natalCusps, 0);
@@ -2125,10 +2146,10 @@ function renderProgressedBiwheelChart(natal, progressed, cusps, asc) {
   drawProgressedAspects(g, addSouthNode(natal, cusps), addSouthNode(progressed), 0);
 
   // Natal planets (inner ring)
-  drawBiwheelPlanets(g, addSouthNode(natal, cusps), 0, R_BW_INNER, R_N_PLANET);
+  drawBiwheelPlanets(g, addSouthNode(natal, cusps), 0, R_BW_INNER, R_N_PLANET, CHART.BW_R_NATAL_GLYPH_L1);
 
   // Progressed planets (outer ring)
-  drawBiwheelPlanets(g, addSouthNode(progressed),   0, R_DIVIDER,  R_T_PLANET);
+  drawBiwheelPlanets(g, addSouthNode(progressed),   0, R_DIVIDER,  R_T_PLANET, CHART.BW_R_TRANSIT_GLYPH_L1);
 
   drawHouseLabels(g, cusps, 0);
   document.getElementById('chart-wrap').replaceChildren(svg);
@@ -2273,10 +2294,10 @@ function renderBiwheel(natal, transit, cusps, asc) {
   drawTransitAspects(g, addSouthNode(natal, cusps), addSouthNode(transit), 0);
 
   // 8. Natal planets (inner ring) — include South Node
-  drawBiwheelPlanets(g, addSouthNode(natal, cusps), 0, R_BW_INNER, R_N_PLANET);
+  drawBiwheelPlanets(g, addSouthNode(natal, cusps), 0, R_BW_INNER, R_N_PLANET, CHART.BW_R_NATAL_GLYPH_L1);
 
   // 9. Transit planets (outer ring) — include South Node
-  drawBiwheelPlanets(g, addSouthNode(transit),      0, R_DIVIDER,  R_T_PLANET);
+  drawBiwheelPlanets(g, addSouthNode(transit),      0, R_DIVIDER,  R_T_PLANET, CHART.BW_R_TRANSIT_GLYPH_L1);
 
   // 11. House labels outside ring
   drawHouseLabels(g, cusps, 0);
@@ -2284,60 +2305,68 @@ function renderBiwheel(natal, transit, cusps, asc) {
   document.getElementById('chart-wrap').replaceChildren(svg);
 }
 
-function drawBiwheelPlanets(g, planets, asc, rDot, rGlyph, dotColor = '#9aaa00', glyphColor = '#111') {
-  const THR_RAD = CHART.CLUSTER_THR;
-  const STEP_PX = CHART.BW_CLUSTER_STEP;
+function drawBiwheelPlanets(g, planets, asc, rDot, rGlyphL0, rGlyphL1, dotColor = '#9aaa00', glyphColor = '#111') {
+  const MIN_GAP = CHART.BW_GLYPH_MIN_GAP;
+  const outward = rGlyphL0 > rDot;  // направление роста уровней (от центра или к центру)
 
+  // Сортируем по углу
   const items = planets
-    .map(p => ({ ...p, dotAngle: lonToRad(p.longitude, asc) }))
-    .sort((a, b) => a.dotAngle - b.dotAngle);
+    .map(p => ({ ...p, angle: lonToRad(p.longitude, asc) }))
+    .sort((a, b) => a.angle - b.angle);
 
+  // Шаг 1: кластеры
   const clusters = [];
-  let current = [items[0]];
+  let cur = [items[0]];
   for (let i = 1; i < items.length; i++) {
-    let da = Math.abs(items[i].dotAngle - items[i - 1].dotAngle);
+    let da = Math.abs(items[i].angle - items[i - 1].angle);
     da = Math.min(da, Math.PI * 2 - da);
-    if (da < THR_RAD) current.push(items[i]);
-    else { clusters.push(current); current = [items[i]]; }
+    if (da < MIN_GAP) cur.push(items[i]);
+    else { clusters.push(cur); cur = [items[i]]; }
   }
-  clusters.push(current);
+  clusters.push(cur);
 
-  const stepRad = STEP_PX / rGlyph;
-  const labeled = [];
-  for (const cluster of clusters) {
-    const centerAngle = cluster.reduce((s, p) => s + p.dotAngle, 0) / cluster.length;
-    const startAngle  = centerAngle - stepRad * (cluster.length - 1) / 2;
-    cluster.forEach((p, i) => labeled.push({
-      ...p,
-      labelAngle: startAngle + i * stepRad,
-      inCluster: cluster.length > 1,
-    }));
+  // Шаг 2: назначаем уровни (жадное распределение для 3+ планет)
+  function assignLevels(cluster) {
+    if (cluster.length <= 2) return cluster.map(p => ({ ...p, level: 0 }));
+    const result = [];
+    let last0 = -Infinity, last1 = -Infinity;
+    for (const p of cluster) {
+      if (p.angle - last0 >= MIN_GAP) {
+        result.push({ ...p, level: 0 }); last0 = p.angle;
+      } else if (p.angle - last1 >= MIN_GAP) {
+        result.push({ ...p, level: 1 }); last1 = p.angle;
+      } else {
+        const lv = (p.angle - last0 >= p.angle - last1) ? 0 : 1;
+        result.push({ ...p, level: lv });
+        if (lv === 0) last0 = p.angle; else last1 = p.angle;
+      }
+    }
+    return result;
   }
 
-  // Direction: outward if glyph radius > dot radius, inward otherwise
-  const outward = rGlyph > rDot;
+  const labeled = clusters.flatMap(assignLevels);
 
-  // 1. Dots at exact positions on rDot
+  // 1. Точки на rDot (истинная позиция)
   labeled.forEach(p => {
-    const dot = polar(p.dotAngle, rDot);
-    g.appendChild(circ(dot.x, dot.y, 2, {
-      fill: dotColor, stroke: 'none',
-    }));
+    const pos = polar(p.angle, rDot);
+    g.appendChild(circ(pos.x, pos.y, 2, { fill: dotColor, stroke: 'none' }));
   });
 
-  // 2. Leader lines for clusters only
+  // 2. Линии-лидеры только для уровня 1
   labeled.forEach(p => {
-    if (!p.inCluster) return;
-    const dot = polar(p.dotAngle,   rDot   + (outward ? 3 : -3));
-    const lbl = polar(p.labelAngle, rGlyph + (outward ? -11 : 11));
-    g.appendChild(ln(dot.x, dot.y, lbl.x, lbl.y, {
+    if (p.level !== 1) return;
+    const sign  = outward ? 1 : -1;
+    const tick  = polar(p.angle, rDot  + sign * 3);
+    const glyph = polar(p.angle, rGlyphL1 - sign * 11);
+    g.appendChild(ln(tick.x, tick.y, glyph.x, glyph.y, {
       stroke: '#aaa', 'stroke-width': 0.5, 'stroke-dasharray': '2,2.5',
     }));
   });
 
-  // 3. Glyphs at spread positions
+  // 3. Глифы на своём уровне (угол не меняется)
   labeled.forEach(p => {
-    const pos = polar(p.labelAngle, rGlyph);
+    const r   = p.level === 0 ? rGlyphL0 : rGlyphL1;
+    const pos = polar(p.angle, r);
     const deg = Math.floor(p.longitude % 30);
     const tipText = `${p.glyph} ${p.name}  ${fmtLon(p.longitude)}${p.house ? `  Дом ${ROMAN[p.house - 1]}` : ''}${p.retrograde ? '  R' : ''}`;
     const t = el('text', {

@@ -207,18 +207,17 @@
   #header-top {
     display: flex; align-items: center;
     padding: 0 12px; height: 48px; gap: 8px;
-    justify-content: space-between;
   }
-  #header-home { flex: 1; display: flex; align-items: center; }
+  #header-home { display: flex; align-items: center; }
   #header-chart {
-    display: none; flex: 1; align-items: center;
+    display: none; align-items: center;
     gap: 6px; min-width: 0;
   }
   #app-header.chart-mode #header-home { display: none; }
   #app-header.chart-mode #header-chart { display: flex; }
   #header-chart-info {
     display: flex; align-items: baseline;
-    gap: 8px; min-width: 0; flex-shrink: 1;
+    gap: 6px; min-width: 0; flex-shrink: 1;
   }
   #header-chart-name {
     font-size: 0.95em; font-weight: 600; color: #222;
@@ -240,7 +239,7 @@
   .back-btn { font-size: 1.2em; color: #444; }
 
   /* ── Settings dropdown ─────────────────────────────────── */
-  #header-right { position: relative; flex-shrink: 0; }
+  #header-right { position: relative; flex-shrink: 0; margin-left: auto; }
   .settings-btn { font-size: 1.05em; }
   #settings-dropdown {
     display: none; position: absolute; right: 0; top: calc(100% + 4px);
@@ -615,7 +614,7 @@
         <span id="header-chart-name"></span>
         <span id="header-chart-date"></span>
       </div>
-      <button id="editChartBtn" class="icon-btn" title="Редактировать данные">✏&#xFE0E;</button>
+      <button id="editChartBtn" class="icon-btn" title="Редактировать данные">✎</button>
       <button id="saveChartBtn" class="icon-btn" title="Сохранить карту">💾</button>
     </div>
     <div id="header-right">
@@ -1321,12 +1320,13 @@ document.getElementById('birthPlace').addEventListener('keydown', async e => {
 
 let pendingChartName = null;  // set by loadChartFromDB before calcBtn.click()
 
-function enterChartMode(name, date) {
+function enterChartMode(name, date, time) {
   document.getElementById('form-wrap').style.display = 'none';
   document.getElementById('home-charts').style.display = 'none';
   document.getElementById('app-header').classList.add('chart-mode');
   document.getElementById('header-chart-name').textContent = name || '';
-  document.getElementById('header-chart-date').textContent = date || '';
+  const dateTime = [date, time].filter(Boolean).join(' · ');
+  document.getElementById('header-chart-date').textContent = dateTime;
   document.getElementById('prog-layout').classList.add('visible');
 }
 
@@ -1391,9 +1391,10 @@ document.getElementById('calcBtn').addEventListener('click', () => {
 
     const chartName = pendingChartName || document.getElementById('birthPlace').value || 'Карта';
     pendingChartName = null;
-    const rawDate = document.getElementById('birthDate').value; // YYYY-MM-DD
+    const rawDate = document.getElementById('birthDate').value;
     const fmtDate = rawDate ? rawDate.split('-').reverse().join('.') : '';
-    enterChartMode(chartName, fmtDate);
+    const fmtTime = document.getElementById('birthTime').value || '';
+    enterChartMode(chartName, fmtDate, fmtTime);
     setActiveTab('natal');
 
     renderChart(planets, cusps, asc, mc);

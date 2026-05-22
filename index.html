@@ -397,12 +397,6 @@
   }
   #tl-hdr-scroll { overflow: hidden; flex: 1; }
 
-  #tab-bar {
-    display: none;
-    width: 100%; max-width: 740px;
-    gap: 4px; margin: 0 0 6px;
-  }
-  #tab-bar.visible { display: flex; }
   .tab-btn {
     flex: 1; padding: 9px 0; border-radius: 5px;
     font-size: 0.88em; font-weight: 600; cursor: pointer;
@@ -430,10 +424,12 @@
 
   /* ── Auth bar ──────────────────────────────────────────── */
   #app-header {
-    width: 100%; max-width: 480px; padding: 0 8px;
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 18px; position: relative;
+    width: 100%; max-width: 480px;
+    display: flex; flex-direction: column;
+    position: relative; background: #fff;
+    border-bottom: 1px solid #eee; margin-bottom: 18px;
   }
+  #app-header.chart-mode { max-width: none; }
   #app-header h1 { margin-bottom: 0; }
   #auth-zone { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
   #user-info { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
@@ -450,12 +446,7 @@
   .auth-btn.primary:hover { background: #333; }
   .auth-btn.ghost { background: none; border-color: transparent; color: #aaa; font-size: 0.78em; padding: 4px 8px; }
 
-  #save-wrap { margin-top: 6px; display: none; }
-  #saveBtn {
-    width: 100%; padding: 8px; border: 1px dashed #bbb; background: transparent;
-    border-radius: 5px; font-size: 0.84em; color: #888; cursor: pointer;
-  }
-  #saveBtn:hover { background: #fafaf8; color: #444; border-color: #999; }
+  #save-wrap { display: none; }
 
   /* ── Auth modal ─────────────────────────────────────────── */
   #modal-overlay {
@@ -612,34 +603,43 @@
   <div id="charts-list"></div>
 </div>
 
-<!-- ── App header with auth zone ────────────────────────────── -->
+<!-- ── App header ────────────────────────────────────────────── -->
 <div id="app-header">
-  <div id="header-home">
-    <h1>Натальная карта</h1>
-  </div>
-  <div id="header-chart">
-    <button id="backBtn" class="auth-btn">← Новая</button>
-    <span id="header-chart-name"></span>
-  </div>
-  <div id="header-collapse">
-    <div id="header-tabs">
-      <button class="tab-btn active" id="tabNatal">Натальная карта</button>
-      <button class="tab-btn" id="tabTransit">Прогностика</button>
-      <button class="tab-btn" id="tabForecast">Прогноз</button>
+  <div id="header-top">
+    <div id="header-home">
+      <h1>Натальная карта</h1>
     </div>
-    <div id="auth-zone">
-      <label id="elem-colors-label" style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
-        <input type="checkbox" id="elemColorsToggle"> Стихии
-      </label>
-      <button id="loginBtn" class="auth-btn primary">Войти</button>
-      <div id="user-info" style="display:none">
-        <span id="user-email-short"></span>
-        <button id="chartsBtn" class="auth-btn">📂 Карты</button>
-        <button id="logoutBtn" class="auth-btn ghost">Выйти</button>
+    <div id="header-chart">
+      <button id="backBtn" class="icon-btn back-btn" title="Назад">←</button>
+      <div id="header-chart-info">
+        <span id="header-chart-name"></span>
+        <span id="header-chart-date"></span>
+      </div>
+      <button id="editChartBtn" class="icon-btn" title="Редактировать данные">✏&#xFE0E;</button>
+      <button id="saveChartBtn" class="icon-btn" title="Сохранить карту">💾</button>
+    </div>
+    <div id="header-right">
+      <button id="settingsBtn" class="icon-btn settings-btn" title="Настройки">⚙&#xFE0E;</button>
+      <div id="settings-dropdown">
+        <label id="elem-colors-label" style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
+          <input type="checkbox" id="elemColorsToggle"> Стихии
+        </label>
+        <div id="auth-zone">
+          <button id="loginBtn" class="auth-btn primary">Войти</button>
+          <div id="user-info" style="display:none">
+            <span id="user-email-short"></span>
+            <button id="chartsBtn" class="auth-btn">📂 Карты</button>
+            <button id="logoutBtn" class="auth-btn ghost">Выйти</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
-  <button id="hamburger-btn" class="hamburger-btn" aria-label="Меню">☰</button>
+  <div id="chart-tabs-bar">
+    <button class="tab-btn active" id="tabNatal">Натал</button>
+    <button class="tab-btn" id="tabTransit">Прогностика</button>
+    <button class="tab-btn" id="tabForecast">Прогноз</button>
+  </div>
 </div>
 
 <div id="form-wrap">
@@ -930,27 +930,27 @@ function reRenderCurrentChart() {
 }
 
 
-// ── Hamburger menu (mobile) ───────────────────────────────────────────────────
+// ── Settings dropdown ─────────────────────────────────────────────────────────
 
-const hamburgerBtn = document.getElementById('hamburger-btn');
 const appHeader    = document.getElementById('app-header');
+const headerRight  = document.getElementById('header-right');
 
-hamburgerBtn.addEventListener('click', e => {
+document.getElementById('settingsBtn').addEventListener('click', e => {
   e.stopPropagation();
-  appHeader.classList.toggle('menu-open');
+  headerRight.classList.toggle('open');
 });
 
 // Close on outside click
 document.addEventListener('click', e => {
-  if (appHeader.classList.contains('menu-open') && !appHeader.contains(e.target)) {
-    appHeader.classList.remove('menu-open');
+  if (headerRight.classList.contains('open') && !headerRight.contains(e.target)) {
+    headerRight.classList.remove('open');
   }
 });
 
-// Close when a tab/button inside the menu is clicked
-document.getElementById('header-collapse').addEventListener('click', e => {
-  if (e.target.closest('.tab-btn, .auth-btn')) {
-    appHeader.classList.remove('menu-open');
+// Close when a button inside dropdown is clicked
+document.getElementById('settings-dropdown').addEventListener('click', e => {
+  if (e.target.closest('.auth-btn')) {
+    headerRight.classList.remove('open');
   }
 });
 
@@ -1321,11 +1321,12 @@ document.getElementById('birthPlace').addEventListener('keydown', async e => {
 
 let pendingChartName = null;  // set by loadChartFromDB before calcBtn.click()
 
-function enterChartMode(name) {
+function enterChartMode(name, date) {
   document.getElementById('form-wrap').style.display = 'none';
   document.getElementById('home-charts').style.display = 'none';
   document.getElementById('app-header').classList.add('chart-mode');
   document.getElementById('header-chart-name').textContent = name || '';
+  document.getElementById('header-chart-date').textContent = date || '';
   document.getElementById('prog-layout').classList.add('visible');
 }
 
@@ -1343,6 +1344,12 @@ function exitChartMode() {
 }
 
 document.getElementById('backBtn').addEventListener('click', exitChartMode);
+
+document.getElementById('editChartBtn').addEventListener('click', exitChartMode);
+
+document.getElementById('saveChartBtn').addEventListener('click', () => {
+  document.getElementById('saveBtn').click();
+});
 
 // ── Calculate ─────────────────────────────────────────────────────────────────
 
@@ -1384,12 +1391,13 @@ document.getElementById('calcBtn').addEventListener('click', () => {
 
     const chartName = pendingChartName || document.getElementById('birthPlace').value || 'Карта';
     pendingChartName = null;
-    enterChartMode(chartName);
+    const rawDate = document.getElementById('birthDate').value; // YYYY-MM-DD
+    const fmtDate = rawDate ? rawDate.split('-').reverse().join('.') : '';
+    enterChartMode(chartName, fmtDate);
     setActiveTab('natal');
 
     renderChart(planets, cusps, asc, mc);
     renderTable(planets);
-    document.getElementById('save-wrap').style.display = 'block';
     setStatus('');
   } catch (e) { setStatus('Ошибка: ' + e.message); }
 });
@@ -2108,9 +2116,9 @@ function drawDirectedCusps(g, directedCusps, asc) {
     const useColor = elementColorsMode && isAng;
     const c1 = useColor ? ANGULAR_COLORS[i]     : '#808080';
     const c2 = useColor ? ANGULAR_COLORS[i + 6] : '#808080';
-    // Visible only in the directed ring: R_BW_INNER → R_DIVIDER (each side)
-    const p1a = polar(a1, R_BW_INNER), p1b = polar(a1, R_DIVIDER);
-    const p2a = polar(a2, R_BW_INNER), p2b = polar(a2, R_DIVIDER);
+    // Visible only in the directed ring: R_DIVIDER → R_ZOD_IN (each side)
+    const p1a = polar(a1, R_DIVIDER), p1b = polar(a1, R_ZOD_IN);
+    const p2a = polar(a2, R_DIVIDER), p2b = polar(a2, R_ZOD_IN);
     g.appendChild(ln(p1a.x, p1a.y, p1b.x, p1b.y, { stroke: c1, 'stroke-width': w, opacity: '0.55' }));
     g.appendChild(ln(p2a.x, p2a.y, p2b.x, p2b.y, { stroke: c2, 'stroke-width': w, opacity: '0.55' }));
   }

@@ -1037,21 +1037,55 @@ function getHouseRulerPlanets(houseIdx, cusps) {
   return (SIGN_RULERS[signIdx] ?? []).map(id => PLANETS.find(p => p.id === id)).filter(Boolean);
 }
 
-// ── Layout (matching SVG template) ───────────────────────────────────────────
+// ── Chart configuration (единая точка для всех параметров рендеринга) ─────────
 
-const W = 740, H = 740, CX = 370, CY = 370;
-// Crop empty margins from SVG viewport so chart fills the container on mobile.
-// Labels sit at R_LABEL=312 from center; 370-312=58px to canvas edge.
-// We crop 44px from each side → 8px breathing room around outermost labels.
-const VB_CROP = 58;
-const VIEWBOX  = `${VB_CROP} ${VB_CROP} ${W - VB_CROP * 2} ${H - VB_CROP * 2}`;
-const R_RING    = 273;                    // ring centreline (template)
-const RING_W    = 26;                     // ring stroke-width (template)
-const R_ZOD_OUT = R_RING + RING_W / 2;   // 286 – outer edge of ring
-const R_ZOD_IN  = R_RING - RING_W / 2;   // 260 – inner edge of ring
-const R_INNER   = 196;                   // inner circle (natal chart)
-const R_PLANET = R_INNER + 12;                   // planet glyphs — closer to inner circle
-const R_LABEL   = 304;                   // cusp labels just outside ring
+const CHART = {
+  // Холст
+  W: 740, H: 740,
+  VB_CROP: 58,
+
+  // Зодиакальное кольцо — общее для всех типов карт
+  R_RING:  273,   // центральная линия кольца
+  RING_W:   26,   // толщина кольца
+
+  // Одиночная карта
+  R_INNER:        196,  // граница внутреннего круга
+  R_GLYPH:        220,  // радиус глифов планет
+  R_LABEL:        304,  // подписи домов (снаружи кольца)
+  R_CONJ_ELLIPSE: 208,  // центр эллипса соединений (R_INNER + 12)
+
+  // Кластеризация планет — одиночная карта
+  CLUSTER_THR:  0.18,  // ~10° — порог объединения в кластер
+  CLUSTER_STEP:   26,  // px между глифами в кластере
+
+  // Биколесо (транзиты / дирекции / прогрессии)
+  BW_R_INNER:         128,  // внутренняя граница
+  BW_R_DIVIDER:       196,  // разделитель натал / внешнее кольцо
+  BW_R_TRANSIT_GLYPH: 220,  // глифы внешнего кольца (транзиты/дирекции)
+  BW_R_NATAL_GLYPH:   150,  // глифы внутреннего кольца (натал в биколесе)
+
+  // Кластеризация планет — биколесо
+  BW_CLUSTER_STEP: 22,  // px между глифами в кластере биколеса
+};
+
+// Производные значения (вычисляются из CHART, не редактировать напрямую)
+const W         = CHART.W;
+const H         = CHART.H;
+const CX        = W / 2;
+const CY        = H / 2;
+const VB_CROP   = CHART.VB_CROP;
+const VIEWBOX   = `${VB_CROP} ${VB_CROP} ${W - VB_CROP * 2} ${H - VB_CROP * 2}`;
+const R_RING    = CHART.R_RING;
+const RING_W    = CHART.RING_W;
+const R_ZOD_OUT = R_RING + RING_W / 2;   // 286 – внешний край кольца
+const R_ZOD_IN  = R_RING - RING_W / 2;   // 260 – внутренний край кольца
+const R_INNER   = CHART.R_INNER;
+const R_PLANET  = CHART.R_CONJ_ELLIPSE;  // используется в drawClusters
+const R_LABEL   = CHART.R_LABEL;
+const R_BW_INNER = CHART.BW_R_INNER;
+const R_DIVIDER  = CHART.BW_R_DIVIDER;
+const R_T_PLANET = CHART.BW_R_TRANSIT_GLYPH;
+const R_N_PLANET = CHART.BW_R_NATAL_GLYPH;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
@@ -1563,9 +1597,9 @@ function drawAspects(g, planets, asc) {
 // ── Planets ───────────────────────────────────────────────────────────────────
 
 function drawPlanets(g, planets, asc) {
-  const GLYPH_R  = 220;
-  const THR_RAD  = 0.18;  // ~10° cluster threshold
-  const STEP_PX  = 26;
+  const GLYPH_R  = CHART.R_GLYPH;
+  const THR_RAD  = CHART.CLUSTER_THR;
+  const STEP_PX  = CHART.CLUSTER_STEP;
 
   const items = planets
     .map(p => ({ ...p, dotAngle: lonToRad(p.longitude, asc) }))
@@ -2196,11 +2230,6 @@ function renderBiwheelAt(jd) {
 // Layout: transit planets in outer ring, natal in inner ring, separated by a
 // thin divider circle. Yellow dots mark each planet on the divider.
 
-const R_BW_INNER = 128;   // inner circle in biwheel (smaller to fit two rings)
-const R_DIVIDER  = 196;   // divider circle: midpoint of doubled gap (260→196→128)
-const R_T_PLANET = 220;   // transit glyph radius (between R_ZOD_IN 260 and R_DIVIDER 196)
-const R_N_PLANET = 150;   // natal glyph radius (between R_DIVIDER 196 and R_BW_INNER 128)
-
 function renderBiwheel(natal, transit, cusps, asc) {
   const svg = el('svg', { viewBox: VIEWBOX, width: '100%', style: 'display:block' });
 
@@ -2255,8 +2284,8 @@ function renderBiwheel(natal, transit, cusps, asc) {
 }
 
 function drawBiwheelPlanets(g, planets, asc, rDot, rGlyph, dotColor = '#9aaa00', glyphColor = '#111') {
-  const THR_RAD = 0.18;   // ~10° cluster threshold
-  const STEP_PX = 22;
+  const THR_RAD = CHART.CLUSTER_THR;
+  const STEP_PX = CHART.BW_CLUSTER_STEP;
 
   const items = planets
     .map(p => ({ ...p, dotAngle: lonToRad(p.longitude, asc) }))

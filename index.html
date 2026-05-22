@@ -1664,7 +1664,7 @@ function drawPlanets(g, planets, asc) {
       style: 'font-family:HamburgSymbols;cursor:default',
     });
     t.appendChild(el('tspan', {}, p.hamburgGlyph));
-    t.appendChild(el('tspan', { dy: '-12', 'font-size': '12', fill: '#111', 'font-weight': 'bold', style: 'font-family:sans-serif' }, String(deg)));
+    t.appendChild(el('tspan', { x: pos.x, dy: '-12', 'font-size': '12', fill: '#111', 'font-weight': 'bold', style: 'font-family:sans-serif' }, String(deg)));
     t.addEventListener('mouseover', e => showChartTip(tipText, e));
     t.addEventListener('mousemove', moveChartTip);
     t.addEventListener('mouseout', hideChartTip);
@@ -2346,7 +2346,7 @@ function drawBiwheelPlanets(g, planets, asc, rDot, rGlyphL0, rGlyphL1, dotColor 
       style: 'font-family:HamburgSymbols;cursor:default',
     });
     t.appendChild(el('tspan', {}, p.hamburgGlyph));
-    t.appendChild(el('tspan', { dy: '-10', 'font-size': '10', 'font-weight': 'bold', fill: '#111', style: 'font-family:sans-serif' }, String(deg)));
+    t.appendChild(el('tspan', { x: pos.x, dy: '-10', 'font-size': '10', 'font-weight': 'bold', fill: '#111', style: 'font-family:sans-serif' }, String(deg)));
     t.addEventListener('mouseover', e => showChartTip(tipText, e));
     t.addEventListener('mousemove', moveChartTip);
     t.addEventListener('mouseout', hideChartTip);

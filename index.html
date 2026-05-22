@@ -1612,7 +1612,7 @@ function drawPlanets(g, planets, asc) {
   // Сортируем по углу
   const items = planets
     .map(p => ({ ...p, angle: lonToRad(p.longitude, asc) }))
-    .sort((a, b) => a.angle - b.angle);
+    .sort((a, b) => a.longitude - b.longitude);
 
   // Шаг 1: находим кластеры (планеты ближе MIN_GAP друг к другу)
   const clusters = [];
@@ -2297,7 +2297,7 @@ function drawBiwheelPlanets(g, planets, asc, rDot, rGlyphL0, rGlyphL1, dotColor 
   // Сортируем по углу
   const items = planets
     .map(p => ({ ...p, angle: lonToRad(p.longitude, asc) }))
-    .sort((a, b) => a.angle - b.angle);
+    .sort((a, b) => a.longitude - b.longitude);
 
   // Шаг 1: кластеры
   const clusters = [];

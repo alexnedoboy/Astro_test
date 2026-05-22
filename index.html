@@ -447,6 +447,14 @@
 
   #save-wrap { display: none; }
 
+  /* ── Save confirmation ─────────────────────────────────── */
+  #save-confirm {
+    font-size: 0.78em; color: #888; white-space: nowrap;
+    opacity: 0; transition: opacity 0.2s;
+  }
+  #save-confirm.show { opacity: 1; }
+  #save-confirm.error { color: #c0392b; }
+
   /* ── Edit mode: form floats over the chart ─────────────── */
   #edit-backdrop {
     display: none; position: fixed; inset: 0;
@@ -637,6 +645,7 @@
       </div>
       <button id="editChartBtn" class="icon-btn" title="Редактировать данные">✎</button>
       <button id="saveChartBtn" class="icon-btn" title="Сохранить карту">💾</button>
+      <span id="save-confirm"></span>
     </div>
     <div id="header-right">
       <button id="settingsBtn" class="icon-btn settings-btn" title="Настройки">⚙&#xFE0E;</button>
@@ -656,8 +665,8 @@
     </div>
   </div>
   <div id="chart-tabs-bar">
-    <button class="tab-btn active" id="tabNatal">Натал</button>
     <button class="tab-btn" id="tabTransit">Прогностика</button>
+    <button class="tab-btn active" id="tabNatal">Натал</button>
     <button class="tab-btn" id="tabForecast">Прогноз</button>
   </div>
 </div>
@@ -1036,6 +1045,16 @@ function loadChartFromDB(c) {
 
 // ── Save chart ────────────────────────────────────────────────────────────────
 
+let _saveConfirmTimer;
+function showSaveConfirm(msg, isError = false) {
+  const el = document.getElementById('save-confirm');
+  el.textContent = msg;
+  el.classList.toggle('error', isError);
+  el.classList.add('show');
+  clearTimeout(_saveConfirmTimer);
+  _saveConfirmTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
 document.getElementById('saveBtn').addEventListener('click', async () => {
   if (!currentUser) { openModal(); return; }
   const name = document.getElementById('chartName').value.trim()
@@ -1052,8 +1071,8 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     utc_offset: parseFloat(document.getElementById('utcOff').value)  || null,
     timezone:   detectedTimezone ?? null,
   });
-  if (error) alert('Ошибка: ' + error.message);
-  else setStatus('💾 Карта «' + name + '» сохранена.');
+  if (error) showSaveConfirm('Ошибка', true);
+  else showSaveConfirm('✓ Сохранено');
 });
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -1450,7 +1469,7 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     } else {
       enterChartMode(chartName, fmtDate, fmtTime);
     }
-    setActiveTab('natal');
+    setActiveTab('transit');
 
     renderChart(planets, cusps, asc, mc);
     renderTable(planets);
@@ -2396,7 +2415,7 @@ document.getElementById('subTabNatal').addEventListener('click', () => {
   setSubTab('subTabNatal');
   document.getElementById('transit-mode-content').style.display = 'none';
   document.getElementById('prog-mode-content').style.display = 'none';
-  document.getElementById('date-nav').style.display = 'none';
+  document.getElementById('date-nav').style.display = '';
   renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
 });
 

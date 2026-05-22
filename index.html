@@ -204,56 +204,71 @@
   }
 
   /* ── Header: home vs chart mode ───────────────────────── */
-  #header-home { display: flex; align-items: center; }
+  #header-top {
+    display: flex; align-items: center;
+    padding: 0 12px; height: 48px; gap: 8px;
+    justify-content: space-between;
+  }
+  #header-home { flex: 1; display: flex; align-items: center; }
   #header-chart {
     display: none; flex: 1; align-items: center;
-    gap: 8px; min-width: 0;
+    gap: 6px; min-width: 0;
   }
-  #app-header.chart-mode { max-width: none; padding: 0 16px; }
   #app-header.chart-mode #header-home { display: none; }
   #app-header.chart-mode #header-chart { display: flex; }
+  #header-chart-info {
+    display: flex; align-items: baseline;
+    gap: 8px; min-width: 0; flex-shrink: 1;
+  }
   #header-chart-name {
-    font-size: 0.86em; color: #888;
+    font-size: 0.95em; font-weight: 600; color: #222;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    flex-shrink: 1; min-width: 0;
   }
-  /* header-collapse: tabs + auth inline on desktop */
-  #header-collapse { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-  /* tabs hidden in home mode; visible in chart mode */
-  #header-tabs { display: none; gap: 4px; flex-shrink: 0; }
-  #app-header.chart-mode #header-tabs { display: flex; }
-  #header-tabs .tab-btn { padding: 7px 18px; font-size: 0.85em; flex: none; }
-  #backBtn { flex-shrink: 0; }
-
-  /* ── Hamburger (mobile only) ───────────────────────────── */
-  .hamburger-btn {
-    display: none;
-    padding: 7px 11px; border: 1px solid #ccc; border-radius: 5px;
-    background: #f8f8f5; color: #555; font-size: 1.1em;
-    cursor: pointer; flex-shrink: 0; line-height: 1;
+  #header-chart-date {
+    font-size: 0.78em; color: #aaa; white-space: nowrap; flex-shrink: 0;
   }
-  .hamburger-btn:hover { background: #e8e8e4; }
 
-  @media (max-width: 600px) {
-    .hamburger-btn { display: block; }
-    #header-collapse {
-      display: none;
-      position: absolute; top: 100%; right: 0;
-      background: #fff; box-shadow: 0 6px 20px rgba(0,0,0,0.14);
-      border-radius: 0 0 10px 10px; padding: 10px 14px;
-      flex-direction: column; align-items: stretch;
-      gap: 8px; z-index: 300; min-width: 200px;
-    }
-    #app-header.menu-open #header-collapse { display: flex; }
-    /* In chart mode + open: show tabs full-width */
-    #app-header.chart-mode.menu-open #header-tabs { display: flex; width: 100%; }
-    /* Auth zone stacks vertically in mobile menu */
-    #header-collapse #auth-zone {
-      display: flex; flex-direction: column; gap: 6px; align-items: stretch;
-    }
-    #header-collapse #auth-zone .auth-btn { width: 100%; text-align: center; }
-    #header-collapse #user-info { flex-direction: column; gap: 6px; align-items: stretch; }
-    #app-header { flex-wrap: nowrap; }
+  /* ── Icon buttons ──────────────────────────────────────── */
+  .icon-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 6px;
+    border: none; background: none; color: #555;
+    font-size: 1em; cursor: pointer; flex-shrink: 0;
+    transition: background 0.15s; line-height: 1;
+  }
+  .icon-btn:hover { background: #f0f0ec; }
+  .back-btn { font-size: 1.2em; color: #444; }
+
+  /* ── Settings dropdown ─────────────────────────────────── */
+  #header-right { position: relative; flex-shrink: 0; }
+  .settings-btn { font-size: 1.05em; }
+  #settings-dropdown {
+    display: none; position: absolute; right: 0; top: calc(100% + 4px);
+    background: #fff; border: 1px solid #ddd; border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12); padding: 10px 14px;
+    min-width: 180px; z-index: 300;
+    flex-direction: column; gap: 8px;
+  }
+  #header-right.open #settings-dropdown { display: flex; }
+  #settings-dropdown #auth-zone { display: flex; flex-direction: column; gap: 6px; }
+  #settings-dropdown #user-info { display: flex; flex-direction: column; gap: 5px; }
+  #settings-dropdown .auth-btn { width: 100%; text-align: center; }
+  #settings-dropdown #user-email-short { font-size: 0.76em; color: #888; }
+
+  /* ── Chart tabs bar (below header, chart mode only) ────── */
+  #chart-tabs-bar { display: none; border-top: 1px solid #eee; }
+  #app-header.chart-mode #chart-tabs-bar { display: flex; }
+  #chart-tabs-bar .tab-btn {
+    flex: 1; border-radius: 0; border: none;
+    border-bottom: 2px solid transparent; background: none;
+    padding: 7px 12px; font-size: 0.85em; font-weight: 600; color: #999;
+  }
+  #chart-tabs-bar .tab-btn.active { color: #222; border-bottom-color: #333; }
+  #chart-tabs-bar .tab-btn:hover:not(.active) { background: #f8f8f5; color: #444; }
+
+  @media (max-width: 500px) {
+    #header-chart-info { flex-direction: column; align-items: flex-start; gap: 1px; }
+    #header-chart-date { line-height: 1.2; }
   }
 
   @media (min-width: 700px) {
@@ -2089,12 +2104,15 @@ function drawDirectedCusps(g, directedCusps, asc) {
     const isAng = (i === 0 || i === 3);
     const a1 = lonToRad(directedCusps[i],     asc);
     const a2 = lonToRad(directedCusps[i + 6], asc);
-    const attrs = { stroke: '#808080', 'stroke-width': isAng ? 2 : 1, opacity: '0.55' };
-    // Visible only in the directed ring: R_DIVIDER → R_ZOD_IN (each side)
-    const p1a = polar(a1, R_DIVIDER), p1b = polar(a1, R_ZOD_IN);
-    const p2a = polar(a2, R_DIVIDER), p2b = polar(a2, R_ZOD_IN);
-    g.appendChild(ln(p1a.x, p1a.y, p1b.x, p1b.y, attrs));
-    g.appendChild(ln(p2a.x, p2a.y, p2b.x, p2b.y, attrs));
+    const w = isAng ? 2 : 1;
+    const useColor = elementColorsMode && isAng;
+    const c1 = useColor ? ANGULAR_COLORS[i]     : '#808080';
+    const c2 = useColor ? ANGULAR_COLORS[i + 6] : '#808080';
+    // Visible only in the directed ring: R_BW_INNER → R_DIVIDER (each side)
+    const p1a = polar(a1, R_BW_INNER), p1b = polar(a1, R_DIVIDER);
+    const p2a = polar(a2, R_BW_INNER), p2b = polar(a2, R_DIVIDER);
+    g.appendChild(ln(p1a.x, p1a.y, p1b.x, p1b.y, { stroke: c1, 'stroke-width': w, opacity: '0.55' }));
+    g.appendChild(ln(p2a.x, p2a.y, p2b.x, p2b.y, { stroke: c2, 'stroke-width': w, opacity: '0.55' }));
   }
 }
 

@@ -613,6 +613,9 @@
       <button class="tab-btn" id="tabForecast">Прогноз</button>
     </div>
     <div id="auth-zone">
+      <label id="elem-colors-label" style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
+        <input type="checkbox" id="elemColorsToggle"> Стихии
+      </label>
       <button id="loginBtn" class="auth-btn primary">Войти</button>
       <div id="user-info" style="display:none">
         <span id="user-email-short"></span>
@@ -766,6 +769,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 let currentUser = null;
+let elementColorsMode = false;
 
 // Restore session on page load (handles OAuth redirect)
 sb.auth.getSession().then(({ data: { session } }) => updateAuthUI(session?.user ?? null));
@@ -781,6 +785,12 @@ function updateAuthUI(user) {
     userInfo.style.display = 'flex';
     emailEl.textContent = user.email ?? user.user_metadata?.full_name ?? '';
     loadHomeCharts();
+    // Load element colors preference from Supabase (overrides localStorage)
+    const meta = user?.user_metadata;
+    const pref = meta?.elementColors ?? (localStorage.getItem('elementColors') === '1');
+    elementColorsMode = pref;
+    localStorage.setItem('elementColors', pref ? '1' : '0');
+    if (elemColorsToggle) elemColorsToggle.checked = pref;
   } else {
     loginBtn.style.display = '';
     userInfo.style.display = 'none';
@@ -875,6 +885,35 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   await sb.auth.signOut();
   closeChartsPanel();
 });
+// ── Element colors toggle ─────────────────────────────────────────────────────
+const elemColorsToggle = document.getElementById('elemColorsToggle');
+
+// Load from localStorage on startup (before auth resolves)
+if (localStorage.getItem('elementColors') === '1') {
+  elementColorsMode = true;
+  elemColorsToggle.checked = true;
+}
+
+elemColorsToggle.addEventListener('change', async () => {
+  elementColorsMode = elemColorsToggle.checked;
+  localStorage.setItem('elementColors', elementColorsMode ? '1' : '0');
+  reRenderCurrentChart();
+  // Also save to Supabase user metadata if logged in
+  try {
+    const { data: { user } } = await sb.auth.getUser();
+    if (user) await sb.auth.updateUser({ data: { elementColors: elementColorsMode } });
+  } catch (e) {}
+});
+
+function reRenderCurrentChart() {
+  if (!natalData) return;
+  if (currentMode === 'natal') {
+    renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
+  } else if (currentTransitJD) {
+    applyNavigatedJD(currentTransitJD);
+  }
+}
+
 
 // ── Hamburger menu (mobile) ───────────────────────────────────────────────────
 
@@ -1007,6 +1046,18 @@ const AC_CHART_HARD  = '#000000'; // square/opposition — black
 const AC_TL_SOFT     = '#228833'; // sextile/trine — green
 const AC_TL_HARD     = '#cc1111'; // square/opposition — red
 const AC_TL_NEUTRAL  = '#000000'; // ingress, sign change, etc. — black
+
+// ── Element colors for zodiac ring ────────────────────────────────────────────
+const ELEM_FIRE  = '#FD4948';
+const ELEM_EARTH = '#A9DA31';
+const ELEM_AIR   = '#F9E255';
+const ELEM_WATER = '#6FCCF8';
+// Fire/Earth/Air/Water repeating for signs 0(Aries)–11(Pisces)
+const SIGN_ELEM_COLORS = [
+  ELEM_FIRE, ELEM_EARTH, ELEM_AIR, ELEM_WATER,
+  ELEM_FIRE, ELEM_EARTH, ELEM_AIR, ELEM_WATER,
+  ELEM_FIRE, ELEM_EARTH, ELEM_AIR, ELEM_WATER,
+];
 
 // Natal aspects — dynamic orbs via getNatalOrb()
 const ASPECTS = [
@@ -1449,6 +1500,26 @@ function drawDegreeRing(g, rOuter, ringW, signExt) {
   }
 }
 
+// ── Zodiac ring — solid gray or 12 element-colored arcs ───────────────────────
+function drawZodiacRing(g) {
+  if (!elementColorsMode) {
+    g.appendChild(circ(CX, CY, R_RING, {
+      fill: 'none', stroke: '#808080', 'stroke-width': RING_W,
+    }));
+    return;
+  }
+  for (let i = 0; i < 12; i++) {
+    const a1 = lonToRad(i * 30, 0);
+    const a2 = lonToRad((i + 1) * 30, 0);
+    const x1 = CX + R_RING * Math.cos(a1), y1 = CY - R_RING * Math.sin(a1);
+    const x2 = CX + R_RING * Math.cos(a2), y2 = CY - R_RING * Math.sin(a2);
+    g.appendChild(el('path', {
+      d: `M ${x1} ${y1} A ${R_RING} ${R_RING} 0 0 1 ${x2} ${y2}`,
+      fill: 'none', stroke: SIGN_ELEM_COLORS[i], 'stroke-width': RING_W,
+    }));
+  }
+}
+
 function renderChart(planets, cusps, asc, mc) {
   const svg = el('svg', { viewBox: VIEWBOX, width: '100%', style: 'display:block' });
 
@@ -1467,9 +1538,7 @@ function renderChart(planets, cusps, asc, mc) {
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
 
   // 2. Zodiac ring
-  g.appendChild(circ(CX, CY, R_RING, {
-    fill: 'none', stroke: '#808080', 'stroke-width': RING_W,
-  }));
+  drawZodiacRing(g);
 
   // 3. Sign dividers fixed from 0° Aries
   drawSignDividers(g, 0);
@@ -1961,9 +2030,7 @@ function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) 
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
 
   // 2. Zodiac ring
-  g.appendChild(circ(CX, CY, R_RING, {
-    fill: 'none', stroke: '#808080', 'stroke-width': RING_W,
-  }));
+  drawZodiacRing(g);
 
   // 3. Sign dividers + glyphs
   drawSignDividers(g, 0);
@@ -2167,7 +2234,7 @@ function renderProgressedBiwheelChart(natal, progressed, cusps, asc) {
   svg.appendChild(g);
 
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
-  g.appendChild(circ(CX, CY, R_RING, { fill: 'none', stroke: '#808080', 'stroke-width': RING_W }));
+  drawZodiacRing(g);
   drawSignDividers(g, 0);
   drawHouseAxes(g, cusps, 0, true);
   drawZodiacGlyphs(g, 0);
@@ -2302,9 +2369,7 @@ function renderBiwheel(natal, transit, cusps, asc) {
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
 
   // 2. Zodiac ring
-  g.appendChild(circ(CX, CY, R_RING, {
-    fill: 'none', stroke: '#808080', 'stroke-width': RING_W,
-  }));
+  drawZodiacRing(g);
 
   // 3. Sign dividers + glyphs — fixed from 0° Aries
   drawSignDividers(g, 0);

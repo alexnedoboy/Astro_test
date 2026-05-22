@@ -1059,6 +1059,9 @@ const SIGN_ELEM_COLORS = [
   ELEM_FIRE, ELEM_EARTH, ELEM_AIR, ELEM_WATER,
 ];
 
+// Angular cusp colors for element colors mode
+const ANGULAR_COLORS = { 0: '#ED0004', 3: '#72EF6D', 6: '#4248AA', 9: '#F0FB78' };
+
 // Natal aspects — dynamic orbs via getNatalOrb()
 const ASPECTS = [
   { angle: 0,   color: AC_CONJ,       width: 1, dash: '', symbol: '☌\uFE0E', hg: 'q', type: 'conj', name: 'Соединение' },
@@ -1537,14 +1540,14 @@ function renderChart(planets, cusps, asc, mc) {
   // 1. Background
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
 
-  // 2. Zodiac ring
+  // 2. House axes — behind the zodiac ring
+  drawHouseAxes(g, cusps, 0);
+
+  // 3. Zodiac ring (covers axes within ring area)
   drawZodiacRing(g);
 
-  // 3. Sign dividers fixed from 0° Aries
+  // 4. Sign dividers — short lines within ring only (R_ZOD_IN → R_ZOD_OUT)
   drawSignDividers(g, 0);
-
-  // 4. House axes — drawn AFTER sign dividers so they're never obscured near sign boundaries
-  drawHouseAxes(g, cusps, 0);
 
   // 5. Sign glyphs
   drawZodiacGlyphs(g, 0);
@@ -1581,32 +1584,45 @@ function drawHouseAxes(g, cusps, asc, biwheel = false) {
     const isAng = (i === 0 || i === 3);
     const a1 = lonToRad(cusps[i],     asc);
     const a2 = lonToRad(cusps[i + 6], asc);
-    const attrs = { stroke: '#808080', 'stroke-width': isAng ? 2 : 1 };
+
+    // In element colors mode, angular axes use per-cusp colors and are split at center
+    const useColor = elementColorsMode && isAng;
+    const c1 = useColor ? ANGULAR_COLORS[i]     : '#808080';
+    const c2 = useColor ? ANGULAR_COLORS[i + 6] : '#808080';
+    const w  = isAng ? 2 : 1;
+
     if (biwheel) {
-      // Inner segment: from R_DIVIDER through center to R_DIVIDER (center covered by white fill)
+      // Inner half-segments from each side to center
       const i1 = polar(a1, R_DIVIDER), i2 = polar(a2, R_DIVIDER);
-      g.appendChild(ln(i1.x, i1.y, i2.x, i2.y, attrs));
-      // Outer segments: short stubs outside zodiac ring (for label area only)
+      g.appendChild(ln(i1.x, i1.y, CX, CY, { stroke: c1, 'stroke-width': w }));
+      g.appendChild(ln(CX, CY, i2.x, i2.y, { stroke: c2, 'stroke-width': w }));
+      // Outer stubs outside zodiac ring
       const o1a = polar(a1, R_ZOD_OUT), o1b = polar(a1, R_LABEL);
       const o2a = polar(a2, R_ZOD_OUT), o2b = polar(a2, R_LABEL);
-      g.appendChild(ln(o1a.x, o1a.y, o1b.x, o1b.y, attrs));
-      g.appendChild(ln(o2a.x, o2a.y, o2b.x, o2b.y, attrs));
+      g.appendChild(ln(o1a.x, o1a.y, o1b.x, o1b.y, { stroke: c1, 'stroke-width': w }));
+      g.appendChild(ln(o2a.x, o2a.y, o2b.x, o2b.y, { stroke: c2, 'stroke-width': w }));
     } else {
       const p1 = polar(a1, R_LABEL), p2 = polar(a2, R_LABEL);
-      g.appendChild(ln(p1.x, p1.y, p2.x, p2.y, attrs));
+      if (useColor) {
+        // Split at center: each half gets its own color
+        g.appendChild(ln(p1.x, p1.y, CX, CY, { stroke: c1, 'stroke-width': w }));
+        g.appendChild(ln(CX, CY, p2.x, p2.y, { stroke: c2, 'stroke-width': w }));
+      } else {
+        g.appendChild(ln(p1.x, p1.y, p2.x, p2.y, { stroke: c1, 'stroke-width': w }));
+      }
     }
   }
 }
 
 // ── Sign dividers ─────────────────────────────────────────────────────────────
-// White lines going all the way across the canvas.
-// Only visible where the gray zodiac ring is underneath them.
+// Short white radial lines, only within the zodiac ring (R_ZOD_IN → R_ZOD_OUT).
+// Never extend outside the ring, so they can't obscure house axis lines.
 
 function drawSignDividers(g, asc) {
   for (let i = 0; i < 12; i++) {
     const a  = lonToRad(i * 30, asc);
-    const p1 = polar(a, 390);
-    const p2 = { x: 2 * CX - p1.x, y: 2 * CY - p1.y }; // diametrically opposite
+    const p1 = polar(a, R_ZOD_IN);
+    const p2 = polar(a, R_ZOD_OUT);
     g.appendChild(ln(p1.x, p1.y, p2.x, p2.y, {
       stroke: '#fff', 'stroke-width': 1.5,
     }));
@@ -2029,14 +2045,14 @@ function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) 
   // 1. Background
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
 
-  // 2. Zodiac ring
+  // 2. House axes — behind zodiac ring
+  drawHouseAxes(g, natalCusps, 0, true);
+
+  // 3. Zodiac ring
   drawZodiacRing(g);
 
-  // 3. Sign dividers + glyphs
+  // 4. Sign dividers (short, within ring) + glyphs
   drawSignDividers(g, 0);
-
-  // 4. Natal house axes — after sign dividers so they're never obscured
-  drawHouseAxes(g, natalCusps, 0, true);
   drawZodiacGlyphs(g, 0);
 
   // 5. Divider circle between directed / natal rings
@@ -2234,9 +2250,9 @@ function renderProgressedBiwheelChart(natal, progressed, cusps, asc) {
   svg.appendChild(g);
 
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
+  drawHouseAxes(g, cusps, 0, true);
   drawZodiacRing(g);
   drawSignDividers(g, 0);
-  drawHouseAxes(g, cusps, 0, true);
   drawZodiacGlyphs(g, 0);
   g.appendChild(circ(CX, CY, R_DIVIDER, { fill: 'none', stroke: '#808080', 'stroke-width': 0.8 }));
   g.appendChild(circ(CX, CY, R_BW_INNER, { fill: '#fff', stroke: '#808080', 'stroke-width': 0.8 }));
@@ -2368,14 +2384,14 @@ function renderBiwheel(natal, transit, cusps, asc) {
   // 1. Background
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
 
-  // 2. Zodiac ring
+  // 2. House axes — behind zodiac ring
+  drawHouseAxes(g, cusps, 0, true);
+
+  // 3. Zodiac ring
   drawZodiacRing(g);
 
-  // 3. Sign dividers + glyphs — fixed from 0° Aries
+  // 4. Sign dividers (short, within ring) + glyphs
   drawSignDividers(g, 0);
-
-  // 4. House axes — after sign dividers so they're never obscured near sign boundaries
-  drawHouseAxes(g, cusps, 0, true);
   drawZodiacGlyphs(g, 0);
 
   // 5. Divider circle between transit / natal rings

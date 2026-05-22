@@ -9,7 +9,7 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', sans-serif;
-    background: #f0efe8;
+    background: #f3f3f3;
     color: #222;
     min-height: 100vh;
     display: flex;
@@ -447,6 +447,27 @@
 
   #save-wrap { display: none; }
 
+  /* ── Edit mode: form floats over the chart ─────────────── */
+  #edit-backdrop {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.35); z-index: 499;
+  }
+  #edit-backdrop.visible { display: block; }
+  #form-wrap.editing {
+    position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+    width: calc(100% - 32px); max-width: 480px;
+    z-index: 500; border-radius: 0 0 12px 12px;
+    margin: 0; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+  }
+  #cancelEditBtn {
+    display: none; flex: 0 0 auto !important;
+    background: #f0f0ec; color: #555; border: 1px solid #ccc;
+  }
+  #cancelEditBtn:hover { background: #e8e8e4; }
+  #form-wrap.editing #cancelEditBtn { display: block; }
+  #form-wrap.editing #calcBtn { flex: 1; }
+
   /* ── Auth modal ─────────────────────────────────────────── */
   #modal-overlay {
     display: none; position: fixed; inset: 0; z-index: 1000;
@@ -641,6 +662,7 @@
   </div>
 </div>
 
+<div id="edit-backdrop"></div>
 <div id="form-wrap">
   <div class="row">
     <div class="field">
@@ -681,6 +703,7 @@
   </div>
   <div class="btn-row">
     <button id="calcBtn" disabled>Построить карту</button>
+    <button id="cancelEditBtn" type="button">Отменить</button>
   </div>
   <div id="status">Загрузка Swiss Ephemeris…</div>
   <div id="save-wrap">
@@ -1349,11 +1372,30 @@ function exitChartMode() {
 
 document.getElementById('backBtn').addEventListener('click', exitChartMode);
 
-document.getElementById('editChartBtn').addEventListener('click', exitChartMode);
+document.getElementById('editChartBtn').addEventListener('click', enterEditMode);
+
+document.getElementById('cancelEditBtn').addEventListener('click', exitEditMode);
 
 document.getElementById('saveChartBtn').addEventListener('click', () => {
   document.getElementById('saveBtn').click();
 });
+
+function enterEditMode() {
+  const fw = document.getElementById('form-wrap');
+  fw.style.display = 'block';
+  fw.classList.add('editing');
+  document.getElementById('edit-backdrop').classList.add('visible');
+  document.getElementById('calcBtn').textContent = 'Сохранить';
+  document.getElementById('status').textContent = '';
+}
+
+function exitEditMode() {
+  const fw = document.getElementById('form-wrap');
+  fw.classList.remove('editing');
+  fw.style.display = 'none';
+  document.getElementById('edit-backdrop').classList.remove('visible');
+  document.getElementById('calcBtn').textContent = 'Построить карту';
+}
 
 // ── Calculate ─────────────────────────────────────────────────────────────────
 
@@ -1399,7 +1441,15 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     const rawDate = document.getElementById('birthDate').value;
     const fmtDate = rawDate ? rawDate.split('-').reverse().join('.') : '';
     const fmtTime = document.getElementById('birthTime').value || '';
-    enterChartMode(chartName, fmtDate, fmtTime);
+
+    if (document.getElementById('form-wrap').classList.contains('editing')) {
+      exitEditMode();
+      document.getElementById('header-chart-name').textContent = chartName;
+      document.getElementById('header-chart-date').textContent =
+        [fmtDate, fmtTime].filter(Boolean).join(' · ');
+    } else {
+      enterChartMode(chartName, fmtDate, fmtTime);
+    }
     setActiveTab('natal');
 
     renderChart(planets, cusps, asc, mc);

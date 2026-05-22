@@ -1628,25 +1628,10 @@ function drawPlanets(g, planets, asc) {
   // Шаг 2: назначаем уровни (0 = внутренний, 1 = внешний)
   // 1–2 планеты → все на уровень 0
   // 3+ планет → жадное распределение по двум уровням
-  function assignLevels(cluster) {
-    if (cluster.length <= 2) return cluster.map(p => ({ ...p, level: 0 }));
-    const result = [];
-    let last0 = -Infinity, last1 = -Infinity;
-    for (const p of cluster) {
-      if (p.angle - last0 >= MIN_GAP) {
-        result.push({ ...p, level: 0 }); last0 = p.angle;
-      } else if (p.angle - last1 >= MIN_GAP) {
-        result.push({ ...p, level: 1 }); last1 = p.angle;
-      } else {
-        const lv = (p.angle - last0 >= p.angle - last1) ? 0 : 1;
-        result.push({ ...p, level: lv });
-        if (lv === 0) last0 = p.angle; else last1 = p.angle;
-      }
-    }
-    return result;
-  }
-
-  const labeled = clusters.flatMap(assignLevels);
+  // Чётные по счёту (2-я, 4-я…) — уровень 1 (внешний), нечётные — уровень 0 (внутренний)
+  const labeled = clusters.flatMap(cluster =>
+    cluster.map((p, i) => ({ ...p, level: i % 2 }))
+  );
 
   // 1. Точки истинной позиции на R_TICK
   labeled.forEach(p => {
@@ -2326,25 +2311,10 @@ function drawBiwheelPlanets(g, planets, asc, rDot, rGlyphL0, rGlyphL1, dotColor 
   clusters.push(cur);
 
   // Шаг 2: назначаем уровни (жадное распределение для 3+ планет)
-  function assignLevels(cluster) {
-    if (cluster.length <= 2) return cluster.map(p => ({ ...p, level: 0 }));
-    const result = [];
-    let last0 = -Infinity, last1 = -Infinity;
-    for (const p of cluster) {
-      if (p.angle - last0 >= MIN_GAP) {
-        result.push({ ...p, level: 0 }); last0 = p.angle;
-      } else if (p.angle - last1 >= MIN_GAP) {
-        result.push({ ...p, level: 1 }); last1 = p.angle;
-      } else {
-        const lv = (p.angle - last0 >= p.angle - last1) ? 0 : 1;
-        result.push({ ...p, level: lv });
-        if (lv === 0) last0 = p.angle; else last1 = p.angle;
-      }
-    }
-    return result;
-  }
-
-  const labeled = clusters.flatMap(assignLevels);
+  // Чётные по счёту (2-я, 4-я…) — уровень 1 (внешний), нечётные — уровень 0 (внутренний)
+  const labeled = clusters.flatMap(cluster =>
+    cluster.map((p, i) => ({ ...p, level: i % 2 }))
+  );
 
   // 1. Точки на rDot (истинная позиция)
   labeled.forEach(p => {

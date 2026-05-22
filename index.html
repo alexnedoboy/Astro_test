@@ -1075,12 +1075,12 @@ const CHART = {
   BW_GLYPH_MIN_GAP: 0.105,  // ~6° — тот же порог для биколеса
 
   // Градусное кольцо — одиночная карта (на R_INNER)
-  DEG_RING_W:       10,  // ширина кольца (R_INNER - DEG_RING_W = внутренний край)
-  DEG_SIGN_EXT:      6,  // на сколько px знаковая черточка выходит за R_INNER
+  DEG_RING_W:       6,   // ширина кольца (R_INNER - DEG_RING_W = внутренний край)
+  DEG_SIGN_EXT:     5,   // на сколько px знаковая черточка выходит за R_INNER
 
   // Градусное кольцо — биколесо (на R_BW_INNER)
-  BW_DEG_RING_W:     8,  // ширина кольца
-  BW_DEG_SIGN_EXT:   5,  // выход знаковой черточки за R_BW_INNER
+  BW_DEG_RING_W:    5,   // ширина кольца
+  BW_DEG_SIGN_EXT:  4,   // выход знаковой черточки за R_BW_INNER
 };
 
 // Производные значения (вычисляются из CHART, не редактировать напрямую)
@@ -1416,15 +1416,14 @@ function lblSup(x, y, main, deg, attrs) {
 // 10. cusp labels
 
 // ── Degree ring (10° ticks, longer tick at each 30° sign boundary) ────────────
-// rOuter  — внешний край кольца (граница внутреннего круга)
+// rOuter  — внешний край кольца (уже нарисован основным кругом, не перерисовываем)
 // ringW   — ширина кольца
 // signExt — на сколько px знаковая черточка выходит за rOuter
 function drawDegreeRing(g, rOuter, ringW, signExt) {
   const rInner = rOuter - ringW;
 
-  // Два кольца
-  g.appendChild(circ(CX, CY, rOuter, { fill: 'none', stroke: '#aaa', 'stroke-width': 0.6 }));
-  g.appendChild(circ(CX, CY, rInner, { fill: 'none', stroke: '#aaa', 'stroke-width': 0.6 }));
+  // Только внутренний круг — внешний уже нарисован основным кругом карты
+  g.appendChild(circ(CX, CY, rInner, { fill: 'none', stroke: '#000', 'stroke-width': 1.5 }));
 
   // Черточки через каждые 10°
   for (let deg = 0; deg < 360; deg += 10) {

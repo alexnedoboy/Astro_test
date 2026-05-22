@@ -1653,7 +1653,7 @@ function drawPlanets(g, planets, asc) {
     const tipText = `${p.glyph} ${p.name}  ${fmtLon(p.longitude)}${p.house ? `  Дом ${ROMAN[p.house - 1]}` : ''}${p.retrograde ? '  R' : ''}`;
     const t = el('text', {
       x: pos.x, y: pos.y + 9,
-      'font-size': 24, fill: '#111',
+      'font-size': 20, fill: '#111',
       'text-anchor': 'middle',
       style: 'font-family:HamburgSymbols;cursor:default',
     });
@@ -2342,7 +2342,7 @@ function drawBiwheelPlanets(g, planets, asc, rDot, rGlyph, dotColor = '#9aaa00',
     const tipText = `${p.glyph} ${p.name}  ${fmtLon(p.longitude)}${p.house ? `  Дом ${ROMAN[p.house - 1]}` : ''}${p.retrograde ? '  R' : ''}`;
     const t = el('text', {
       x: pos.x, y: pos.y + 9,
-      'font-size': 22, fill: glyphColor,
+      'font-size': 20, fill: glyphColor,
       'text-anchor': 'middle',
       style: 'font-family:HamburgSymbols;cursor:default',
     });

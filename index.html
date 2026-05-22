@@ -977,19 +977,19 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const PLANETS = [
-  { id: 0,  name: 'Солнце',   glyph: '☉\uFE0E', hamburgGlyph: 'Q' },
-  { id: 1,  name: 'Луна',     glyph: '☽\uFE0E', hamburgGlyph: 'W' },
-  { id: 2,  name: 'Меркурий', glyph: '☿\uFE0E', hamburgGlyph: 'E' },
-  { id: 3,  name: 'Венера',   glyph: '♀\uFE0E', hamburgGlyph: 'R' },
-  { id: 4,  name: 'Марс',     glyph: '♂\uFE0E', hamburgGlyph: 'T' },
-  { id: 5,  name: 'Юпитер',   glyph: '♃\uFE0E', hamburgGlyph: 'Y' },
-  { id: 6,  name: 'Сатурн',   glyph: '♄\uFE0E', hamburgGlyph: 'U' },
-  { id: 7,  name: 'Уран',     glyph: '♅\uFE0E', hamburgGlyph: 'I' },
-  { id: 8,  name: 'Нептун',   glyph: '♆\uFE0E', hamburgGlyph: 'O' },
-  { id: 9,  name: 'Плутон',   glyph: '♇\uFE0E', hamburgGlyph: 'P' },
-  { id: 10, name: 'С. Узел',  glyph: '☊\uFE0E', hamburgGlyph: '{' },
-  { id: 12, name: 'Лилит',    glyph: '⚸\uFE0E', hamburgGlyph: '`' },
-  { id: 15, name: 'Хирон',    glyph: '⚷\uFE0E', hamburgGlyph: 'M' },
+  { id: 0,  name: 'Солнце',   glyph: '☉\uFE0E', hamburgGlyph: 'Q', degOffset: 12 },
+  { id: 1,  name: 'Луна',     glyph: '☽\uFE0E', hamburgGlyph: 'W', degOffset: 12 },
+  { id: 2,  name: 'Меркурий', glyph: '☿\uFE0E', hamburgGlyph: 'E', degOffset: 12 },
+  { id: 3,  name: 'Венера',   glyph: '♀\uFE0E', hamburgGlyph: 'R', degOffset: 12 },
+  { id: 4,  name: 'Марс',     glyph: '♂\uFE0E', hamburgGlyph: 'T', degOffset: 12 },
+  { id: 5,  name: 'Юпитер',   glyph: '♃\uFE0E', hamburgGlyph: 'Y', degOffset: 12 },
+  { id: 6,  name: 'Сатурн',   glyph: '♄\uFE0E', hamburgGlyph: 'U', degOffset: 12 },
+  { id: 7,  name: 'Уран',     glyph: '♅\uFE0E', hamburgGlyph: 'I', degOffset: 12 },
+  { id: 8,  name: 'Нептун',   glyph: '♆\uFE0E', hamburgGlyph: 'O', degOffset: 12 },
+  { id: 9,  name: 'Плутон',   glyph: '♇\uFE0E', hamburgGlyph: 'P', degOffset: 12 },
+  { id: 10, name: 'С. Узел',  glyph: '☊\uFE0E', hamburgGlyph: '{', degOffset: 12 },
+  { id: 12, name: 'Лилит',    glyph: '⚸\uFE0E', hamburgGlyph: '`', degOffset: 12 },
+  { id: 15, name: 'Хирон',    glyph: '⚷\uFE0E', hamburgGlyph: 'M', degOffset: 12 },
 ];
 
 const SIGNS      = ['♈\uFE0E','♉\uFE0E','♊\uFE0E','♋\uFE0E','♌\uFE0E','♍\uFE0E','♎\uFE0E','♏\uFE0E','♐\uFE0E','♑\uFE0E','♒\uFE0E','♓\uFE0E'];
@@ -1664,7 +1664,7 @@ function drawPlanets(g, planets, asc) {
       style: 'font-family:HamburgSymbols;cursor:default',
     });
     t.appendChild(el('tspan', {}, p.hamburgGlyph));
-    t.appendChild(el('tspan', { x: pos.x, dy: '-12', 'font-size': '12', fill: '#111', 'font-weight': 'bold', style: 'font-family:sans-serif' }, String(deg)));
+    t.appendChild(el('tspan', { x: pos.x + (p.degOffset ?? 12), dy: '-12', 'font-size': '12', fill: '#111', 'font-weight': 'bold', style: 'font-family:sans-serif' }, String(deg)));
     t.addEventListener('mouseover', e => showChartTip(tipText, e));
     t.addEventListener('mousemove', moveChartTip);
     t.addEventListener('mouseout', hideChartTip);
@@ -2346,7 +2346,7 @@ function drawBiwheelPlanets(g, planets, asc, rDot, rGlyphL0, rGlyphL1, dotColor 
       style: 'font-family:HamburgSymbols;cursor:default',
     });
     t.appendChild(el('tspan', {}, p.hamburgGlyph));
-    t.appendChild(el('tspan', { x: pos.x, dy: '-10', 'font-size': '10', 'font-weight': 'bold', fill: '#111', style: 'font-family:sans-serif' }, String(deg)));
+    t.appendChild(el('tspan', { x: pos.x + (p.degOffset ?? 12), dy: '-10', 'font-size': '10', 'font-weight': 'bold', fill: '#111', style: 'font-family:sans-serif' }, String(deg)));
     t.addEventListener('mouseover', e => showChartTip(tipText, e));
     t.addEventListener('mousemove', moveChartTip);
     t.addEventListener('mouseout', hideChartTip);

@@ -644,6 +644,12 @@
 <div id="form-wrap">
   <div class="row">
     <div class="field">
+      <label>Имя</label>
+      <input type="text" id="chartName" placeholder="Имя человека" autocomplete="off">
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
       <label>Дата рождения</label>
       <input type="date" id="birthDate">
     </div>
@@ -994,6 +1000,7 @@ async function loadChartsList() {
 }
 
 function loadChartFromDB(c) {
+  document.getElementById('chartName').value  = c.name        ?? '';
   document.getElementById('birthDate').value  = c.birth_date  ?? '';
   document.getElementById('birthTime').value  = c.birth_time  ?? '';
   document.getElementById('birthPlace').value = c.city        ?? '';
@@ -1001,7 +1008,6 @@ function loadChartFromDB(c) {
   document.getElementById('lonVal').value     = c.lon         ?? '';
   document.getElementById('utcOff').value     = c.utc_offset  ?? '';
   detectedTimezone = c.timezone ?? null;
-  pendingChartName = c.name ?? null;
   document.getElementById('calcBtn').click();
 }
 
@@ -1009,9 +1015,9 @@ function loadChartFromDB(c) {
 
 document.getElementById('saveBtn').addEventListener('click', async () => {
   if (!currentUser) { openModal(); return; }
-  const def  = document.getElementById('birthPlace').value || 'Карта';
-  const name = prompt('Название карты:', def);
-  if (!name) return;
+  const name = document.getElementById('chartName').value.trim()
+             || document.getElementById('birthPlace').value
+             || 'Карта';
   const { error } = await sb.from('charts').insert({
     user_id:    currentUser.id,
     name,
@@ -1318,8 +1324,6 @@ document.getElementById('birthPlace').addEventListener('keydown', async e => {
 
 // ── Page mode: home ↔ chart ───────────────────────────────────────────────────
 
-let pendingChartName = null;  // set by loadChartFromDB before calcBtn.click()
-
 function enterChartMode(name, date, time) {
   document.getElementById('form-wrap').style.display = 'none';
   document.getElementById('home-charts').style.display = 'none';
@@ -1389,8 +1393,9 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     tlPastYears = 0; tlFutureYears = 0;
     expandedRows = new Set(); fastCache = {}; hiddenTPlants = new Set(); moonBandCollapsed = false;
 
-    const chartName = pendingChartName || document.getElementById('birthPlace').value || 'Карта';
-    pendingChartName = null;
+    const chartName = document.getElementById('chartName').value.trim()
+                   || document.getElementById('birthPlace').value
+                   || 'Карта';
     const rawDate = document.getElementById('birthDate').value;
     const fmtDate = rawDate ? rawDate.split('-').reverse().join('.') : '';
     const fmtTime = document.getElementById('birthTime').value || '';

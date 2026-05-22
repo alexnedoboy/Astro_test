@@ -1073,6 +1073,14 @@ const CHART = {
   BW_R_TRANSIT_GLYPH_L1: 240, // уровень 1
 
   BW_GLYPH_MIN_GAP: 0.105,  // ~6° — тот же порог для биколеса
+
+  // Градусное кольцо — одиночная карта (на R_INNER)
+  DEG_RING_W:       10,  // ширина кольца (R_INNER - DEG_RING_W = внутренний край)
+  DEG_SIGN_EXT:      6,  // на сколько px знаковая черточка выходит за R_INNER
+
+  // Градусное кольцо — биколесо (на R_BW_INNER)
+  BW_DEG_RING_W:     8,  // ширина кольца
+  BW_DEG_SIGN_EXT:   5,  // выход знаковой черточки за R_BW_INNER
 };
 
 // Производные значения (вычисляются из CHART, не редактировать напрямую)
@@ -1407,6 +1415,31 @@ function lblSup(x, y, main, deg, attrs) {
 // 9. clusters
 // 10. cusp labels
 
+// ── Degree ring (10° ticks, longer tick at each 30° sign boundary) ────────────
+// rOuter  — внешний край кольца (граница внутреннего круга)
+// ringW   — ширина кольца
+// signExt — на сколько px знаковая черточка выходит за rOuter
+function drawDegreeRing(g, rOuter, ringW, signExt) {
+  const rInner = rOuter - ringW;
+
+  // Два кольца
+  g.appendChild(circ(CX, CY, rOuter, { fill: 'none', stroke: '#aaa', 'stroke-width': 0.6 }));
+  g.appendChild(circ(CX, CY, rInner, { fill: 'none', stroke: '#aaa', 'stroke-width': 0.6 }));
+
+  // Черточки через каждые 10°
+  for (let deg = 0; deg < 360; deg += 10) {
+    const isSign = deg % 30 === 0;
+    const a  = lonToRad(deg, 0);
+    const r1 = rInner;
+    const r2 = isSign ? rOuter + signExt : rOuter;
+    const p1 = polar(a, r1), p2 = polar(a, r2);
+    g.appendChild(ln(p1.x, p1.y, p2.x, p2.y, {
+      stroke: '#888',
+      'stroke-width': isSign ? 1 : 0.6,
+    }));
+  }
+}
+
 function renderChart(planets, cusps, asc, mc) {
   const svg = el('svg', { viewBox: VIEWBOX, width: '100%', style: 'display:block' });
 
@@ -1442,6 +1475,9 @@ function renderChart(planets, cusps, asc, mc) {
   g.appendChild(circ(CX, CY, R_INNER, {
     fill: '#fff', stroke: '#000', 'stroke-width': 1.5,
   }));
+
+  // 6a. Degree ring (10° ticks on inner circle boundary)
+  drawDegreeRing(g, R_INNER, CHART.DEG_RING_W, CHART.DEG_SIGN_EXT);
 
   // 7. Aspects (include South Node)
   const planetsWithSN = addSouthNode(planets, cusps);
@@ -1933,6 +1969,7 @@ function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) 
   g.appendChild(circ(CX, CY, R_BW_INNER, {
     fill: '#fff', stroke: '#000', 'stroke-width': 1.5,
   }));
+  drawDegreeRing(g, R_BW_INNER, CHART.BW_DEG_RING_W, CHART.BW_DEG_SIGN_EXT);
 
   // 7. Directed cusp lines (inner zone: R_BW_INNER → R_DIVIDER)
   drawDirectedCusps(g, directedCusps, 0);
@@ -2118,6 +2155,7 @@ function renderProgressedBiwheelChart(natal, progressed, cusps, asc) {
   drawZodiacGlyphs(g, 0);
   g.appendChild(circ(CX, CY, R_DIVIDER, { fill: 'none', stroke: '#aaa', 'stroke-width': 0.8 }));
   g.appendChild(circ(CX, CY, R_BW_INNER, { fill: '#fff', stroke: '#000', 'stroke-width': 1.5 }));
+  drawDegreeRing(g, R_BW_INNER, CHART.BW_DEG_RING_W, CHART.BW_DEG_SIGN_EXT);
 
   // Progressed → natal aspects with progression orbs
   drawProgressedAspects(g, addSouthNode(natal, cusps), addSouthNode(progressed), 0);
@@ -2266,6 +2304,7 @@ function renderBiwheel(natal, transit, cusps, asc) {
   g.appendChild(circ(CX, CY, R_BW_INNER, {
     fill: '#fff', stroke: '#000', 'stroke-width': 1.5,
   }));
+  drawDegreeRing(g, R_BW_INNER, CHART.BW_DEG_RING_W, CHART.BW_DEG_SIGN_EXT);
 
   // 7. Transit → natal aspect lines (include South Nodes)
   drawTransitAspects(g, addSouthNode(natal, cusps), addSouthNode(transit), 0);

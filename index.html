@@ -1987,14 +1987,14 @@ function drawDirectionAspects(g, natal, directed, asc) {
           const aspName = ASPECTS.find(a => a.angle === asp.angle)?.name ?? asp.symbol;
           const tipText = `дир${dir.glyph} ${aspName} нат${na.glyph}  ${fmtOrb(actualOrb)}`;
           if (asp.angle === 0) {
-            // Conjunction: ellipse arc on the divider circle
+            // Conjunction: ellipse arc on the natal circle
             let l1 = dir.longitude, l2 = na.longitude;
             if (Math.abs(l1 - l2) > 180) { if (l1 < l2) l1 += 360; else l2 += 360; }
             const midLon = ((l1 + l2) / 2) % 360;
             const midA = lonToRad(midLon, asc);
-            const center = polar(midA, R_DIVIDER);
+            const center = polar(midA, R_BW_INNER);
             const spanRad = diff * Math.PI / 180;
-            const rx = Math.max(8, spanRad * R_DIVIDER / 2 + 6);
+            const rx = Math.max(8, spanRad * R_BW_INNER / 2 + 6);
             const rotDeg = midA * 180 / Math.PI + 90;
             const ellipseEl = el('ellipse', {
               cx: center.x, cy: center.y, rx, ry: 5,
@@ -2070,9 +2070,9 @@ function drawProgressedAspects(g, natal, progressed, asc) {
             if (Math.abs(l1 - l2) > 180) { if (l1 < l2) l1 += 360; else l2 += 360; }
             const midLon = ((l1 + l2) / 2) % 360;
             const midA = lonToRad(midLon, asc);
-            const center = polar(midA, R_DIVIDER);
+            const center = polar(midA, R_BW_INNER);
             const spanRad = diff * Math.PI / 180;
-            const rx = Math.max(8, spanRad * R_DIVIDER / 2 + 6);
+            const rx = Math.max(8, spanRad * R_BW_INNER / 2 + 6);
             const rotDeg = midA * 180 / Math.PI + 90;
             const ellipseEl = el('ellipse', {
               cx: center.x, cy: center.y, rx, ry: 5,
@@ -2375,9 +2375,9 @@ function drawTransitAspects(g, natal, transit, asc) {
             if (Math.abs(l1 - l2) > 180) { if (l1 < l2) l1 += 360; else l2 += 360; }
             const midLon = ((l1 + l2) / 2) % 360;
             const midA = lonToRad(midLon, asc);
-            const center = polar(midA, R_DIVIDER);
+            const center = polar(midA, R_BW_INNER);
             const spanRad = diff * Math.PI / 180;
-            const rx = Math.max(8, spanRad * R_DIVIDER / 2 + 6);
+            const rx = Math.max(8, spanRad * R_BW_INNER / 2 + 6);
             const rotDeg = midA * 180 / Math.PI + 90;
             const ellipseEl = el('ellipse', {
               cx: center.x, cy: center.y, rx, ry: 5,

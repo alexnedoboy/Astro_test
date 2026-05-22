@@ -1423,7 +1423,7 @@ function drawDegreeRing(g, rOuter, ringW, signExt) {
   const rInner = rOuter - ringW;
 
   // Только внутренний круг — внешний уже нарисован основным кругом карты
-  g.appendChild(circ(CX, CY, rInner, { fill: 'none', stroke: '#aaa', 'stroke-width': 0.8 }));
+  g.appendChild(circ(CX, CY, rInner, { fill: 'none', stroke: '#808080', 'stroke-width': 0.8 }));
 
   // Черточки через каждые 10°
   for (let deg = 0; deg < 360; deg += 10) {
@@ -1433,7 +1433,7 @@ function drawDegreeRing(g, rOuter, ringW, signExt) {
     const r2 = isSign ? rOuter + signExt : rOuter;
     const p1 = polar(a, r1), p2 = polar(a, r2);
     g.appendChild(ln(p1.x, p1.y, p2.x, p2.y, {
-      stroke: '#aaa',
+      stroke: '#808080',
       'stroke-width': 0.8,
     }));
   }
@@ -1472,7 +1472,7 @@ function renderChart(planets, cusps, asc, mc) {
 
   // 6. Inner circle
   g.appendChild(circ(CX, CY, R_INNER, {
-    fill: '#fff', stroke: '#000', 'stroke-width': 1.5,
+    fill: '#fff', stroke: '#808080', 'stroke-width': 0.8,
   }));
 
   // 6a. Degree ring (10° ticks on inner circle boundary)
@@ -1502,7 +1502,7 @@ function drawHouseAxes(g, cusps, asc, biwheel = false) {
     const isAng = (i === 0 || i === 3);
     const a1 = lonToRad(cusps[i],     asc);
     const a2 = lonToRad(cusps[i + 6], asc);
-    const attrs = { stroke: '#000', 'stroke-width': isAng ? 2 : 1 };
+    const attrs = { stroke: '#808080', 'stroke-width': isAng ? 2 : 1 };
     if (biwheel) {
       // Inner segment: from R_DIVIDER through center to R_DIVIDER (center covered by white fill)
       const i1 = polar(a1, R_DIVIDER), i2 = polar(a2, R_DIVIDER);
@@ -1961,12 +1961,12 @@ function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) 
 
   // 5. Divider circle between directed / natal rings
   g.appendChild(circ(CX, CY, R_DIVIDER, {
-    fill: 'none', stroke: '#aaa', 'stroke-width': 0.8,
+    fill: 'none', stroke: '#808080', 'stroke-width': 0.8,
   }));
 
   // 6. Inner circle
   g.appendChild(circ(CX, CY, R_BW_INNER, {
-    fill: '#fff', stroke: '#000', 'stroke-width': 1.5,
+    fill: '#fff', stroke: '#808080', 'stroke-width': 0.8,
   }));
   drawDegreeRing(g, R_BW_INNER, CHART.BW_DEG_RING_W, CHART.BW_DEG_SIGN_EXT);
 
@@ -1993,7 +1993,7 @@ function drawDirectedCusps(g, directedCusps, asc) {
     const isAng = (i === 0 || i === 3);
     const a1 = lonToRad(directedCusps[i],     asc);
     const a2 = lonToRad(directedCusps[i + 6], asc);
-    const attrs = { stroke: '#000', 'stroke-width': isAng ? 2 : 1, opacity: '0.55' };
+    const attrs = { stroke: '#808080', 'stroke-width': isAng ? 2 : 1, opacity: '0.55' };
     // Visible only in the directed ring: R_DIVIDER → R_ZOD_IN (each side)
     const p1a = polar(a1, R_DIVIDER), p1b = polar(a1, R_ZOD_IN);
     const p2a = polar(a2, R_DIVIDER), p2b = polar(a2, R_ZOD_IN);
@@ -2152,8 +2152,8 @@ function renderProgressedBiwheelChart(natal, progressed, cusps, asc) {
   g.appendChild(circ(CX, CY, R_RING, { fill: 'none', stroke: '#808080', 'stroke-width': RING_W }));
   drawSignDividers(g, 0);
   drawZodiacGlyphs(g, 0);
-  g.appendChild(circ(CX, CY, R_DIVIDER, { fill: 'none', stroke: '#aaa', 'stroke-width': 0.8 }));
-  g.appendChild(circ(CX, CY, R_BW_INNER, { fill: '#fff', stroke: '#000', 'stroke-width': 1.5 }));
+  g.appendChild(circ(CX, CY, R_DIVIDER, { fill: 'none', stroke: '#808080', 'stroke-width': 0.8 }));
+  g.appendChild(circ(CX, CY, R_BW_INNER, { fill: '#fff', stroke: '#808080', 'stroke-width': 0.8 }));
   drawDegreeRing(g, R_BW_INNER, CHART.BW_DEG_RING_W, CHART.BW_DEG_SIGN_EXT);
 
   // Progressed → natal aspects with progression orbs
@@ -2296,12 +2296,12 @@ function renderBiwheel(natal, transit, cusps, asc) {
 
   // 5. Divider circle between transit / natal rings
   g.appendChild(circ(CX, CY, R_DIVIDER, {
-    fill: 'none', stroke: '#aaa', 'stroke-width': 0.8,
+    fill: 'none', stroke: '#808080', 'stroke-width': 0.8,
   }));
 
   // 6. Inner circle (smaller in biwheel to make room for two rings)
   g.appendChild(circ(CX, CY, R_BW_INNER, {
-    fill: '#fff', stroke: '#000', 'stroke-width': 1.5,
+    fill: '#fff', stroke: '#808080', 'stroke-width': 0.8,
   }));
   drawDegreeRing(g, R_BW_INNER, CHART.BW_DEG_RING_W, CHART.BW_DEG_SIGN_EXT);
 

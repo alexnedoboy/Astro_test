@@ -998,13 +998,23 @@ const SIGN_NAMES = ['Овен','Телец','Близнецы','Рак','Лев'
 const ROMAN      = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
 const ANGULAR    = { 0: 'As', 3: 'Ic', 6: 'Ds', 9: 'Mc' };
 
+// ── Aspect color palette ──────────────────────────────────────────────────────
+// Chart SVG (natal / progressed / transit biwheel / direction biwheel)
+const AC_CONJ        = '#2244bb'; // conjunction  — blue (chart + timeline)
+const AC_CHART_SOFT  = '#FF0000'; // sextile/trine — red
+const AC_CHART_HARD  = '#000000'; // square/opposition — black
+// Timeline bars
+const AC_TL_SOFT     = '#228833'; // sextile/trine — green
+const AC_TL_HARD     = '#cc1111'; // square/opposition — red
+const AC_TL_NEUTRAL  = '#000000'; // ingress, sign change, etc. — black
+
 // Natal aspects — dynamic orbs via getNatalOrb()
 const ASPECTS = [
-  { angle: 0,   color: '#2244bb', width: 1, dash: '', symbol: '☌\uFE0E', type: 'conj', name: 'Соединение' },
-  { angle: 60,  color: '#FF0000', width: 1, dash: '', symbol: '✶',       name: 'Секстиль' },
-  { angle: 90,  color: '#000000', width: 1, dash: '', symbol: '□',       name: 'Квадрат' },
-  { angle: 120, color: '#FF0000', width: 1, dash: '', symbol: '△',       name: 'Трин' },
-  { angle: 180, color: '#000000', width: 1, dash: '', symbol: '☍\uFE0E', name: 'Оппозиция' },
+  { angle: 0,   color: AC_CONJ,       width: 1, dash: '', symbol: '☌\uFE0E', hg: 'q', type: 'conj', name: 'Соединение' },
+  { angle: 60,  color: AC_CHART_SOFT, width: 1, dash: '', symbol: '✶',        hg: 't',               name: 'Секстиль' },
+  { angle: 90,  color: AC_CHART_HARD, width: 1, dash: '', symbol: '□',        hg: 'r',               name: 'Квадрат' },
+  { angle: 120, color: AC_CHART_SOFT, width: 1, dash: '', symbol: '△',        hg: 'e',               name: 'Трин' },
+  { angle: 180, color: AC_CHART_HARD, width: 1, dash: '', symbol: '☍\uFE0E', hg: 'w',               name: 'Оппозиция' },
 ];
 
 // Dynamic natal orb: conjunction 8°/6°, trine & opposition 7°/6°, square & sextile 6°
@@ -1456,16 +1466,16 @@ function renderChart(planets, cusps, asc, mc) {
   // 1. Background
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
 
-  // 2. House axes — drawn behind ring, extend beyond it
-  drawHouseAxes(g, cusps, 0);
-
-  // 3. Zodiac ring
+  // 2. Zodiac ring
   g.appendChild(circ(CX, CY, R_RING, {
     fill: 'none', stroke: '#808080', 'stroke-width': RING_W,
   }));
 
-  // 4. Sign dividers fixed from 0° Aries
+  // 3. Sign dividers fixed from 0° Aries
   drawSignDividers(g, 0);
+
+  // 4. House axes — drawn AFTER sign dividers so they're never obscured near sign boundaries
+  drawHouseAxes(g, cusps, 0);
 
   // 5. Sign glyphs
   drawZodiacGlyphs(g, 0);
@@ -1541,7 +1551,7 @@ function drawZodiacGlyphs(g, asc) {
     const a = lonToRad(i * 30 + 15, asc);
     const p = polar(a, R_RING); // centre of ring strip
     g.appendChild(txt(p.x, p.y, SIGNS[i], {
-      'font-size': 14, fill: '#fff',
+      'font-size': 17, fill: '#fff',
       'text-anchor': 'middle', 'dominant-baseline': 'central',
     }));
   }
@@ -1603,7 +1613,7 @@ function drawAspects(g, planets, asc) {
             const rx = Math.max(10, spanRad * R_INNER / 2 + 8);
             const rotDeg = midA * 180 / Math.PI + 90;
             const ellipseEl = el('ellipse', {
-              cx: center.x, cy: center.y, rx, ry: 6,
+              cx: center.x, cy: center.y, rx, ry: 3.5,
               transform: `rotate(${rotDeg}, ${center.x}, ${center.y})`,
               fill: 'none', stroke: asp.color, 'stroke-width': 1.5, style: 'cursor:default',
             });
@@ -1624,9 +1634,12 @@ function drawAspects(g, planets, asc) {
             hitLine.addEventListener('mouseout', hideChartTip);
             g.appendChild(hitLine);
             const mid = { x: (pi.x + pj.x) / 2, y: (pi.y + pj.y) / 2 };
-            g.appendChild(txt(mid.x, mid.y, asp.symbol, {
-              'font-size': 9, fill: asp.color,
+            if (asp.angle === 180) break;
+            g.appendChild(el('circle', { cx: mid.x, cy: mid.y, r: 5.5, fill: 'white' }));
+            g.appendChild(txt(mid.x, mid.y, asp.hg ?? asp.symbol, {
+              'font-size': 10, fill: asp.color,
               'text-anchor': 'middle', 'dominant-baseline': 'central',
+              ...(asp.hg ? { style: 'font-family:HamburgSymbols' } : {}),
             }));
           }
           break;
@@ -1947,16 +1960,16 @@ function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) 
   // 1. Background
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
 
-  // 2. Natal house axes (clipped to natal ring + outer label area)
-  drawHouseAxes(g, natalCusps, 0, true);
-
-  // 3. Zodiac ring
+  // 2. Zodiac ring
   g.appendChild(circ(CX, CY, R_RING, {
     fill: 'none', stroke: '#808080', 'stroke-width': RING_W,
   }));
 
-  // 4. Sign dividers + glyphs
+  // 3. Sign dividers + glyphs
   drawSignDividers(g, 0);
+
+  // 4. Natal house axes — after sign dividers so they're never obscured
+  drawHouseAxes(g, natalCusps, 0, true);
   drawZodiacGlyphs(g, 0);
 
   // 5. Divider circle between directed / natal rings
@@ -2025,7 +2038,7 @@ function drawDirectionAspects(g, natal, directed, asc) {
             const rx = Math.max(8, spanRad * R_BW_INNER / 2 + 6);
             const rotDeg = midA * 180 / Math.PI + 90;
             const ellipseEl = el('ellipse', {
-              cx: center.x, cy: center.y, rx, ry: 5,
+              cx: center.x, cy: center.y, rx, ry: 3.5,
               transform: `rotate(${rotDeg}, ${center.x}, ${center.y})`,
               fill: 'none', stroke: asp.color, 'stroke-width': 1.5, style: 'cursor:default',
             });
@@ -2045,9 +2058,12 @@ function drawDirectionAspects(g, natal, directed, asc) {
             hitLine.addEventListener('mousemove', moveChartTip);
             hitLine.addEventListener('mouseout', hideChartTip);
             g.appendChild(hitLine);
-            g.appendChild(txt(mid.x, mid.y, asp.symbol, {
-              'font-size': 9, fill: asp.color,
+            if (asp.angle === 180) break;
+            g.appendChild(el('circle', { cx: mid.x, cy: mid.y, r: 5.5, fill: 'white' }));
+            g.appendChild(txt(mid.x, mid.y, asp.hg ?? asp.symbol, {
+              'font-size': 10, fill: asp.color,
               'text-anchor': 'middle', 'dominant-baseline': 'central',
+              ...(asp.hg ? { style: 'font-family:HamburgSymbols' } : {}),
             }));
           }
           break;
@@ -2103,7 +2119,7 @@ function drawProgressedAspects(g, natal, progressed, asc) {
             const rx = Math.max(8, spanRad * R_BW_INNER / 2 + 6);
             const rotDeg = midA * 180 / Math.PI + 90;
             const ellipseEl = el('ellipse', {
-              cx: center.x, cy: center.y, rx, ry: 5,
+              cx: center.x, cy: center.y, rx, ry: 3.5,
               transform: `rotate(${rotDeg}, ${center.x}, ${center.y})`,
               fill: 'none', stroke: asp.color, 'stroke-width': 1.5, style: 'cursor:default',
             });
@@ -2123,9 +2139,12 @@ function drawProgressedAspects(g, natal, progressed, asc) {
             hitLine.addEventListener('mousemove', moveChartTip);
             hitLine.addEventListener('mouseout', hideChartTip);
             g.appendChild(hitLine);
-            g.appendChild(txt(mid.x, mid.y, asp.symbol, {
-              'font-size': 9, fill: asp.color,
+            if (asp.angle === 180) break;
+            g.appendChild(el('circle', { cx: mid.x, cy: mid.y, r: 5.5, fill: 'white' }));
+            g.appendChild(txt(mid.x, mid.y, asp.hg ?? asp.symbol, {
+              'font-size': 10, fill: asp.color,
               'text-anchor': 'middle', 'dominant-baseline': 'central',
+              ...(asp.hg ? { style: 'font-family:HamburgSymbols' } : {}),
             }));
           }
           break;
@@ -2148,9 +2167,9 @@ function renderProgressedBiwheelChart(natal, progressed, cusps, asc) {
   svg.appendChild(g);
 
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
-  drawHouseAxes(g, cusps, 0, true);
   g.appendChild(circ(CX, CY, R_RING, { fill: 'none', stroke: '#808080', 'stroke-width': RING_W }));
   drawSignDividers(g, 0);
+  drawHouseAxes(g, cusps, 0, true);
   drawZodiacGlyphs(g, 0);
   g.appendChild(circ(CX, CY, R_DIVIDER, { fill: 'none', stroke: '#808080', 'stroke-width': 0.8 }));
   g.appendChild(circ(CX, CY, R_BW_INNER, { fill: '#fff', stroke: '#808080', 'stroke-width': 0.8 }));
@@ -2282,16 +2301,16 @@ function renderBiwheel(natal, transit, cusps, asc) {
   // 1. Background
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
 
-  // 2. House axes — clipped to natal ring + outer label area
-  drawHouseAxes(g, cusps, 0, true);
-
-  // 3. Zodiac ring
+  // 2. Zodiac ring
   g.appendChild(circ(CX, CY, R_RING, {
     fill: 'none', stroke: '#808080', 'stroke-width': RING_W,
   }));
 
-  // 4. Sign dividers + glyphs — fixed from 0° Aries
+  // 3. Sign dividers + glyphs — fixed from 0° Aries
   drawSignDividers(g, 0);
+
+  // 4. House axes — after sign dividers so they're never obscured near sign boundaries
+  drawHouseAxes(g, cusps, 0, true);
   drawZodiacGlyphs(g, 0);
 
   // 5. Divider circle between transit / natal rings
@@ -2401,7 +2420,7 @@ function drawTransitAspects(g, natal, transit, asc) {
             const rx = Math.max(8, spanRad * R_BW_INNER / 2 + 6);
             const rotDeg = midA * 180 / Math.PI + 90;
             const ellipseEl = el('ellipse', {
-              cx: center.x, cy: center.y, rx, ry: 5,
+              cx: center.x, cy: center.y, rx, ry: 3.5,
               transform: `rotate(${rotDeg}, ${center.x}, ${center.y})`,
               fill: 'none', stroke: asp.color, 'stroke-width': 1.5, style: 'cursor:default',
             });
@@ -2421,9 +2440,12 @@ function drawTransitAspects(g, natal, transit, asc) {
             hitLine.addEventListener('mousemove', moveChartTip);
             hitLine.addEventListener('mouseout', hideChartTip);
             g.appendChild(hitLine);
-            g.appendChild(txt(mid.x, mid.y, asp.symbol, {
-              'font-size': 9, fill: asp.color,
+            if (asp.angle === 180) break;
+            g.appendChild(el('circle', { cx: mid.x, cy: mid.y, r: 5.5, fill: 'white' }));
+            g.appendChild(txt(mid.x, mid.y, asp.hg ?? asp.symbol, {
+              'font-size': 10, fill: asp.color,
               'text-anchor': 'middle', 'dominant-baseline': 'central',
+              ...(asp.hg ? { style: 'font-family:HamburgSymbols' } : {}),
             }));
           }
           break;
@@ -2447,19 +2469,19 @@ function getTransitOrb(planetId) {
 }
 
 const T_ASPECTS = [
-  { angle: 0,   color: '#2244bb', symbol: '☌' },
-  { angle: 60,  color: '#228833', symbol: '✶' },
-  { angle: 90,  color: '#cc1111', symbol: '□' },
-  { angle: 120, color: '#228833', symbol: '△' },
-  { angle: 180, color: '#cc1111', symbol: '☍' },
+  { angle: 0,   color: AC_CONJ,    symbol: '☌', hg: 'q' },
+  { angle: 60,  color: AC_TL_SOFT, symbol: '✶', hg: 't' },
+  { angle: 90,  color: AC_TL_HARD, symbol: '□', hg: 'r' },
+  { angle: 120, color: AC_TL_SOFT, symbol: '△', hg: 'e' },
+  { angle: 180, color: AC_TL_HARD, symbol: '☍', hg: 'w' },
 ];
 
 const D_ASPECTS = [
-  { angle: 0,   color: '#2244bb', symbol: '☌' },
-  { angle: 60,  color: '#000000', symbol: '✶' },
-  { angle: 90,  color: '#cc1111', symbol: '□' },
-  { angle: 120, color: '#000000', symbol: '△' },
-  { angle: 180, color: '#cc1111', symbol: '☍' },
+  { angle: 0,   color: AC_CONJ,       symbol: '☌', hg: 'q' },
+  { angle: 60,  color: AC_CHART_SOFT, symbol: '✶', hg: 't' },
+  { angle: 90,  color: AC_CHART_HARD, symbol: '□', hg: 'r' },
+  { angle: 120, color: AC_CHART_SOFT, symbol: '△', hg: 'e' },
+  { angle: 180, color: AC_CHART_HARD, symbol: '☍', hg: 'w' },
 ];
 
 // ── Progressed Events ─────────────────────────────────────────────────────────
@@ -2535,10 +2557,10 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
   // Orb: 2° if Sun (id=0) or Moon (id=1) is involved, else 1°
   const PROG_ASPECTS = [
     { angle: 0,   color: '#2244bb', symbol: '☌' },
-    { angle: 60,  color: '#228833', symbol: '✶' },
-    { angle: 90,  color: '#cc1111', symbol: '□' },
-    { angle: 120, color: '#228833', symbol: '△' },
-    { angle: 180, color: '#cc1111', symbol: '☍' },
+    { angle: 60,  color: AC_TL_SOFT, symbol: '✶' },
+    { angle: 90,  color: AC_TL_HARD, symbol: '□' },
+    { angle: 120, color: AC_TL_SOFT, symbol: '△' },
+    { angle: 180, color: AC_TL_HARD, symbol: '☍' },
   ];
   for (const pid of [0, 2, 3, 4]) {
     const pl   = plById.get(pid);
@@ -2658,11 +2680,11 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
   const PHASES = [
     { angle:   0, symbol: '☌', color: '#2244bb' },
     { angle:  45, symbol: '∠', color: '#997700' },
-    { angle:  90, symbol: '□', color: '#cc1111' },
+    { angle:  90, symbol: '□', color: AC_TL_HARD },
     { angle: 135, symbol: '∠', color: '#997700' },
-    { angle: 180, symbol: '☍', color: '#cc1111' },
+    { angle: 180, symbol: '☍', color: AC_TL_HARD },
     { angle: 225, symbol: '∠', color: '#997700' },
-    { angle: 270, symbol: '□', color: '#cc1111' },
+    { angle: 270, symbol: '□', color: AC_TL_HARD },
     { angle: 315, symbol: '∠', color: '#997700' },
   ];
   for (const ph of PHASES) {
@@ -2700,10 +2722,10 @@ function computeDirectionEvents(natalPlanets, natalCusps, birthJD, jdStart, jdEn
 
   const DIR_ASP = [
     { angle: 0,   color: '#2244bb', symbol: '☌\uFE0E' },
-    { angle: 60,  color: '#228833', symbol: '✶' },
-    { angle: 90,  color: '#cc1111', symbol: '□' },
-    { angle: 120, color: '#228833', symbol: '△' },
-    { angle: 180, color: '#cc1111', symbol: '☍\uFE0E' },
+    { angle: 60,  color: AC_TL_SOFT, symbol: '✶' },
+    { angle: 90,  color: AC_TL_HARD, symbol: '□' },
+    { angle: 120, color: AC_TL_SOFT, symbol: '△' },
+    { angle: 180, color: AC_TL_HARD, symbol: '☍\uFE0E' },
   ];
 
   // 1. Aspects: all directed planets → all natal planets
@@ -3808,10 +3830,10 @@ function computeLongTermDirections(houseNum, natalPlanets, natalCusps, birthJD, 
 
   const DIR_ASP = [
     { angle: 0,   color: '#2244bb', symbol: '☌\uFE0E' },
-    { angle: 60,  color: '#228833', symbol: '✶' },
-    { angle: 90,  color: '#cc1111', symbol: '□' },
-    { angle: 120, color: '#228833', symbol: '△' },
-    { angle: 180, color: '#cc1111', symbol: '☍\uFE0E' },
+    { angle: 60,  color: AC_TL_SOFT, symbol: '✶' },
+    { angle: 90,  color: AC_TL_HARD, symbol: '□' },
+    { angle: 120, color: AC_TL_SOFT, symbol: '△' },
+    { angle: 180, color: AC_TL_HARD, symbol: '☍\uFE0E' },
   ];
 
   const events = [];
@@ -3932,10 +3954,10 @@ function computeLongTermProgressions(houseNum, rulerIds, natalPlanets, natalCusp
 
   const PROG_ASP = [
     { angle: 0,   color: '#2244bb', symbol: '☌\uFE0E' },
-    { angle: 60,  color: '#228833', symbol: '✶' },
-    { angle: 90,  color: '#cc1111', symbol: '□' },
-    { angle: 120, color: '#228833', symbol: '△' },
-    { angle: 180, color: '#cc1111', symbol: '☍\uFE0E' },
+    { angle: 60,  color: AC_TL_SOFT, symbol: '✶' },
+    { angle: 90,  color: AC_TL_HARD, symbol: '□' },
+    { angle: 120, color: AC_TL_SOFT, symbol: '△' },
+    { angle: 180, color: AC_TL_HARD, symbol: '☍\uFE0E' },
   ];
 
   const events = [];
@@ -4001,7 +4023,7 @@ function computeLongTermProgressions(houseNum, rulerIds, natalPlanets, natalCusp
         if (s0 !== 0 && s1 !== 0 && s0 * s1 < 0) {
           const isR = s1 < 0;
           events.push({ type: 'tick', jd: jdStart + i * STEP,
-            label: ruler.glyph + (isR ? 'R' : 'D'), color: isR ? '#cc1111' : '#228833' });
+            label: ruler.glyph + (isR ? 'R' : 'D'), color: isR ? AC_TL_HARD : AC_TL_SOFT });
         }
       }
     }

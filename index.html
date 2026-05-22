@@ -1423,7 +1423,7 @@ function drawDegreeRing(g, rOuter, ringW, signExt) {
   const rInner = rOuter - ringW;
 
   // Только внутренний круг — внешний уже нарисован основным кругом карты
-  g.appendChild(circ(CX, CY, rInner, { fill: 'none', stroke: '#000', 'stroke-width': 1 }));
+  g.appendChild(circ(CX, CY, rInner, { fill: 'none', stroke: '#aaa', 'stroke-width': 0.8 }));
 
   // Черточки через каждые 10°
   for (let deg = 0; deg < 360; deg += 10) {
@@ -1433,8 +1433,8 @@ function drawDegreeRing(g, rOuter, ringW, signExt) {
     const r2 = isSign ? rOuter + signExt : rOuter;
     const p1 = polar(a, r1), p2 = polar(a, r2);
     g.appendChild(ln(p1.x, p1.y, p2.x, p2.y, {
-      stroke: '#000',
-      'stroke-width': 1,
+      stroke: '#aaa',
+      'stroke-width': 0.8,
     }));
   }
 }

@@ -82,6 +82,8 @@
   .info-sep td { height: 5px; border-top: 1px solid #eee; padding: 0; }
   .col-second { display: none; }
   #info-table.mode-biwheel .col-second { display: table-cell; }
+  .col-second-house { display: none; }
+  #info-table.mode-biwheel-houses .col-second-house { display: table-cell; }
   .col-divider { border-left: 1px solid #ddd; }
 
   /* ── Date navigator (universal, bottom of left panel) ────── */
@@ -2035,8 +2037,8 @@ function buildInfoTable(planets, cusps) {
     tr.innerHTML =
       `<td class="info-house-lbl ${cls}">${HOUSE_LABELS[i]}</td>` +
       `<td class="info-pos">${fmtDeg(lon)} ${SIGNS[si]}</td>` +
-      `<td class="col-second col-divider info-house-lbl ${cls}">${HOUSE_LABELS[i]}</td>` +
-      `<td class="col-second info-pos" id="info-shp-${i}"></td>`;
+      `<td class="col-second-house col-divider info-house-lbl ${cls}">${HOUSE_LABELS[i]}</td>` +
+      `<td class="col-second-house info-pos" id="info-shp-${i}"></td>`;
     tbody.appendChild(tr);
   });
 }
@@ -2061,7 +2063,10 @@ function updateSecondHouses(cusps) {
 }
 
 function setInfoTableMode(mode) {
-  document.getElementById('info-table')?.classList.toggle('mode-biwheel', mode === 'biwheel');
+  const t = document.getElementById('info-table');
+  if (!t) return;
+  t.classList.toggle('mode-biwheel', mode === 'biwheel' || mode === 'biwheel-houses');
+  t.classList.toggle('mode-biwheel-houses', mode === 'biwheel-houses');
 }
 
 
@@ -2229,7 +2234,7 @@ function renderDirectionBiwheel(jd = null) {
   renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc);
   updateSecondColumn(directed);
   updateSecondHouses(directedCusps);
-  setInfoTableMode('biwheel');
+  setInfoTableMode('biwheel-houses');
   currentTransitJD = jd;
   updateDateNav(jd);
 }

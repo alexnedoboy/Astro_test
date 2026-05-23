@@ -89,12 +89,12 @@
   /* ── Aspect grid ─────────────────────────────────────────────── */
   #aspect-grid { margin-top: 10px; overflow-x: auto; border-top: 1px solid #eee; padding-top: 8px; }
   #aspect-table { border-collapse: collapse; font-size: 0.75em; }
-  #aspect-table th.ag-hdr { font-family: 'HamburgSymbols'; font-size: 1.1em; text-align: center; padding: 2px 3px; min-width: 24px; font-weight: normal; }
-  #aspect-table td { text-align: center; padding: 1px 2px; min-width: 24px; height: 30px; vertical-align: middle; }
+  #aspect-table th.ag-hdr { font-family: 'HamburgSymbols'; font-size: 1.1em; text-align: center; padding: 2px 3px; min-width: 24px; font-weight: normal; border: 1px solid #e0e0da; }
+  #aspect-table td { text-align: center; padding: 1px 2px; min-width: 24px; height: 30px; vertical-align: middle; border: 1px solid #e8e8e3; }
   .ag-sym { display: block; font-size: 1.05em; line-height: 1.2; }
   .ag-orb { display: block; font-size: 0.78em; color: #999; line-height: 1; }
-  .ag-empty { background: #f7f7f5; }
-  .ag-self  { background: #efefec; }
+  .ag-empty { background: #f5f5f2; }
+  .ag-self  { background: #eaeae6; }
 
   /* ── Date navigator (universal, bottom of left panel) ────── */
   #date-nav {
@@ -1543,7 +1543,7 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     }
     renderChart(planets, cusps, asc, mc);
     buildInfoTable(planets, cusps);
-    buildAspectGrid(planets);
+    buildAspectGrid(addSouthNode(planets, cusps));
     document.getElementById('tabTransit').click();
     setStatus('');
   } catch (e) { setStatus('Ошибка: ' + e.message); }
@@ -2297,7 +2297,7 @@ function renderDirectionBiwheel(jd = null) {
   updateSecondColumn(directed);
   updateSecondHouses(directedCusps);
   setInfoTableMode('biwheel-houses');
-  buildAspectGrid(natal, directed, 'direction');
+  buildAspectGrid(addSouthNode(natal, natalCusps), addSouthNode(directed), 'direction');
   currentTransitJD = jd;
   updateDateNav(jd);
 }
@@ -2454,7 +2454,7 @@ function showTransitNow() {
   renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
   updateSecondColumn(transit);
   setInfoTableMode('biwheel');
-  buildAspectGrid(natalData.planets, transit, 'transit');
+  buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps), addSouthNode(transit), 'transit');
   currentTransitJD = null;
   updateDateNav(null);
 }
@@ -2565,7 +2565,7 @@ function renderProgressedBiwheel(jd = null) {
   renderProgressedBiwheelChart(natal, progressed, cusps, asc);
   updateSecondColumn(progressed);
   setInfoTableMode('biwheel');
-  buildAspectGrid(natal, progressed, 'progressed');
+  buildAspectGrid(addSouthNode(natal, cusps), addSouthNode(progressed), 'progressed');
   currentTransitJD = jd;
   updateDateNav(jd);
 }
@@ -2599,7 +2599,7 @@ document.getElementById('subTabNatal').addEventListener('click', () => {
   document.getElementById('date-nav').style.display = '';
   renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
   setInfoTableMode('natal');
-  buildAspectGrid(natalData.planets);
+  buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps));
 });
 
 document.getElementById('subTabTransit').addEventListener('click', () => {
@@ -2645,7 +2645,7 @@ function renderBiwheelAt(jd) {
   renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
   updateSecondColumn(transit);
   setInfoTableMode('biwheel');
-  buildAspectGrid(natalData.planets, transit, 'transit');
+  buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps), addSouthNode(transit), 'transit');
   currentTransitJD = jd;
   updateDateNav(jd);
 }

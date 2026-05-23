@@ -254,9 +254,8 @@
   #settings-dropdown .auth-btn { width: 100%; text-align: center; }
   #settings-dropdown #user-email-short { font-size: 0.76em; color: #888; }
 
-  /* ── Chart tabs bar (below header, chart mode only) ────── */
-  #chart-tabs-bar { display: none; border-top: 1px solid #eee; }
-  #app-header.chart-mode #chart-tabs-bar { display: flex; }
+  /* ── Chart tabs bar — hidden (single chart page, no top tabs) ── */
+  #chart-tabs-bar { display: none !important; }
   #chart-tabs-bar .tab-btn {
     flex: 1; border-radius: 0; border: none;
     border-bottom: 2px solid transparent; background: none;
@@ -1402,12 +1401,10 @@ function exitChartMode(updateHistory = true) {
   if (currentUser) document.getElementById('home-charts').style.display = '';
   document.getElementById('app-header').classList.remove('chart-mode');
   document.getElementById('prog-layout').classList.remove('visible', 'transit-active');
-  document.getElementById('forecast-layout').classList.remove('forecast-active');
   document.getElementById('transit-tl').style.display = 'none';
   document.getElementById('info-table').style.display = 'none';
   natalData = null;
   cachedTimeline = null;
-  setActiveTab('natal');
 }
 
 document.getElementById('backBtn').addEventListener('click', () => exitChartMode(true));
@@ -2013,17 +2010,9 @@ function renderTable(planets) {
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 function setActiveTab(id) {
-  document.getElementById('tabNatal').classList.toggle('active', id === 'natal');
-  document.getElementById('tabTransit').classList.toggle('active', id === 'transit');
-  document.getElementById('tabForecast').classList.toggle('active', id === 'forecast');
   const pl = document.getElementById('prog-layout');
   pl.classList.toggle('transit-active', id === 'transit');
-  // Hide prog-layout entirely when forecast tab is active (it would render above otherwise)
-  if (id === 'forecast') pl.style.display = 'none';
-  else pl.style.removeProperty('display');
-  const fl = document.getElementById('forecast-layout');
-  fl.classList.toggle('forecast-active', id === 'forecast');
-  fl.style.removeProperty('display');
+  pl.style.removeProperty('display');
   const infoTable = document.getElementById('info-table');
   if (id !== 'natal' && infoTable.style.display !== 'none') {
     infoTable.style.display = 'none';

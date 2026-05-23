@@ -2015,42 +2015,48 @@ function buildInfoTable(planets, cusps) {
   tbody.innerHTML = '';
   planets.forEach((p, i) => {
     const si = Math.floor(p.longitude / 30) % 12;
+    const retro = p.retrograde ? ' <span class="info-retro">R</span>' : '';
     const tr = document.createElement('tr');
     tr.innerHTML =
-      `<td class="col-second info-glyph">${p.hamburgGlyph}</td>` +
-      `<td class="col-second info-pos" id="info-sp-${i}"></td>` +
-      `<td class="col-second info-sign" id="info-ss-${i}"></td>` +
-      `<td class="col-divider info-glyph">${p.hamburgGlyph}</td>` +
-      `<td class="info-pos">${fmtDeg(p.longitude)}${p.retrograde ? ' <span class="info-retro">R</span>' : ''}</td>` +
-      `<td class="info-sign">${SIGNS[si]}</td>`;
+      `<td class="info-glyph">${p.hamburgGlyph}</td>` +
+      `<td class="info-pos">${fmtDeg(p.longitude)}${retro} ${SIGNS[si]}</td>` +
+      `<td class="col-second col-divider info-glyph">${p.hamburgGlyph}</td>` +
+      `<td class="col-second info-pos" id="info-sp-${i}"></td>`;
     tbody.appendChild(tr);
   });
   const sep = document.createElement('tr');
   sep.className = 'info-sep';
-  sep.innerHTML = '<td colspan="6"></td>';
+  sep.innerHTML = '<td colspan="4"></td>';
   tbody.appendChild(sep);
   cusps.forEach((lon, i) => {
     const si  = Math.floor(lon / 30) % 12;
     const cls = [0,3,6,9].includes(i) ? 'house-angular' : '';
     const tr  = document.createElement('tr');
     tr.innerHTML =
-      `<td class="col-second info-house-lbl ${cls}"></td>` +
-      `<td class="col-second info-pos" id="info-shp-${i}"></td>` +
-      `<td class="col-second info-sign" id="info-shs-${i}"></td>` +
-      `<td class="col-divider info-house-lbl ${cls}">${HOUSE_LABELS[i]}</td>` +
-      `<td class="info-pos">${fmtDeg(lon)}</td>` +
-      `<td class="info-sign">${SIGNS[si]}</td>`;
+      `<td class="info-house-lbl ${cls}">${HOUSE_LABELS[i]}</td>` +
+      `<td class="info-pos">${fmtDeg(lon)} ${SIGNS[si]}</td>` +
+      `<td class="col-second col-divider info-house-lbl ${cls}">${HOUSE_LABELS[i]}</td>` +
+      `<td class="col-second info-pos" id="info-shp-${i}"></td>`;
     tbody.appendChild(tr);
   });
 }
 
 function updateSecondColumn(planets) {
   planets.forEach((p, i) => {
-    const posEl  = document.getElementById(`info-sp-${i}`);
-    const sigEl  = document.getElementById(`info-ss-${i}`);
+    const posEl = document.getElementById(`info-sp-${i}`);
     if (!posEl) return;
-    posEl.innerHTML  = fmtDeg(p.longitude) + (p.retrograde ? ' <span class="info-retro">R</span>' : '');
-    sigEl.textContent = SIGNS[Math.floor(p.longitude / 30) % 12];
+    const si = Math.floor(p.longitude / 30) % 12;
+    const retro = p.retrograde ? ' <span class="info-retro">R</span>' : '';
+    posEl.innerHTML = `${fmtDeg(p.longitude)}${retro} ${SIGNS[si]}`;
+  });
+}
+
+function updateSecondHouses(cusps) {
+  cusps.forEach((lon, i) => {
+    const posEl = document.getElementById(`info-shp-${i}`);
+    if (!posEl) return;
+    const si = Math.floor(lon / 30) % 12;
+    posEl.textContent = `${fmtDeg(lon)} ${SIGNS[si]}`;
   });
 }
 
@@ -2222,6 +2228,7 @@ function renderDirectionBiwheel(jd = null) {
   const directedCusps = natalCusps.map(c => ((c + ageInYears) % 360 + 360) % 360);
   renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc);
   updateSecondColumn(directed);
+  updateSecondHouses(directedCusps);
   setInfoTableMode('biwheel');
   currentTransitJD = jd;
   updateDateNav(jd);

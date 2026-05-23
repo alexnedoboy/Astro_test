@@ -70,22 +70,19 @@
   }
   #right-panel-tabs .tab-btn.active { color: #222; border-bottom-color: #333; }
   #right-panel-tabs .tab-btn:hover:not(.active) { background: #f8f8f5; color: #444; }
-  #right-info-content { padding: 8px 0; overflow-y: auto; }
-  #info-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.83em;
-    background: #fff;
-  }
-  #info-table th {
-    color: #555; text-align: left;
-    padding: 6px 12px;
-    border-bottom: 1px solid #eee;
-    background: #f8f8f5;
-    font-weight: 600;
-  }
-  #info-table td { padding: 4px 12px; border-bottom: 1px solid #f2f2ee; }
+  #right-info-content { overflow-y: auto; }
+  #info-table { width: 100%; border-collapse: collapse; font-size: 0.87em; }
+  #info-table td { padding: 2px 5px; }
   #info-table tr:hover td { background: #fafaf6; }
+  .info-glyph { font-family: 'HamburgSymbols'; font-size: 1.15em; text-align: center; width: 26px; }
+  .info-pos { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .info-retro { color: #bb1111; font-style: italic; font-size: 0.78em; }
+  .info-house-lbl { color: #888; font-size: 0.8em; width: 28px; }
+  .house-angular { font-weight: 700; color: #333; }
+  .info-sep td { height: 5px; border-top: 1px solid #eee; padding: 0; }
+  .col-second { display: none; }
+  #info-table.mode-biwheel .col-second { display: table-cell; }
+  .col-divider { border-left: 1px solid #ddd; }
 
   /* ── Date navigator (universal, bottom of left panel) ────── */
   #date-nav {
@@ -792,7 +789,6 @@
     <div id="right-timeline-content"></div>
     <div id="right-info-content" style="display:none">
       <table id="info-table">
-        <thead><tr><th>Планета</th><th>Знак</th><th>Позиция</th><th>Дом</th></tr></thead>
         <tbody id="tableBody"></tbody>
       </table>
     </div>
@@ -1533,7 +1529,7 @@ document.getElementById('calcBtn').addEventListener('click', () => {
       enterChartMode(chartName, fmtDate, fmtTime);
     }
     renderChart(planets, cusps, asc, mc);
-    renderTable(planets);
+    buildInfoTable(planets, cusps);
     document.getElementById('tabTransit').click();
     setStatus('');
   } catch (e) { setStatus('Ошибка: ' + e.message); }
@@ -2002,24 +1998,64 @@ function drawClusters(g, planets, asc) {
   }
 }
 
-// ── Table ─────────────────────────────────────────────────────────────────────
+// ── Info table ────────────────────────────────────────────────────────────────
 
-function renderTable(planets) {
+const HOUSE_LABELS = ['As','II','III','Ic','V','VI','Ds','VIII','IX','Mc','XI','XII'];
+
+function fmtDeg(lon) {
+  const d = Math.floor(lon % 30);
+  const f = lon % 1;
+  const m = Math.floor(f * 60);
+  const s = Math.floor(f * 3600) % 60;
+  return `${d}°${String(m).padStart(2,'0')}'${String(s).padStart(2,'0')}"`;
+}
+
+function buildInfoTable(planets, cusps) {
   const tbody = document.getElementById('tableBody');
   tbody.innerHTML = '';
-  planets.forEach(p => {
-    const si  = Math.floor(p.longitude / 30);
-    const deg = Math.floor(p.longitude % 30);
-    const min = Math.floor((p.longitude % 1) * 60);
-    const tr  = document.createElement('tr');
+  planets.forEach((p, i) => {
+    const si = Math.floor(p.longitude / 30) % 12;
+    const tr = document.createElement('tr');
     tr.innerHTML =
-      `<td>${p.glyph} ${p.name}</td>` +
-      `<td>${SIGNS[si]} ${SIGN_NAMES[si]}</td>` +
-      `<td>${deg}°${String(min).padStart(2, '0')}'` +
-        (p.retrograde ? ' <span style="color:#bb1111;font-style:italic">R</span>' : '') +
-      `</td><td>${p.house}</td>`;
+      `<td class="col-second info-glyph">${p.hamburgGlyph}</td>` +
+      `<td class="col-second info-pos" id="info-sp-${i}"></td>` +
+      `<td class="col-second info-sign" id="info-ss-${i}"></td>` +
+      `<td class="col-divider info-glyph">${p.hamburgGlyph}</td>` +
+      `<td class="info-pos">${fmtDeg(p.longitude)}${p.retrograde ? ' <span class="info-retro">R</span>' : ''}</td>` +
+      `<td class="info-sign">${SIGNS[si]}</td>`;
     tbody.appendChild(tr);
   });
+  const sep = document.createElement('tr');
+  sep.className = 'info-sep';
+  sep.innerHTML = '<td colspan="6"></td>';
+  tbody.appendChild(sep);
+  cusps.forEach((lon, i) => {
+    const si  = Math.floor(lon / 30) % 12;
+    const cls = [0,3,6,9].includes(i) ? 'house-angular' : '';
+    const tr  = document.createElement('tr');
+    tr.innerHTML =
+      `<td class="col-second info-house-lbl ${cls}"></td>` +
+      `<td class="col-second info-pos" id="info-shp-${i}"></td>` +
+      `<td class="col-second info-sign" id="info-shs-${i}"></td>` +
+      `<td class="col-divider info-house-lbl ${cls}">${HOUSE_LABELS[i]}</td>` +
+      `<td class="info-pos">${fmtDeg(lon)}</td>` +
+      `<td class="info-sign">${SIGNS[si]}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateSecondColumn(planets) {
+  planets.forEach((p, i) => {
+    const posEl  = document.getElementById(`info-sp-${i}`);
+    const sigEl  = document.getElementById(`info-ss-${i}`);
+    if (!posEl) return;
+    posEl.innerHTML  = fmtDeg(p.longitude) + (p.retrograde ? ' <span class="info-retro">R</span>' : '');
+    sigEl.textContent = SIGNS[Math.floor(p.longitude / 30) % 12];
+  });
+}
+
+function setInfoTableMode(mode) {
+  document.getElementById('info-table')?.classList.toggle('mode-biwheel', mode === 'biwheel');
 }
 
 
@@ -2185,6 +2221,8 @@ function renderDirectionBiwheel(jd = null) {
   }));
   const directedCusps = natalCusps.map(c => ((c + ageInYears) % 360 + 360) % 360);
   renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc);
+  updateSecondColumn(directed);
+  setInfoTableMode('biwheel');
   currentTransitJD = jd;
   updateDateNav(jd);
 }
@@ -2339,6 +2377,8 @@ function showTransitNow() {
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   });
   renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
+  updateSecondColumn(transit);
+  setInfoTableMode('biwheel');
   currentTransitJD = null;
   updateDateNav(null);
 }
@@ -2447,7 +2487,9 @@ function renderProgressedBiwheel(jd = null) {
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   });
   renderProgressedBiwheelChart(natal, progressed, cusps, asc);
-  currentTransitJD = jd;   // null = today, value = specific date
+  updateSecondColumn(progressed);
+  setInfoTableMode('biwheel');
+  currentTransitJD = jd;
   updateDateNav(jd);
 }
 
@@ -2479,6 +2521,7 @@ document.getElementById('subTabNatal').addEventListener('click', () => {
   document.getElementById('prog-mode-content').style.display = 'none';
   document.getElementById('date-nav').style.display = '';
   renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
+  setInfoTableMode('natal');
 });
 
 document.getElementById('subTabTransit').addEventListener('click', () => {
@@ -2522,6 +2565,8 @@ function renderBiwheelAt(jd) {
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   });
   renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
+  updateSecondColumn(transit);
+  setInfoTableMode('biwheel');
   currentTransitJD = jd;
   updateDateNav(jd);
 }

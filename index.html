@@ -56,7 +56,7 @@
 
   #status { font-size: 0.79em; color: #aaa; margin-top: 8px; min-height: 16px; }
 
-  #chart-wrap { width: 100%; max-width: 740px; margin: 0 auto; line-height: 0; }
+  #chart-block { width: 100%; max-width: 740px; margin: 0 auto; line-height: 0; }
 
   #info-table {
     width: 100%; max-width: 480px;
@@ -134,10 +134,10 @@
   #mode-content { padding: 4px 0 2px; }
   #transit-mode-content, #prog-mode-content { display: block; }
   /* ── Page modes ─────────────────────────────────────────── */
-  #prog-layout { display: none; width: 100%; margin: 0 auto; }
-  #prog-layout.visible { display: block; }
-  #prog-left { width: 100%; }
-  #transit-tl { width: 100%; margin: 8px auto 0; display: none; }
+  #chartpage-layout { display: none; width: 100%; margin: 0 auto; }
+  #chartpage-layout.visible { display: block; }
+  #chartpage-left { width: 100%; }
+  #chartpage-right { width: 100%; margin: 8px auto 0; display: none; }
 
   /* Controls panel below chart (visible only in transit mode) */
   #prog-controls {
@@ -146,7 +146,7 @@
     border-top: 1px solid #e8e8e4;
     margin-top: 4px;
   }
-  #prog-layout.transit-active #prog-controls { display: block; }
+  #chartpage-layout.transit-active #prog-controls { display: block; }
 
   /* ── Forecast (long-term) page ──────────────────────────── */
   #forecast-layout { display: none; width: 100%; margin: 0 auto; }
@@ -197,8 +197,8 @@
   }
   #fc-calc-btn:hover { background: #333; }
 
-  /* transit-sub-bar inside prog-controls is always shown */
-  #prog-controls #transit-sub-bar {
+  /* chart-mode-bar inside prog-controls is always shown */
+  #prog-controls #chart-mode-bar {
     display: flex; max-width: none;
     margin-bottom: 6px;
   }
@@ -270,36 +270,36 @@
   }
 
   @media (min-width: 700px) {
-    #prog-layout.transit-active {
+    #chartpage-layout.transit-active {
       max-width: none;
       display: flex !important;
       align-items: stretch;
       gap: 16px;
       height: calc(100vh - 60px);
     }
-    #prog-layout.transit-active #prog-left {
+    #chartpage-layout.transit-active #chartpage-left {
       flex: 0 0 50%;
       width: 50%;
       display: flex;
       flex-direction: column;
     }
-    #prog-layout.transit-active #chart-wrap {
+    #chartpage-layout.transit-active #chart-block {
       flex: 1;
       min-height: 0;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    #prog-layout.transit-active #chart-wrap svg {
+    #chartpage-layout.transit-active #chart-block svg {
       width: 100%;
       height: 100%;
       max-width: 100%;
       max-height: 100%;
     }
-    #prog-layout.transit-active #prog-controls {
+    #chartpage-layout.transit-active #prog-controls {
       flex-shrink: 0;
     }
-    #prog-layout.transit-active #transit-tl {
+    #chartpage-layout.transit-active #chartpage-right {
       flex: 1;
       min-width: 0;
       margin-top: 0;
@@ -339,7 +339,7 @@
       overflow-y: auto;
     }
   }
-  #transit-tl .tl-status {
+  #chartpage-right .tl-status {
     padding: 16px; text-align: center;
     color: #999; font-size: 0.85em;
   }
@@ -572,17 +572,17 @@
   #home-charts-list .chart-item:hover { background: #f0f0eb; }
   svg text { font-family: 'Apple Symbols', 'Segoe UI Symbol', 'Noto Sans Symbols', serif; }
 
-  #transit-sub-bar {
+  #chart-mode-bar {
     width: 100%; max-width: 740px;
     gap: 4px; margin: -2px 0 6px;
     display: none;
   }
-  #transit-sub-bar.visible { display: flex; }
-  #transit-sub-bar .tab-btn {
+  #chart-mode-bar.visible { display: flex; }
+  #chart-mode-bar .tab-btn {
     font-size: 0.74em; padding: 5px 0;
     background: #f0f0ec; border-color: #ddd; color: #777;
   }
-  #transit-sub-bar .tab-btn.active { background: #666; color: #fff; border-color: #666; }
+  #chart-mode-bar .tab-btn.active { background: #666; color: #fff; border-color: #666; }
 
 </style>
 </head>
@@ -725,12 +725,12 @@
   <div id="home-charts-list"></div>
 </div>
 
-<div id="prog-layout">
-  <div id="prog-left">
-    <div id="chart-wrap"></div>
+<div id="chartpage-layout">
+  <div id="chartpage-left">
+    <div id="chart-block"></div>
     <div id="prog-controls">
       <!-- Mode switcher -->
-      <div id="transit-sub-bar">
+      <div id="chart-mode-bar">
         <button class="tab-btn" id="subTabNatal">Натал</button>
         <button class="tab-btn active" id="subTabTransit">Транзиты</button>
         <button class="tab-btn" id="subTabProgressed">Прогрессии</button>
@@ -775,7 +775,7 @@
       </div>
     </div>
   </div>
-  <div id="transit-tl"></div>
+  <div id="chartpage-right"></div>
 </div>
 <div id="tl-tooltip"></div>
 <div id="chart-tooltip"></div>
@@ -1389,7 +1389,7 @@ function enterChartMode(name, date, time) {
   document.getElementById('header-chart-name').textContent = name || '';
   const dateTime = [date, time].filter(Boolean).join(' · ');
   document.getElementById('header-chart-date').textContent = dateTime;
-  document.getElementById('prog-layout').classList.add('visible');
+  document.getElementById('chartpage-layout').classList.add('visible');
 }
 
 function exitChartMode(updateHistory = true) {
@@ -1400,8 +1400,8 @@ function exitChartMode(updateHistory = true) {
   document.getElementById('form-wrap').style.display = 'block';
   if (currentUser) document.getElementById('home-charts').style.display = '';
   document.getElementById('app-header').classList.remove('chart-mode');
-  document.getElementById('prog-layout').classList.remove('visible', 'transit-active');
-  document.getElementById('transit-tl').style.display = 'none';
+  document.getElementById('chartpage-layout').classList.remove('visible', 'transit-active');
+  document.getElementById('chartpage-right').style.display = 'none';
   document.getElementById('info-table').style.display = 'none';
   natalData = null;
   cachedTimeline = null;
@@ -1716,7 +1716,7 @@ function renderChart(planets, cusps, asc, mc) {
   // 10. Cusp labels
   drawHouseLabels(g, cusps, 0);
 
-  document.getElementById('chart-wrap').replaceChildren(svg);
+  document.getElementById('chart-block').replaceChildren(svg);
 }
 
 // ── House axes ────────────────────────────────────────────────────────────────
@@ -2010,7 +2010,7 @@ function renderTable(planets) {
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 function setActiveTab(id) {
-  const pl = document.getElementById('prog-layout');
+  const pl = document.getElementById('chartpage-layout');
   pl.classList.toggle('transit-active', id === 'transit');
   pl.style.removeProperty('display');
   const infoTable = document.getElementById('info-table');
@@ -2217,7 +2217,7 @@ function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) 
   // 11. House labels outside ring (natal)
   drawHouseLabels(g, natalCusps, 0);
 
-  document.getElementById('chart-wrap').replaceChildren(svg);
+  document.getElementById('chart-block').replaceChildren(svg);
 }
 
 function drawDirectedCusps(g, directedCusps, asc) {
@@ -2298,7 +2298,7 @@ function drawDirectionAspects(g, natal, directed, asc) {
 document.getElementById('tabNatal').addEventListener('click', () => {
   if (!natalData) return;
   setActiveTab('natal');
-  document.getElementById('transit-tl').style.display = 'none';
+  document.getElementById('chartpage-right').style.display = 'none';
   renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
   renderTable(natalData.planets);
 });
@@ -2407,7 +2407,7 @@ function renderProgressedBiwheelChart(natal, progressed, cusps, asc) {
   drawBiwheelPlanets(g, addSouthNode(progressed),   0, R_DIVIDER,  R_T_PLANET, CHART.BW_R_TRANSIT_GLYPH_L1);
 
   drawHouseLabels(g, cusps, 0);
-  document.getElementById('chart-wrap').replaceChildren(svg);
+  document.getElementById('chart-block').replaceChildren(svg);
 }
 
 function renderProgressedBiwheel(jd = null) {
@@ -2437,7 +2437,7 @@ document.getElementById('tabTransit').addEventListener('click', () => {
   document.getElementById('transit-mode-content').style.display = 'block';
   document.getElementById('prog-mode-content').style.display = 'none';
   showTransitNow();
-  document.getElementById('transit-tl').style.display = 'block';
+  document.getElementById('chartpage-right').style.display = 'block';
   computeAndRenderTimeline(natalData.planets);
 });
 
@@ -2556,7 +2556,7 @@ function renderBiwheel(natal, transit, cusps, asc) {
   // 11. House labels outside ring
   drawHouseLabels(g, cusps, 0);
 
-  document.getElementById('chart-wrap').replaceChildren(svg);
+  document.getElementById('chart-block').replaceChildren(svg);
 }
 
 function drawBiwheelPlanets(g, planets, asc, rDot, rGlyphL0, rGlyphL1, dotColor = '#c6c300', glyphColor = '#111') {
@@ -3034,7 +3034,7 @@ function computeDirectionEvents(natalPlanets, natalCusps, birthJD, jdStart, jdEn
 }
 
 function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
-  const tl = document.getElementById('transit-tl');
+  const tl = document.getElementById('chartpage-right');
   if (cachedTimeline) {
     renderTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() });
     return;
@@ -3322,7 +3322,7 @@ function computeReturnPeriods(natalPlanets, jdStart, jdEnd) {
 }
 
 function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dirEvents = [], jdCursor = null }) {
-  const tl = document.getElementById('transit-tl');
+  const tl = document.getElementById('chartpage-right');
   if (!periods.length) {
     tl.innerHTML = '<div class="tl-status">Нет активных транзитов в этом периоде.</div>';
     return;
@@ -3963,7 +3963,7 @@ document.getElementById('tabForecast').addEventListener('click', () => {
   if (!natalData || !swe) return;
   setActiveTab('forecast');
   const fcWrap = document.getElementById('forecast-chart-wrap');
-  const natSVG = document.querySelector('#chart-wrap svg');
+  const natSVG = document.querySelector('#chart-block svg');
   if (natSVG) fcWrap.replaceChildren(natSVG.cloneNode(true));
   initForecastUI();
 });

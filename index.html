@@ -58,15 +58,24 @@
 
   #chart-block { width: 100%; max-width: 740px; margin: 0 auto; line-height: 0; }
 
+  #right-panel-tabs {
+    display: flex; border-bottom: 1px solid #eee;
+    background: #fff; flex-shrink: 0;
+  }
+  #right-panel-tabs .tab-btn {
+    flex: 1; border-radius: 0; border: none;
+    border-bottom: 2px solid transparent; background: none;
+    padding: 7px 12px; font-size: 0.85em; font-weight: 600; color: #999;
+    cursor: pointer; transition: background 0.15s;
+  }
+  #right-panel-tabs .tab-btn.active { color: #222; border-bottom-color: #333; }
+  #right-panel-tabs .tab-btn:hover:not(.active) { background: #f8f8f5; color: #444; }
+  #right-info-content { padding: 8px 0; overflow-y: auto; }
   #info-table {
-    width: 100%; max-width: 480px;
-    margin: 10px 8px 0;
+    width: 100%;
     border-collapse: collapse;
     font-size: 0.83em;
     background: #fff;
-    border-radius: 6px;
-    overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   }
   #info-table th {
     color: #555; text-align: left;
@@ -775,7 +784,19 @@
       </div>
     </div>
   </div>
-  <div id="chartpage-right"></div>
+  <div id="chartpage-right">
+    <div id="right-panel-tabs">
+      <button class="tab-btn active" id="rightTabTimeline">Таймлайн</button>
+      <button class="tab-btn" id="rightTabInfo">Инфо</button>
+    </div>
+    <div id="right-timeline-content"></div>
+    <div id="right-info-content" style="display:none">
+      <table id="info-table">
+        <thead><tr><th>Планета</th><th>Знак</th><th>Позиция</th><th>Дом</th></tr></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 <div id="tl-tooltip"></div>
 <div id="chart-tooltip"></div>
@@ -798,11 +819,6 @@
   </div>
   <div id="forecast-tl"></div>
 </div>
-
-<table id="info-table" style="display:none">
-  <thead><tr><th>Планета</th><th>Знак</th><th>Позиция</th><th>Дом</th></tr></thead>
-  <tbody id="tableBody"></tbody>
-</table>
 
 <script type="module">
 import SwissEph    from 'https://cdn.jsdelivr.net/gh/prolaxu/swisseph-wasm@main/src/swisseph.js';
@@ -1402,7 +1418,7 @@ function exitChartMode(updateHistory = true) {
   document.getElementById('app-header').classList.remove('chart-mode');
   document.getElementById('chartpage-layout').classList.remove('visible', 'transit-active');
   document.getElementById('chartpage-right').style.display = 'none';
-  document.getElementById('info-table').style.display = 'none';
+  setRightPanelTab('timeline');
   natalData = null;
   cachedTimeline = null;
 }
@@ -2004,8 +2020,8 @@ function renderTable(planets) {
       `</td><td>${p.house}</td>`;
     tbody.appendChild(tr);
   });
-  document.getElementById('info-table').style.display = 'table';
 }
+
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -2013,11 +2029,19 @@ function setActiveTab(id) {
   const pl = document.getElementById('chartpage-layout');
   pl.classList.toggle('transit-active', id === 'transit');
   pl.style.removeProperty('display');
-  const infoTable = document.getElementById('info-table');
-  if (id !== 'natal' && infoTable.style.display !== 'none') {
-    infoTable.style.display = 'none';
-  }
 }
+
+// ── Right panel tabs (Timeline / Info) ───────────────────────────────────────
+
+function setRightPanelTab(id) {
+  document.getElementById('rightTabTimeline').classList.toggle('active', id === 'timeline');
+  document.getElementById('rightTabInfo').classList.toggle('active', id === 'info');
+  document.getElementById('right-timeline-content').style.display = id === 'timeline' ? '' : 'none';
+  document.getElementById('right-info-content').style.display    = id === 'info'     ? '' : 'none';
+}
+
+document.getElementById('rightTabTimeline').addEventListener('click', () => setRightPanelTab('timeline'));
+document.getElementById('rightTabInfo').addEventListener('click', () => setRightPanelTab('info'));
 
 // ── Date navigator helpers ────────────────────────────────────────────────────
 
@@ -3034,7 +3058,7 @@ function computeDirectionEvents(natalPlanets, natalCusps, birthJD, jdStart, jdEn
 }
 
 function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
-  const tl = document.getElementById('chartpage-right');
+  const tl = document.getElementById('right-timeline-content');
   if (cachedTimeline) {
     renderTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() });
     return;
@@ -3322,7 +3346,7 @@ function computeReturnPeriods(natalPlanets, jdStart, jdEnd) {
 }
 
 function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dirEvents = [], jdCursor = null }) {
-  const tl = document.getElementById('chartpage-right');
+  const tl = document.getElementById('right-timeline-content');
   if (!periods.length) {
     tl.innerHTML = '<div class="tl-status">Нет активных транзитов в этом периоде.</div>';
     return;

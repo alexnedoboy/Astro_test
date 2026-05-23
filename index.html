@@ -837,6 +837,7 @@ function updateAuthUI(user) {
     userInfo.style.display = 'flex';
     emailEl.textContent = user.email ?? user.user_metadata?.full_name ?? '';
     loadHomeCharts();
+    loadChartFromHash();
     // Load element colors preference from Supabase (overrides localStorage)
     const meta = user?.user_metadata;
     const pref = meta?.elementColors ?? (localStorage.getItem('elementColors') === '1');
@@ -1032,6 +1033,15 @@ async function loadChartsList() {
 }
 
 function loadChartFromDB(c) {
+  currentChartId = c.id ?? null;
+  if (currentChartId) {
+    const newHash = `#chart/${currentChartId}`;
+    if (window.location.hash === newHash) {
+      history.replaceState({ chartId: currentChartId }, '', newHash);
+    } else {
+      history.pushState({ chartId: currentChartId }, '', newHash);
+    }
+  }
   document.getElementById('chartName').value  = c.name        ?? '';
   document.getElementById('birthDate').value  = c.birth_date  ?? '';
   document.getElementById('birthTime').value  = c.birth_time  ?? '';
@@ -1244,6 +1254,8 @@ let detectedTimezone = null;   // IANA timezone name after geocoding
 let currentTransitJD = null;   // currently displayed JD (null = today)
 let currentMode      = 'transit'; // 'transit' | 'progressed' | 'direction'
 let currentForecastHouse = 7;    // selected house for long-term forecast (1–12)
+let currentChartId   = null;   // Supabase id of the currently open chart
+let _pendingChartLoad = null;  // chart row waiting for swe to initialize
 
 (async () => {
   try {
@@ -1251,6 +1263,11 @@ let currentForecastHouse = 7;    // selected house for long-term forecast (1–1
     await swe.initSwissEph();
     setStatus('Готово.');
     document.getElementById('calcBtn').disabled = false;
+    if (_pendingChartLoad) {
+      const c = _pendingChartLoad;
+      _pendingChartLoad = null;
+      loadChartFromDB(c);
+    }
   } catch (e) {
     setStatus('Ошибка Swiss Ephemeris: ' + e.message);
   }
@@ -1376,7 +1393,11 @@ function enterChartMode(name, date, time) {
   document.getElementById('prog-layout').classList.add('visible');
 }
 
-function exitChartMode() {
+function exitChartMode(updateHistory = true) {
+  currentChartId = null;
+  if (updateHistory) {
+    history.pushState('', document.title, window.location.pathname + window.location.search);
+  }
   document.getElementById('form-wrap').style.display = 'block';
   if (currentUser) document.getElementById('home-charts').style.display = '';
   document.getElementById('app-header').classList.remove('chart-mode');
@@ -1389,7 +1410,36 @@ function exitChartMode() {
   setActiveTab('natal');
 }
 
-document.getElementById('backBtn').addEventListener('click', exitChartMode);
+document.getElementById('backBtn').addEventListener('click', () => exitChartMode(true));
+
+// ── Hash routing ──────────────────────────────────────────────────────────────
+
+function parseChartHash() {
+  const m = window.location.hash.match(/^#chart\/(.+)$/);
+  return m ? m[1] : null;
+}
+
+async function loadChartFromHash() {
+  const id = parseChartHash();
+  if (!id) return;
+  if (!currentUser) return;
+  const { data, error } = await sb.from('charts').select('*').eq('id', id).single();
+  if (error || !data) return;
+  if (swe) {
+    loadChartFromDB(data);
+  } else {
+    _pendingChartLoad = data;
+  }
+}
+
+window.addEventListener('popstate', () => {
+  const id = parseChartHash();
+  if (!id && natalData) {
+    exitChartMode(false);
+  } else if (id && id !== currentChartId) {
+    loadChartFromHash();
+  }
+});
 
 document.getElementById('editChartBtn').addEventListener('click', enterEditMode);
 

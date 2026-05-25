@@ -550,6 +550,31 @@
   #auth-msg { font-size: 0.81em; color: #e44; margin-top: 12px; min-height: 14px; text-align: center; }
   #auth-msg.ok { color: #228833; }
 
+  /* ── Planet filter modal ────────────────────────────────── */
+  #planet-filter-overlay {
+    display: none; position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,0.42); backdrop-filter: blur(3px);
+    align-items: center; justify-content: center;
+  }
+  #planet-filter-overlay.open { display: flex; }
+  #planet-filter-modal {
+    background: #fff; border-radius: 14px; padding: 22px 20px 18px;
+    width: 100%; max-width: 280px; margin: 16px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.22);
+  }
+  .pf-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 5px 20px;
+    margin: 14px 0 16px;
+  }
+  .pf-item {
+    display: flex; align-items: center; gap: 7px; font-size: 0.88em;
+    cursor: pointer; padding: 4px 0; user-select: none;
+  }
+  .pf-item input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: #444; flex-shrink: 0; }
+  .pf-glyph { font-size: 1.05em; width: 16px; text-align: center; }
+  .pf-reset { font-size: 0.82em; color: #888; background: none; border: none; cursor: pointer; padding: 0; text-decoration: underline; }
+  .pf-reset:hover { color: #444; }
+
   /* ── Saved charts panel ──────────────────────────────────── */
   #charts-panel {
     position: fixed; top: 0; right: 0; bottom: 0; width: 290px; max-width: 92vw;
@@ -643,6 +668,20 @@
   </div>
 </div>
 
+<!-- ── Planet filter modal ──────────────────────────────────── -->
+<div id="planet-filter-overlay">
+  <div id="planet-filter-modal">
+    <div class="modal-hdr">
+      <span class="modal-title" data-i18n="planetVisibility">Планеты натала</span>
+      <button id="closePlanetFilter" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#bbb;padding:2px 6px;border-radius:4px">✕</button>
+    </div>
+    <div class="pf-grid" id="pf-grid"></div>
+    <div style="display:flex;justify-content:flex-end">
+      <button class="pf-reset" id="pf-reset" data-i18n="resetAll">Сбросить все</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Saved charts side panel ──────────────────────────────── -->
 <div id="charts-panel">
   <div class="panel-hdr">
@@ -678,6 +717,7 @@
           <button class="lang-btn lang-btn-active" data-lang="ru">RU</button>
           <button class="lang-btn" data-lang="en">EN</button>
         </div>
+        <button class="auth-btn" id="planetFilterBtn" data-i18n="planetVisibility">Планеты натала</button>
         <div id="auth-zone">
           <button id="loginBtn" class="auth-btn primary" data-i18n="login">Войти</button>
           <div id="user-info" style="display:none">
@@ -897,6 +937,7 @@ const STRINGS = {
     noSavedCharts:'Сохранённых карт нет.<br>Постройте карту и нажмите «Сохранить».',
     deleteTitle:'Удалить', deleteConfirm:'Удалить «{name}»?',
     chartFallback:'Карта',
+    planetVisibility:'Планеты натала', resetAll:'Сбросить все',
     byMonths:'по месяцам', byYears:'по годам', prLabel:'Пр', dirLabel:'Дир',
     prPrefix:'пр ', dirPrefix:'дир ', trPrefix:'тр', natPrefix:'нат',
     houseWord:'Дом', cuspWord:'Куспид',
@@ -953,6 +994,7 @@ const STRINGS = {
     noSavedCharts:'No saved charts.<br>Build a chart and click Save.',
     deleteTitle:'Delete', deleteConfirm:'Delete "{name}"?',
     chartFallback:'Chart',
+    planetVisibility:'Natal planets', resetAll:'Reset all',
     byMonths:'by months', byYears:'by years', prLabel:'Pr', dirLabel:'Dir',
     prPrefix:'pr ', dirPrefix:'dir ', trPrefix:'tr', natPrefix:'nat',
     houseWord:'House', cuspWord:'Cusp',
@@ -1193,6 +1235,59 @@ document.getElementById('settings-dropdown').addEventListener('click', e => {
   if (e.target.closest('.auth-btn')) {
     headerRight.classList.remove('open');
   }
+});
+
+// ── Planet filter modal ──────────────────────────────────────────────────────
+const planetFilterOverlay = document.getElementById('planet-filter-overlay');
+
+function buildPlanetFilterGrid() {
+  const grid = document.getElementById('pf-grid');
+  grid.innerHTML = '';
+  PLANETS.forEach(p => {
+    const label = document.createElement('label');
+    label.className = 'pf-item';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = natalPlanetFilter.has(p.id);
+    cb.addEventListener('change', () => {
+      if (cb.checked) natalPlanetFilter.add(p.id);
+      else natalPlanetFilter.delete(p.id);
+      saveNatalFilter();
+      rerenderNatal();
+    });
+    const glyph = document.createElement('span');
+    glyph.className = 'pf-glyph';
+    glyph.textContent = p.glyph;
+    const name = document.createElement('span');
+    name.textContent = p.name;
+    label.append(cb, glyph, name);
+    grid.appendChild(label);
+  });
+}
+
+function rerenderNatal() {
+  if (!natalData) return;
+  renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
+  buildInfoTable(natalData.planets, natalData.cusps);
+  buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps));
+}
+
+document.getElementById('planetFilterBtn').addEventListener('click', () => {
+  headerRight.classList.remove('open');
+  buildPlanetFilterGrid();
+  planetFilterOverlay.classList.add('open');
+});
+document.getElementById('closePlanetFilter').addEventListener('click', () => {
+  planetFilterOverlay.classList.remove('open');
+});
+planetFilterOverlay.addEventListener('click', e => {
+  if (e.target === planetFilterOverlay) planetFilterOverlay.classList.remove('open');
+});
+document.getElementById('pf-reset').addEventListener('click', () => {
+  natalPlanetFilter = new Set(ALL_NATAL_IDS);
+  saveNatalFilter();
+  buildPlanetFilterGrid();
+  rerenderNatal();
 });
 
 // Language switcher
@@ -1451,6 +1546,24 @@ const R_T_PLANET = CHART.BW_R_TRANSIT_GLYPH;
 const R_N_PLANET = CHART.BW_R_NATAL_GLYPH;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+
+const ALL_NATAL_IDS = PLANETS.map(p => p.id);
+function loadNatalFilter() {
+  try {
+    const saved = localStorage.getItem('natalPlanetFilter');
+    if (saved) return new Set(JSON.parse(saved));
+  } catch {}
+  return new Set(ALL_NATAL_IDS);
+}
+let natalPlanetFilter = loadNatalFilter();
+function saveNatalFilter() {
+  localStorage.setItem('natalPlanetFilter', JSON.stringify([...natalPlanetFilter]));
+}
+function filterNatalPlanets(planets) {
+  return planets.filter(p =>
+    p.id === -10 ? natalPlanetFilter.has(10) : natalPlanetFilter.has(p.id)
+  );
+}
 
 let swe              = null;
 let natalData        = null;   // { planets, cusps, asc, mc }
@@ -1919,7 +2032,7 @@ function renderChart(planets, cusps, asc, mc) {
   drawDegreeRing(g, R_INNER, CHART.DEG_RING_W, CHART.DEG_SIGN_EXT);
 
   // 7. Aspects (include South Node)
-  const planetsWithSN = addSouthNode(planets, cusps);
+  const planetsWithSN = addSouthNode(filterNatalPlanets(planets), cusps);
   drawAspects(g, planetsWithSN, 0);
 
   // 8. Planets (include South Node)
@@ -2215,7 +2328,7 @@ function fmtDeg(lon) {
 function buildInfoTable(planets, cusps) {
   const tbody = document.getElementById('tableBody');
   tbody.innerHTML = '';
-  planets.forEach((p, i) => {
+  filterNatalPlanets(planets).forEach(p => {
     const si = Math.floor(p.longitude / 30) % 12;
     const retro = p.retrograde ? ' <span class="info-retro">R</span>' : '';
     const tr = document.createElement('tr');
@@ -2223,7 +2336,7 @@ function buildInfoTable(planets, cusps) {
       `<td class="info-glyph">${p.hamburgGlyph}</td>` +
       `<td class="info-pos">${fmtDeg(p.longitude)}${retro} ${SIGNS[si]}</td>` +
       `<td class="col-second col-divider info-glyph">${p.hamburgGlyph}</td>` +
-      `<td class="col-second info-pos" id="info-sp-${i}"></td>`;
+      `<td class="col-second info-pos" id="info-sp-${p.id}"></td>`;
     tbody.appendChild(tr);
   });
   const sep = document.createElement('tr');
@@ -2244,8 +2357,8 @@ function buildInfoTable(planets, cusps) {
 }
 
 function updateSecondColumn(planets) {
-  planets.forEach((p, i) => {
-    const posEl = document.getElementById(`info-sp-${i}`);
+  planets.forEach(p => {
+    const posEl = document.getElementById(`info-sp-${p.id}`);
     if (!posEl) return;
     const si = Math.floor(p.longitude / 30) % 12;
     const retro = p.retrograde ? ' <span class="info-retro">R</span>' : '';
@@ -2289,6 +2402,7 @@ function findGridAspect(lon1, lon2, id1, id2, orbMode) {
 function buildAspectGrid(natalPlanets, secondPlanets = null, orbMode = 'natal') {
   const container = document.getElementById('aspect-grid');
   if (!container) return;
+  natalPlanets = filterNatalPlanets(natalPlanets);
   const isNatal = !secondPlanets;
   const rows = isNatal ? natalPlanets.slice(1) : secondPlanets;
   const cols = natalPlanets;

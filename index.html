@@ -942,9 +942,9 @@ const STRINGS = {
     chartFallback:'Карта',
     planetVisibility:'Планеты натала', resetAll:'Сбросить все',
     progLunarPhases:'Фазы прогр. Луны',
-    phaseName_0:'Новолуние', phaseName_45:'Серп (рост)',
-    phaseName_90:'Первая четверть', phaseName_135:'Выпуклая (рост)',
-    phaseName_180:'Полнолуние', phaseName_225:'Выпуклая (убыль)',
+    phaseName_0:'Новолуние', phaseName_45:'Серп',
+    phaseName_90:'Первая четверть', phaseName_135:'Горб',
+    phaseName_180:'Полнолуние', phaseName_225:'Рассеивающая',
     phaseName_270:'Последняя четверть', phaseName_315:'Бальзамическая',
     byMonths:'по месяцам', byYears:'по годам', prLabel:'Пр', dirLabel:'Дир',
     prPrefix:'пр ', dirPrefix:'дир ', trPrefix:'тр', natPrefix:'нат',
@@ -1004,9 +1004,9 @@ const STRINGS = {
     chartFallback:'Chart',
     planetVisibility:'Natal planets', resetAll:'Reset all',
     progLunarPhases:'Prog. lunar phases',
-    phaseName_0:'New Moon', phaseName_45:'Waxing Crescent',
-    phaseName_90:'First Quarter', phaseName_135:'Waxing Gibbous',
-    phaseName_180:'Full Moon', phaseName_225:'Waning Gibbous',
+    phaseName_0:'New Moon', phaseName_45:'Crescent',
+    phaseName_90:'First Quarter', phaseName_135:'Gibbous',
+    phaseName_180:'Full Moon', phaseName_225:'Disseminating',
     phaseName_270:'Last Quarter', phaseName_315:'Balsamic',
     byMonths:'by months', byYears:'by years', prLabel:'Pr', dirLabel:'Dir',
     prPrefix:'pr ', dirPrefix:'dir ', trPrefix:'tr', natPrefix:'nat',
@@ -2945,41 +2945,48 @@ function calcProgressedLunarPhases(birthJD, viewJD) {
 // ── Progressed lunar phase markers renderer ───────────────────────────────────
 function drawProgLunarPhaseMarkers(g, phases) {
   const R_PHASE = R_ZOD_OUT + 10; // 296 — just outside the zodiac ring
-
-  // Visual style per phase angle
-  const STYLE = {
-    0:   { r: 5,   fill: '#111', stroke: null },
-    45:  { r: 2.5, fill: '#999', stroke: null },
-    90:  { r: 4,   fill: '#555', stroke: null },
-    135: { r: 2.5, fill: '#999', stroke: null },
-    180: { r: 5,   fill: '#fff', stroke: '#333' },
-    225: { r: 2.5, fill: '#999', stroke: null },
-    270: { r: 4,   fill: '#555', stroke: null },
-    315: { r: 2.5, fill: '#999', stroke: null },
-  };
+  const r = 4;
+  const rx45 = +(r * Math.cos(Math.PI / 4)).toFixed(3); // ≈ 2.828
 
   for (const ph of phases) {
-    const s = STYLE[ph.target];
     const a = lonToRad(ph.moonLon, 0);
     const { x, y } = polar(a, R_PHASE);
     const opacity = ph.isPast ? 0.3 : 0.9;
+    const t = ph.target;
 
     const ageRounded = Math.round(ph.ageYears * 10) / 10;
     const dateStr = new Date((ph.realJD - 2440587.5) * 86400000).toISOString().slice(0, 10);
-    const tipText = `${tr('phaseName_' + ph.target)}  ·  ${ageRounded} ${tr('yearsUnit')}  (${dateStr})`;
+    const tipText = `${tr('phaseName_' + t)}  ·  ${ageRounded} ${tr('yearsUnit')}  (${dateStr})`;
 
-    const marker = circ(x, y, s.r, {
-      fill: s.fill,
-      stroke: s.stroke ?? 'none',
-      'stroke-width': s.stroke ? 1.5 : 0,
-      opacity,
-      style: 'cursor:pointer',
-    });
-    marker.addEventListener('mouseover', e => showChartTip(tipText, e));
-    marker.addEventListener('mousemove', moveChartTip);
-    marker.addEventListener('mouseout', hideChartTip);
-    marker.addEventListener('click', () => applyNavigatedJD(ph.realJD));
-    g.appendChild(marker);
+    const grp = el('g', { opacity, style: 'cursor:pointer' });
+
+    // Background circle: dark for unlit, light for Full Moon
+    const bgFill = t === 180 ? '#e8e8e8' : '#1a1a1a';
+    grp.appendChild(circ(x, y, r, { fill: bgFill, stroke: '#666', 'stroke-width': 0.8 }));
+
+    // Lit-portion overlay path (dark bg + light crescent/half/gibbous on top)
+    // Two-arc technique: outer arc (half of big circle) + inner arc (half of smaller ellipse, rx45)
+    // Waxing (right lit): outer CW (sweep=1); inner CW → crescent, inner CCW → gibbous
+    // Waning (left lit):  outer CCW (sweep=0); inner CW → gibbous, inner CCW → crescent
+    const litPath = {
+      45:  `M ${x} ${y-r} A ${r} ${r} 0 0 1 ${x} ${y+r} A ${rx45} ${r} 0 0 1 ${x} ${y-r} Z`,
+      90:  `M ${x} ${y-r} A ${r} ${r} 0 0 1 ${x} ${y+r} L ${x} ${y-r} Z`,
+      135: `M ${x} ${y-r} A ${r} ${r} 0 0 1 ${x} ${y+r} A ${rx45} ${r} 0 0 0 ${x} ${y-r} Z`,
+      225: `M ${x} ${y-r} A ${r} ${r} 0 0 0 ${x} ${y+r} A ${rx45} ${r} 0 0 1 ${x} ${y-r} Z`,
+      270: `M ${x} ${y-r} A ${r} ${r} 0 0 0 ${x} ${y+r} L ${x} ${y-r} Z`,
+      315: `M ${x} ${y-r} A ${r} ${r} 0 0 0 ${x} ${y+r} A ${rx45} ${r} 0 0 0 ${x} ${y-r} Z`,
+    }[t];
+    if (litPath) grp.appendChild(el('path', { d: litPath, fill: '#e0e0e0', stroke: 'none' }));
+
+    // Transparent hit area for easier mouse interaction
+    grp.appendChild(circ(x, y, r + 3, { fill: 'transparent', stroke: 'none' }));
+
+    grp.addEventListener('mouseover', e => showChartTip(tipText, e));
+    grp.addEventListener('mousemove', moveChartTip);
+    grp.addEventListener('mouseout', hideChartTip);
+    grp.addEventListener('click', () => applyNavigatedJD(ph.realJD));
+
+    g.appendChild(grp);
   }
 }
 

@@ -713,6 +713,9 @@
         <label id="elem-colors-label" style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
           <input type="checkbox" id="elemColorsToggle"> <span data-i18n="elements">Стихии</span>
         </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
+          <input type="checkbox" id="progLunarPhasesToggle"> <span data-i18n="progLunarPhases">Фазы прогр. Луны</span>
+        </label>
         <div id="lang-switcher">
           <button class="lang-btn lang-btn-active" data-lang="ru">RU</button>
           <button class="lang-btn" data-lang="en">EN</button>
@@ -938,6 +941,11 @@ const STRINGS = {
     deleteTitle:'Удалить', deleteConfirm:'Удалить «{name}»?',
     chartFallback:'Карта',
     planetVisibility:'Планеты натала', resetAll:'Сбросить все',
+    progLunarPhases:'Фазы прогр. Луны',
+    phaseName_0:'Новолуние', phaseName_45:'Серп (рост)',
+    phaseName_90:'Первая четверть', phaseName_135:'Выпуклая (рост)',
+    phaseName_180:'Полнолуние', phaseName_225:'Выпуклая (убыль)',
+    phaseName_270:'Последняя четверть', phaseName_315:'Бальзамическая',
     byMonths:'по месяцам', byYears:'по годам', prLabel:'Пр', dirLabel:'Дир',
     prPrefix:'пр ', dirPrefix:'дир ', trPrefix:'тр', natPrefix:'нат',
     houseWord:'Дом', cuspWord:'Куспид',
@@ -995,6 +1003,11 @@ const STRINGS = {
     deleteTitle:'Delete', deleteConfirm:'Delete "{name}"?',
     chartFallback:'Chart',
     planetVisibility:'Natal planets', resetAll:'Reset all',
+    progLunarPhases:'Prog. lunar phases',
+    phaseName_0:'New Moon', phaseName_45:'Waxing Crescent',
+    phaseName_90:'First Quarter', phaseName_135:'Waxing Gibbous',
+    phaseName_180:'Full Moon', phaseName_225:'Waning Gibbous',
+    phaseName_270:'Last Quarter', phaseName_315:'Balsamic',
     byMonths:'by months', byYears:'by years', prLabel:'Pr', dirLabel:'Dir',
     prPrefix:'pr ', dirPrefix:'dir ', trPrefix:'tr', natPrefix:'nat',
     houseWord:'House', cuspWord:'Cusp',
@@ -1203,11 +1216,20 @@ elemColorsToggle.addEventListener('change', async () => {
   } catch (e) {}
 });
 
+let showProgLunarPhases = localStorage.getItem('showProgLunarPhases') !== '0';
+const progLunarPhasesToggle = document.getElementById('progLunarPhasesToggle');
+progLunarPhasesToggle.checked = showProgLunarPhases;
+progLunarPhasesToggle.addEventListener('change', () => {
+  showProgLunarPhases = progLunarPhasesToggle.checked;
+  localStorage.setItem('showProgLunarPhases', showProgLunarPhases ? '1' : '0');
+  if (natalData && currentMode === 'progressed') renderProgressedBiwheel(currentTransitJD);
+});
+
 function reRenderCurrentChart() {
   if (!natalData) return;
   if (currentMode === 'natal') {
     renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
-  } else if (currentTransitJD) {
+  } else {
     applyNavigatedJD(currentTransitJD);
   }
 }
@@ -2819,7 +2841,7 @@ function drawProgressedAspects(g, natal, progressed, asc) {
 }
 
 // ── Progressed biwheel renderer ───────────────────────────────────────────────
-function renderProgressedBiwheelChart(natal, progressed, cusps, asc) {
+function renderProgressedBiwheelChart(natal, progressed, cusps, asc, lunarPhases = null) {
   const svg = el('svg', { viewBox: VIEWBOX, width: '100%', style: 'display:block' });
   const clipRect = el('rect', { width: W, height: H });
   const clipPath = el('clipPath', { id: 'canvasClip' });
@@ -2849,7 +2871,116 @@ function renderProgressedBiwheelChart(natal, progressed, cusps, asc) {
   drawBiwheelPlanets(g, addSouthNode(progressed),   0, R_DIVIDER,  R_T_PLANET, CHART.BW_R_TRANSIT_GLYPH_L1);
 
   drawHouseLabels(g, cusps, 0);
+  if (lunarPhases) drawProgLunarPhaseMarkers(g, lunarPhases);
   document.getElementById('chart-block').replaceChildren(svg);
+}
+
+// ── Progressed lunar phase calculator ────────────────────────────────────────
+// Secondary progressions: 1 real day = 1 progressed year.
+// progressedJD = birthJD + ageInYears (where ageInYears = realDaysSinceBirth / 365.25)
+// Phase angle changes ~0.033°/real-day → synodic cycle ≈ 10,770 real days (~29.5 years).
+// Returns exactly 8 markers for the CURRENT cycle: from the last New Moon (0°)
+// before viewJD through the subsequent 7 phase boundaries.
+function calcProgressedLunarPhases(birthJD, viewJD) {
+  if (!swe) return [];
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+
+  function getPhaseAngle(realJD) {
+    const age = (realJD - birthJD) / 365.25; // person's age in years
+    const pJD = birthJD + age;               // progressed JD = birth + age_in_days
+    const moonLon = ((swe.calc_ut(pJD, 1, flags)[0]) % 360 + 360) % 360;
+    const sunLon  = ((swe.calc_ut(pJD, 0, flags)[0]) % 360 + 360) % 360;
+    return ((moonLon - sunLon) + 360) % 360;
+  }
+
+  const PHASE_TARGETS = [0, 45, 90, 135, 180, 225, 270, 315];
+  // Need ≥1 full cycle before viewJD (to find last New Moon) and
+  // ≥7/8 of a cycle after (to find all remaining phases). One cycle ≈ 10,770 days.
+  const RANGE = 12000;
+  const STEP  = 400;
+  const searchStart = Math.max(birthJD, viewJD - RANGE);
+  const all = [];
+  let prevAngle = getPhaseAngle(searchStart);
+
+  for (let t = searchStart + STEP; t <= viewJD + RANGE; t += STEP) {
+    const currAngle = getPhaseAngle(t);
+    let pA = prevAngle;
+    let cA = currAngle < pA - 180 ? currAngle + 360 : currAngle;
+
+    for (const target of PHASE_TARGETS) {
+      const tgt = target < pA - 180 ? target + 360 : target;
+      if (pA < tgt && cA >= tgt) {
+        const frac = (tgt - pA) / (cA - pA);
+        const exactJD = (t - STEP) + frac * STEP;
+        const exactAge = (exactJD - birthJD) / 365.25;
+        const pJDe = birthJD + exactAge;
+        const moonLon = ((swe.calc_ut(pJDe, 1, flags)[0]) % 360 + 360) % 360;
+        all.push({ target, realJD: exactJD, ageYears: exactAge, moonLon, isPast: exactJD < viewJD });
+      }
+    }
+    prevAngle = currAngle;
+  }
+  all.sort((a, b) => a.realJD - b.realJD);
+  // Find the cycle that contains viewJD: the latest New Moon whose cycle
+  // still has at least one future phase (i.e. viewJD hasn't passed the 315° yet).
+  const newMoons = all.filter(c => c.target === 0).sort((a, b) => a.realJD - b.realJD);
+
+  for (const nm of [...newMoons].reverse()) {
+    if (nm.realJD > viewJD) continue; // future new moon — skip backward search
+    const si = all.indexOf(nm);
+    const slice8 = all.slice(si, si + 8);
+    if (slice8.some(c => !c.isPast)) return slice8; // viewJD is inside this cycle
+    break; // all phases past → viewJD is in the balsamic gap before next new moon
+  }
+
+  // viewJD is in the balsamic gap: show the next upcoming cycle
+  const nextNM = newMoons.find(c => c.realJD > viewJD);
+  if (nextNM) {
+    const si = all.indexOf(nextNM);
+    return all.slice(si, si + 8);
+  }
+  return all.slice(0, 8); // fallback: first 8 found
+}
+
+// ── Progressed lunar phase markers renderer ───────────────────────────────────
+function drawProgLunarPhaseMarkers(g, phases) {
+  const R_PHASE = R_ZOD_OUT + 10; // 296 — just outside the zodiac ring
+
+  // Visual style per phase angle
+  const STYLE = {
+    0:   { r: 5,   fill: '#111', stroke: null },
+    45:  { r: 2.5, fill: '#999', stroke: null },
+    90:  { r: 4,   fill: '#555', stroke: null },
+    135: { r: 2.5, fill: '#999', stroke: null },
+    180: { r: 5,   fill: '#fff', stroke: '#333' },
+    225: { r: 2.5, fill: '#999', stroke: null },
+    270: { r: 4,   fill: '#555', stroke: null },
+    315: { r: 2.5, fill: '#999', stroke: null },
+  };
+
+  for (const ph of phases) {
+    const s = STYLE[ph.target];
+    const a = lonToRad(ph.moonLon, 0);
+    const { x, y } = polar(a, R_PHASE);
+    const opacity = ph.isPast ? 0.3 : 0.9;
+
+    const ageRounded = Math.round(ph.ageYears * 10) / 10;
+    const dateStr = new Date((ph.realJD - 2440587.5) * 86400000).toISOString().slice(0, 10);
+    const tipText = `${tr('phaseName_' + ph.target)}  ·  ${ageRounded} ${tr('yearsUnit')}  (${dateStr})`;
+
+    const marker = circ(x, y, s.r, {
+      fill: s.fill,
+      stroke: s.stroke ?? 'none',
+      'stroke-width': s.stroke ? 1.5 : 0,
+      opacity,
+      style: 'cursor:pointer',
+    });
+    marker.addEventListener('mouseover', e => showChartTip(tipText, e));
+    marker.addEventListener('mousemove', moveChartTip);
+    marker.addEventListener('mouseout', hideChartTip);
+    marker.addEventListener('click', () => applyNavigatedJD(ph.realJD));
+    g.appendChild(marker);
+  }
 }
 
 function renderProgressedBiwheel(jd = null) {
@@ -2864,7 +2995,8 @@ function renderProgressedBiwheel(jd = null) {
     const r = swe.calc_ut(progressedJD, p.id, flags);
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   });
-  renderProgressedBiwheelChart(natal, progressed, cusps, asc);
+  const lunarPhases = showProgLunarPhases ? calcProgressedLunarPhases(birthJD, jdReal) : null;
+  renderProgressedBiwheelChart(natal, progressed, cusps, asc, lunarPhases);
   updateSecondColumn(progressed);
   setInfoTableMode('biwheel');
   buildAspectGrid(addSouthNode(natal, cusps), addSouthNode(progressed), 'progressed');

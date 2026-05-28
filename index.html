@@ -4232,15 +4232,39 @@ function computeTlLayout(periods, progEvents, dirEvents) {
     (byNatal[p.na.id] ??= []).push(p);
   }
 
-  // Fixed lane assignment: same transit (planet + aspect type) → same sub-row
-  const assignLanes = (ps) => {
-    const keys = [...new Set(
-      [...ps].sort((a, b) => a.tPlanet.id - b.tPlanet.id || a.asp.angle - b.asp.angle)
-             .map(p => `${p.tPlanet.id}-${p.asp.angle}`)
-    )];
-    const laneOf = new Map(keys.map((k, i) => [k, i]));
-    for (const p of ps) p.sub = laneOf.get(`${p.tPlanet.id}-${p.asp.angle}`);
-    return { ps, nSubs: Math.max(laneOf.size, 1) };
+  // Series-aware bin packing: all periods of same (planet+aspect) stay on same lane,
+  // but different series share a lane when their intervals don't overlap.
+  const packSeries = (ps, gap = 1) => {
+    const seriesMap = new Map();
+    for (const p of ps) {
+      const key = `${p.tPlanet.id}-${p.asp.angle}`;
+      if (!seriesMap.has(key)) seriesMap.set(key, []);
+      seriesMap.get(key).push(p);
+    }
+    const seriesList = [...seriesMap.values()]
+      .sort((a, b) => Math.min(...a.map(p => p.startJD)) - Math.min(...b.map(p => p.startJD)));
+    // laneIntervals[lane] = [{start, end}, ...]
+    const laneIntervals = [];
+    for (const seriesPs of seriesList) {
+      let placed = false;
+      for (let lane = 0; lane < laneIntervals.length; lane++) {
+        const hasConflict = seriesPs.some(p =>
+          laneIntervals[lane].some(iv => p.startJD <= iv.end + gap && p.endJD >= iv.start - gap)
+        );
+        if (!hasConflict) {
+          for (const p of seriesPs) { p.sub = lane; }
+          for (const p of seriesPs) laneIntervals[lane].push({ start: p.startJD, end: p.endJD });
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        const lane = laneIntervals.length;
+        laneIntervals.push(seriesPs.map(p => ({ start: p.startJD, end: p.endJD })));
+        for (const p of seriesPs) p.sub = lane;
+      }
+    }
+    return { ps, nSubs: Math.max(laneIntervals.length, 1) };
   };
 
   // Greedy lane packing: reuse a lane as soon as the previous transit ended + gap days
@@ -4261,7 +4285,7 @@ function computeTlLayout(periods, progEvents, dirEvents) {
   const rows = PLANETS
     .filter(pl => byNatal[pl.id]?.length)
     .map(pl => {
-      const { ps, nSubs } = tlYearScale ? packRows(byNatal[pl.id], 30) : assignLanes(byNatal[pl.id]);
+      const { ps, nSubs } = packSeries(byNatal[pl.id], tlYearScale ? 30 : 1);
       const slowH = nSubs * SUB_H + 20;
       const isExpanded = expandedRows.has(pl.id);
       let fastPs = [], fastNSubs = 0, fastH = 0;

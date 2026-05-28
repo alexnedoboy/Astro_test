@@ -756,7 +756,7 @@
   }
   #v2-chart-area, #v2-chart-area-2 {
     flex: 0 0 auto;
-    width: min(calc((100vw - 192px) / 2), calc(65vh - 16px));
+    width: min(calc((100vw - 128px) / 2), calc(65vh - 16px));
     aspect-ratio: 1 / 1;
     align-self: center;
     overflow: hidden;
@@ -770,7 +770,7 @@
   }
   #layout-v2.tl-hidden #v2-chart-area,
   #layout-v2.tl-hidden #v2-chart-area-2 {
-    width: min(calc((100vw - 192px) / 2), calc(100vh - 16px));
+    width: min(calc((100vw - 128px) / 2), calc(100vh - 16px));
   }
   #v2-chart-area svg {
     width: 100%;
@@ -791,24 +791,31 @@
     height: auto !important;
     max-height: 100%;
   }
-  #v2-info-panel {
-    flex: 0 0 160px;
-    max-height: min(calc((100vw - 192px) / 2), calc(65vh - 16px));
-    align-self: center;
-    overflow-y: auto;
+  #v2-control-panel {
+    flex: 0 0 96px;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     background: var(--bg);
     border-radius: 8px;
-    padding: 8px 4px;
-    font-size: 0.83em;
+    padding: 6px 4px;
+    box-sizing: border-box;
+    overflow-y: auto;
   }
-  #layout-v2.tl-hidden #v2-info-panel {
-    max-height: min(calc((100vw - 192px) / 2), calc(100vh - 16px));
+  .v2-mode-btn, .v2-nav-btn {
+    width: 100%; height: 28px;
+    background: none; border: none; border-radius: 4px;
+    cursor: pointer; font-size: 0.8em;
+    color: var(--tx-4); padding: 0 4px;
+    white-space: nowrap;
   }
-  #v2-info-table { width: 100%; border-collapse: collapse; }
-  #v2-info-table td { padding: 2px 4px; }
-  #v2-info-table .v2-sep td { padding: 4px 0; }
-  #v2-info-table .v2-sep td hr { border: none; border-top: 1px solid var(--bd-light); margin: 0; }
-  #v2-info-table .v2-angular { font-weight: 600; color: var(--tx-2); }
+  .v2-mode-btn:hover, .v2-nav-btn:hover { background: var(--bg-hover); color: var(--tx-2); }
+  .v2-mode-btn.active { background: var(--bg-active); color: var(--tx); font-weight: 600; }
+  .v2-ctrl-sep { height: 1px; background: var(--bd-light); margin: 4px 0; flex-shrink: 0; }
+  .v2-nav-row { display: flex; gap: 2px; }
+  .v2-nav-row .v2-nav-btn { flex: 1; font-size: 0.72em; }
+  .v2-today-btn { margin-top: 2px; }
 
   /* compact toggle: sits at top-left of v2-bottom, over the timeline header's blank area */
   #v2-tl-tab {
@@ -1134,8 +1141,25 @@
   <div id="v2-top">
     <div id="v2-chart-area"></div>
     <div id="v2-chart-area-2"></div>
-    <div id="v2-info-panel">
-      <table id="v2-info-table"><tbody id="v2-tableBody"></tbody></table>
+    <div id="v2-control-panel">
+      <button class="v2-mode-btn" data-mode="transit">Транзит</button>
+      <button class="v2-mode-btn" data-mode="natal">Натал</button>
+      <button class="v2-mode-btn" data-mode="progressed">Прогр.</button>
+      <button class="v2-mode-btn" data-mode="direction">Дирекц.</button>
+      <div class="v2-ctrl-sep"></div>
+      <div class="v2-nav-row">
+        <button class="v2-nav-btn" data-nav="prev-year">◀◀◀</button>
+        <button class="v2-nav-btn" data-nav="next-year">▶▶▶</button>
+      </div>
+      <div class="v2-nav-row">
+        <button class="v2-nav-btn" data-nav="prev-month">◀◀</button>
+        <button class="v2-nav-btn" data-nav="next-month">▶▶</button>
+      </div>
+      <div class="v2-nav-row">
+        <button class="v2-nav-btn" data-nav="prev-day">◀</button>
+        <button class="v2-nav-btn" data-nav="next-day">▶</button>
+      </div>
+      <button class="v2-nav-btn v2-today-btn" data-nav="today">↺</button>
     </div>
   </div>
   <div id="v2-bottom">
@@ -5756,6 +5780,27 @@ function renderVTimeline({ periods, jdToday, jdCursor }) {
 }
 
 // ── Layout V2: experimental top/bottom split ──────────────────────────────────
+function syncV2ModeButtons() {
+  document.querySelectorAll('.v2-mode-btn').forEach(btn =>
+    btn.classList.toggle('active', btn.dataset.mode === currentMode)
+  );
+}
+
+document.getElementById('v2-control-panel').addEventListener('click', e => {
+  const modeBtn = e.target.closest('.v2-mode-btn');
+  if (modeBtn) {
+    const ids = { natal: 'subTabNatal', transit: 'subTabTransit', progressed: 'subTabProgressed', direction: 'subTabDirection' };
+    document.getElementById(ids[modeBtn.dataset.mode])?.click();
+    syncV2ModeButtons();
+    return;
+  }
+  const navBtn = e.target.closest('.v2-nav-btn');
+  if (navBtn) {
+    const ids = { 'prev-year': 'nav-prev-year', 'next-year': 'nav-next-year', 'prev-month': 'nav-prev-month', 'next-month': 'nav-next-month', 'prev-day': 'nav-prev-day', 'next-day': 'nav-next-day', 'today': 'nav-today' };
+    document.getElementById(ids[navBtn.dataset.nav])?.click();
+  }
+});
+
 let layout2Active = false;
 const V2_TL_STATES  = ['tl-normal', 'tl-expanded', 'tl-hidden'];
 const V2_TL_LABELS  = ['▲', '▼', '▲'];
@@ -5772,28 +5817,6 @@ function activateLayout2() {
   if (natalData) renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
   const natalSvg = document.querySelector('#chart-block svg')?.cloneNode(true);
   if (natalSvg) chartArea.appendChild(natalSvg);
-
-  // Info panel: natal planets
-  const v2tbody = document.getElementById('v2-tableBody');
-  v2tbody.innerHTML = '';
-  if (natalData) {
-    filterNatalPlanets(natalData.planets).forEach(p => {
-      const si = Math.floor(p.longitude / 30) % 12;
-      const retro = p.retrograde ? ' <span class="info-retro">R</span>' : '';
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td class="info-glyph">${p.hamburgGlyph}</td><td class="info-pos">${fmtDeg(p.longitude)}${retro}&nbsp;${SIGNS[si]}</td>`;
-      v2tbody.appendChild(tr);
-    });
-    const sep = document.createElement('tr'); sep.className = 'v2-sep';
-    sep.innerHTML = '<td colspan="2"><hr></td>'; v2tbody.appendChild(sep);
-    natalData.cusps.forEach((lon, i) => {
-      const si = Math.floor(lon / 30) % 12;
-      const tr = document.createElement('tr');
-      const cls = [0,3,6,9].includes(i) ? 'v2-angular' : '';
-      tr.innerHTML = `<td class="info-house-lbl ${cls}">${HOUSE_LABELS[i]}</td><td class="info-pos ${cls}">${fmtDeg(lon)}&nbsp;${SIGNS[si]}</td>`;
-      v2tbody.appendChild(tr);
-    });
-  }
 
   // Right panel: chart-block for transit biwheel
   chartArea2.appendChild(document.getElementById('chart-block'));
@@ -5813,6 +5836,7 @@ function activateLayout2() {
   if (natalData) {
     currentMode = 'transit';
     renderBiwheelAt(currentTransitJD ?? computeJDNow());
+    syncV2ModeButtons();
   }
 
   if (natalData) {
@@ -5835,9 +5859,8 @@ function deactivateLayout2() {
   const chartpageLeft = document.getElementById('chartpage-left');
   const chartpageRight = document.getElementById('chartpage-right');
 
-  // Remove cloned natal SVG and info panel content
+  // Remove cloned natal SVG
   document.getElementById('v2-chart-area').replaceChildren();
-  document.getElementById('v2-tableBody').innerHTML = '';
 
   // Move chart-block back from right area
   chartpageLeft.appendChild(document.getElementById('chart-block'));

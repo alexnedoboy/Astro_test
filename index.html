@@ -115,13 +115,12 @@
   #chart-block { width: 100%; max-width: 740px; margin: 0 auto; line-height: 0; }
 
   #right-panel-tabs {
-    display: none;
-    position: absolute; bottom: -1px; left: 50%; z-index: 10;
-    align-items: flex-end; gap: 2px; padding: 0;
-    background: transparent;
-  }
-  @media (min-width: 700px) {
-    body.transit-active #right-panel-tabs { display: flex; }
+    display: flex; align-items: flex-end;
+    gap: 2px; padding: 0 0 0 8px;
+    border-bottom: 1px solid var(--bd-light);
+    flex-shrink: 0;
+    background: var(--bg-page);
+    position: sticky; top: 0; z-index: 5;
   }
   #right-panel-tabs .tab-btn {
     flex: initial; border-radius: 6px 6px 0 0;
@@ -694,26 +693,26 @@
 
   #chart-mode-bar {
     width: 100%; max-width: 740px;
-    display: none; margin: 0;
+    display: none; margin: 0 0 6px;
     padding: 0 0 0 8px; gap: 2px;
-    align-items: flex-end;
+    align-items: flex-start;
     background: transparent;
     border: none;
-    border-bottom: 1px solid var(--bd-light);
+    border-top: 1px solid var(--bd-light);
   }
   #chart-mode-bar.visible { display: flex; }
   #chart-mode-bar .tab-btn {
-    flex: initial; border-radius: 6px 6px 0 0;
-    border: 1px solid transparent; border-bottom: none;
+    flex: initial; border-radius: 0 0 6px 6px;
+    border: 1px solid transparent; border-top: none;
     padding: 5px 14px; font-size: 0.78em; font-weight: 500;
     background: transparent; color: var(--tx-6);
     cursor: pointer; transition: background 0.1s, color 0.1s;
-    margin-bottom: -1px; position: relative; z-index: 1;
+    margin-top: -1px; position: relative; z-index: 1;
   }
   #chart-mode-bar .tab-btn:hover { background: rgba(0,0,0,0.04); color: var(--tx-4); }
   #chart-mode-bar .tab-btn.active {
     background: var(--bg-page); border-color: var(--bd-light);
-    border-bottom-color: var(--bg-page);
+    border-top-color: var(--bg-page);
     color: var(--tx-2); font-weight: 600;
   }
 
@@ -823,10 +822,6 @@
     <button class="tab-btn active" id="tabNatal" data-i18n="natal">Натал</button>
     <button class="tab-btn" id="tabForecast" data-i18n="forecast">Прогноз</button>
   </div>
-  <div id="right-panel-tabs">
-    <button class="tab-btn active" id="rightTabTimeline" data-i18n="timeline">Таймлайн</button>
-    <button class="tab-btn" id="rightTabInfo" data-i18n="info">Инфо</button>
-  </div>
 </div>
 
 <div id="edit-backdrop"></div>
@@ -935,6 +930,10 @@
     </div>
   </div>
   <div id="chartpage-right">
+    <div id="right-panel-tabs">
+      <button class="tab-btn active" id="rightTabTimeline" data-i18n="timeline">Таймлайн</button>
+      <button class="tab-btn" id="rightTabInfo" data-i18n="info">Инфо</button>
+    </div>
     <div id="right-timeline-content"></div>
     <div id="right-info-content" style="display:none">
       <table id="info-table">
@@ -2579,7 +2578,6 @@ function buildAspectGrid(natalPlanets, secondPlanets = null, orbMode = 'natal') 
 function setActiveTab(id) {
   const pl = document.getElementById('chartpage-layout');
   pl.classList.toggle('transit-active', id === 'transit');
-  document.body.classList.toggle('transit-active', id === 'transit');
   pl.style.removeProperty('display');
 }
 

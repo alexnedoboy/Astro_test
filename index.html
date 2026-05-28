@@ -135,6 +135,14 @@
     color: var(--tx-2); font-weight: 600;
   }
   #right-panel-tabs .tab-btn:hover:not(.active) { background: rgba(0,0,0,0.04); color: var(--tx-4); }
+  #tl-wide-btn {
+    margin-left: auto; margin-right: 4px; padding: 2px 7px;
+    border: none; background: transparent; color: var(--tx-7);
+    cursor: pointer; font-size: 1.05em; border-radius: 4px;
+    align-self: center; line-height: 1; flex-shrink: 0;
+    transition: color 0.1s, background 0.1s;
+  }
+  #tl-wide-btn:hover { color: var(--tx-3); background: rgba(0,0,0,0.06); }
   #right-info-content { overflow-y: auto; }
   #info-table { width: 100%; border-collapse: collapse; font-size: 0.87em; }
   #info-table td { padding: 2px 5px; }
@@ -398,6 +406,9 @@
       margin-top: 0;
       overflow-y: auto;
       overflow-x: hidden;
+    }
+    #chartpage-layout.transit-active.tl-wide #chartpage-left {
+      display: none !important;
     }
     #forecast-layout.forecast-active {
       max-width: none;
@@ -1085,6 +1096,7 @@
       <button class="tab-btn active" id="rightTabTimeline" data-i18n="timeline">Таймлайн</button>
       <button class="tab-btn" id="rightTabInfo" data-i18n="info">Инфо</button>
       <button class="tab-btn" id="rightTabGrid" data-i18n="grid">Сетка</button>
+      <button id="tl-wide-btn" title="Развернуть на всю ширину">⤡</button>
     </div>
     <div id="right-timeline-content"></div>
     <div id="right-vtimeline-content" style="display:none"></div>
@@ -2033,7 +2045,9 @@ function exitChartMode(updateHistory = true) {
   document.getElementById('form-wrap').style.display = 'block';
   if (currentUser) document.getElementById('home-charts').style.display = '';
   document.getElementById('app-header').classList.remove('chart-mode');
-  document.getElementById('chartpage-layout').classList.remove('visible', 'transit-active');
+  document.getElementById('chartpage-layout').classList.remove('visible', 'transit-active', 'tl-wide');
+  document.getElementById('tl-wide-btn').textContent = '⤡';
+  document.getElementById('tl-wide-btn').title = 'Развернуть на всю ширину';
   document.getElementById('chartpage-right').style.display = 'none';
   setRightPanelTab('timeline');
   natalData = null;
@@ -2768,6 +2782,17 @@ document.getElementById('rightTabGrid').addEventListener('click', () => {
   if (!natalData) return;
   setRightPanelTab('grid');
   if (!cachedTimeline) computeAndRenderTimeline(natalData.planets);
+});
+
+document.getElementById('tl-wide-btn').addEventListener('click', () => {
+  const layout = document.getElementById('chartpage-layout');
+  const btn = document.getElementById('tl-wide-btn');
+  const wide = layout.classList.toggle('tl-wide');
+  btn.textContent = wide ? '⤢' : '⤡';
+  btn.title = wide ? 'Свернуть' : 'Развернуть на всю ширину';
+  if (cachedTimeline) requestAnimationFrame(() =>
+    renderTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() })
+  );
 });
 
 // ── Date navigator helpers ────────────────────────────────────────────────────

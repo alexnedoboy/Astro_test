@@ -734,7 +734,7 @@
   #layout-v2.v2-visible { display: flex; }
 
   #v2-top {
-    height: 75vh;
+    height: 65vh;
     flex-shrink: 0;
     display: flex;
     align-items: flex-start;
@@ -743,6 +743,7 @@
     box-sizing: border-box;
     overflow: hidden;
     transition: height 0.25s ease;
+    border-bottom: 1px solid var(--bd-light);
   }
   #v2-chart-area {
     flex: 0 0 auto;
@@ -766,52 +767,88 @@
     padding: 4px 0;
   }
 
-  #v2-divider {
-    height: 28px;
-    flex-shrink: 0;
+  /* tongue/tab at the chart–timeline boundary */
+  #v2-tl-tab {
+    position: absolute;
+    top: 65vh;
+    left: 50%;
+    transform: translate(-50%, -100%);
+    z-index: 20;
     display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 0 8px;
-    background: var(--bg);
-    border-top: 1px solid var(--bd);
-    border-bottom: 1px solid var(--bd-light);
-    z-index: 1;
+    align-items: stretch;
+    background: var(--bg-page);
+    border: 1px solid var(--bd-light);
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+    transition: top 0.25s ease;
+    box-shadow: -1px -2px 6px rgba(0,0,0,0.06), 1px -2px 6px rgba(0,0,0,0.06);
   }
-  #v2-divider-lbl {
-    flex: 1;
-    font-size: 12px;
-    color: var(--tx-5);
-  }
-  #v2-tl-toggle, #v2-exit-btn {
+  #v2-tl-toggle {
     background: none;
-    border: 1px solid var(--bd);
-    border-radius: 4px;
-    padding: 1px 8px;
+    border: none;
+    padding: 4px 14px;
     font-size: 12px;
     cursor: pointer;
     color: var(--tx-4);
     white-space: nowrap;
+    line-height: 1.5;
   }
-  #v2-tl-toggle:hover, #v2-exit-btn:hover { background: var(--bg-hover); }
+  #v2-exit-btn {
+    background: none;
+    border: none;
+    border-left: 1px solid var(--bd-light);
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--tx-6);
+    white-space: nowrap;
+    line-height: 1.5;
+  }
+  #v2-tl-toggle:hover { background: var(--bg-hover); color: var(--tx-2); }
+  #v2-exit-btn:hover { background: var(--bg-hover); color: var(--tx-4); }
+
+  /* tl-expanded: chart hidden, timeline full screen — tab hangs from top */
+  #layout-v2.tl-expanded #v2-top { height: 0; padding: 0; overflow: hidden; border-bottom: none; }
+  #layout-v2.tl-expanded #v2-tl-tab {
+    top: 24px;
+    transform: translate(-50%, 0);
+    border-radius: 0 0 8px 8px;
+    border-top: none;
+    border-bottom: 1px solid var(--bd-light);
+    box-shadow: -1px 2px 6px rgba(0,0,0,0.06), 1px 2px 6px rgba(0,0,0,0.06);
+  }
+  /* tl-hidden: timeline hidden, chart full — tab sits at bottom edge */
+  #layout-v2.tl-hidden #v2-top { height: 100vh; border-bottom: none; }
+  #layout-v2.tl-hidden #v2-bottom { flex: 0 0 0; height: 0; overflow: hidden; }
+  #layout-v2.tl-hidden #v2-tl-tab { top: calc(100vh - 4px); }
 
   #v2-bottom {
     flex: 1;
     min-height: 0;
     overflow: hidden;
-    transition: opacity 0.2s ease;
   }
   #v2-timeline-wrap {
     height: 100%;
-    overflow: auto;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
-  #v2-timeline-wrap #right-timeline-content { height: 100%; }
-
-  /* tl-expanded: chart collapses, timeline fills all */
-  #layout-v2.tl-expanded #v2-top { height: 0; padding: 0; }
-  /* tl-hidden: timeline collapses */
-  #layout-v2.tl-hidden #v2-top { height: calc(100vh - 28px); }
-  #layout-v2.tl-hidden #v2-bottom { flex: 0 0 0; height: 0; overflow: hidden; }
+  #v2-timeline-wrap #right-timeline-content {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  #v2-timeline-wrap #tl-hdr-sticky {
+    flex-shrink: 0;
+    position: static !important;
+  }
+  #v2-timeline-wrap #tl-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
 
   /* prog-controls visible when inside v2 */
   #v2-controls #prog-controls { display: block; }
@@ -1062,22 +1099,15 @@
 <!-- ── Layout V2: experimental top/bottom split ──────────────────────── -->
 <div id="layout-v2">
   <div id="v2-top">
-    <div id="v2-chart-area">
-      <!-- #chart-block moved here when active -->
-    </div>
-    <div id="v2-controls">
-      <!-- #prog-controls moved here when active -->
-    </div>
+    <div id="v2-chart-area"></div>
+    <div id="v2-controls"></div>
   </div>
-  <div id="v2-divider">
-    <span id="v2-divider-lbl">Таймлайн</span>
-    <button id="v2-tl-toggle">▲ весь экран</button>
-    <button id="v2-exit-btn">← обычный вид</button>
+  <div id="v2-tl-tab">
+    <button id="v2-tl-toggle">▲ развернуть</button>
+    <button id="v2-exit-btn" title="Обычный вид">←</button>
   </div>
   <div id="v2-bottom">
-    <div id="v2-timeline-wrap">
-      <!-- #right-timeline-content moved here when active -->
-    </div>
+    <div id="v2-timeline-wrap"></div>
   </div>
 </div>
 
@@ -4302,7 +4332,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
   const SPAN  = jdEnd - jdStart;
   let PX_PER_DAY;
   if (tlYearScale && layout2Active) {
-    const availW = Math.max((tl.clientWidth || tl.offsetWidth || 800) - LABEL_W - 4, 200);
+    const availW = Math.max((tl.clientWidth || tl.offsetWidth || 800) - LABEL_W - 18, 200);
     PX_PER_DAY = availW / SPAN;
   } else {
     PX_PER_DAY = tlYearScale ? TL.PX_PER_DAY_YEAR : TL.PX_PER_DAY_MONTH;
@@ -5652,7 +5682,7 @@ function renderVTimeline({ periods, jdToday, jdCursor }) {
 // ── Layout V2: experimental top/bottom split ──────────────────────────────────
 let layout2Active = false;
 const V2_TL_STATES  = ['tl-normal', 'tl-expanded', 'tl-hidden'];
-const V2_TL_LABELS  = ['▲ весь экран', '▼ скрыть', '▲ показать'];
+const V2_TL_LABELS  = ['▲ развернуть', '▼ свернуть', '▲ показать'];
 let layout2TlState  = 0;
 
 function activateLayout2() {
@@ -5674,9 +5704,17 @@ function activateLayout2() {
   document.getElementById('v2-tl-toggle').textContent = V2_TL_LABELS[layout2TlState];
   layout2Active = true;
 
-  if (cachedTimeline) {
-    const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
-    requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
+  if (natalData) {
+    if (!tlYearScale) {
+      tlYearScale = true;
+      const c = cachedTimeline?.center;
+      cachedTimeline = null;
+      fastCache = {};
+      computeAndRenderTimeline(natalData.planets, c);
+    } else if (cachedTimeline) {
+      const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
+      requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
+    }
   }
 }
 

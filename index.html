@@ -4858,12 +4858,15 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
   modeContent.querySelector('#tl-filter')?.remove();
   modeContent.appendChild(filterBar);
 
+  const prevBodyScrollTop = document.getElementById('tl-body')?.scrollTop ?? 0;
+
   tl.replaceChildren(hdrSticky, body);
 
   // Scroll so "today" is ~30 % from the left edge
   requestAnimationFrame(() => {
     scrollWrap.scrollLeft = xT - scrollWrap.clientWidth * 0.3;
     hdrScrollWrap.scrollLeft = scrollWrap.scrollLeft;
+    if (layout2Active && prevBodyScrollTop > 0) body.scrollTop = prevBodyScrollTop;
   });
 }
 

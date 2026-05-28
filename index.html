@@ -46,7 +46,7 @@
     --err:        #C0392B;   /* save / form error */
     --tl-scale-act: #7A5C3A; /* active scale option in timeline menu */
     /* ── Extra surfaces ──────────────────────────────────── */
-    --bg-nav:     #F5F0ED;   /* nav arrow / date picker buttons */
+    --bg-nav:     #F9F6F4;   /* nav arrow / date picker buttons */
     --bg-hover-2: #EDE8E5;   /* geo-dropdown items, tl-sm-item hover */
     --bg-row-info:#FAF6F4;   /* info-table row hover */
     --bg-chart-item: #FAF7F5; /* home recent chart items */
@@ -115,17 +115,27 @@
   #chart-block { width: 100%; max-width: 740px; margin: 0 auto; line-height: 0; }
 
   #right-panel-tabs {
-    display: flex; border-bottom: 1px solid var(--bd-light);
-    background: var(--bg); flex-shrink: 0;
+    display: none;
+    position: absolute; bottom: -1px; left: calc(50% + 8px); z-index: 10;
+    align-items: flex-end; gap: 2px; padding: 0;
+    background: transparent;
+  }
+  @media (min-width: 700px) {
+    body.transit-active #right-panel-tabs { display: flex; }
   }
   #right-panel-tabs .tab-btn {
-    flex: 1; border-radius: 0; border: none;
-    border-bottom: 2px solid transparent; background: none;
-    padding: 7px 12px; font-size: 0.85em; font-weight: 600; color: var(--tx-5);
-    cursor: pointer; transition: background 0.15s;
+    flex: initial; border-radius: 6px 6px 0 0;
+    border: 1px solid transparent; border-bottom: none; background: transparent;
+    padding: 5px 16px; font-size: 0.83em; font-weight: 500; color: var(--tx-6);
+    cursor: pointer; transition: background 0.1s, color 0.1s;
+    margin-bottom: 0; position: relative;
   }
-  #right-panel-tabs .tab-btn.active { color: var(--tx-2); border-bottom-color: var(--tx-3); }
-  #right-panel-tabs .tab-btn:hover:not(.active) { background: var(--bg-input); color: var(--tx-3); }
+  #right-panel-tabs .tab-btn.active {
+    background: var(--bg-page); border-color: var(--bd-light);
+    border-bottom-color: var(--bg-page);
+    color: var(--tx-2); font-weight: 600;
+  }
+  #right-panel-tabs .tab-btn:hover:not(.active) { background: rgba(0,0,0,0.04); color: var(--tx-4); }
   #right-info-content { overflow-y: auto; }
   #info-table { width: 100%; border-collapse: collapse; font-size: 0.87em; }
   #info-table td { padding: 2px 5px; }
@@ -212,17 +222,10 @@
   #chartpage-layout.visible { display: block; }
   #chartpage-left {
     width: 100%;
-    background: var(--bg);
-    border: 1px solid var(--bd);
-    border-radius: 14px;
-    overflow: hidden;
   }
   #chartpage-right {
     width: 100%; margin: 10px auto 0; display: none;
-    background: var(--bg);
-    border: 1px solid var(--bd);
-    border-radius: 14px;
-    overflow: hidden;
+    border-left: 1px solid var(--bd-light);
   }
 
   /* Controls panel below chart (visible only in transit mode) */
@@ -364,8 +367,8 @@
       max-width: none;
       display: flex !important;
       align-items: stretch;
-      gap: 12px;
-      padding: 0 16px 16px;
+      gap: 0;
+      padding: 0;
       height: calc(100vh - 56px);
     }
     #chartpage-layout.transit-active #chartpage-left {
@@ -517,7 +520,7 @@
     width: 100%; max-width: 480px;
     display: flex; flex-direction: column;
     position: relative; background: transparent;
-    border-bottom: none; margin-bottom: 12px;
+    border-bottom: 1px solid var(--bd-light); margin-bottom: 0;
   }
   #app-header.chart-mode { max-width: none; }
   #app-header h1 { margin-bottom: 0; }
@@ -817,6 +820,10 @@
     <button class="tab-btn active" id="tabNatal" data-i18n="natal">Натал</button>
     <button class="tab-btn" id="tabForecast" data-i18n="forecast">Прогноз</button>
   </div>
+  <div id="right-panel-tabs">
+    <button class="tab-btn active" id="rightTabTimeline" data-i18n="timeline">Таймлайн</button>
+    <button class="tab-btn" id="rightTabInfo" data-i18n="info">Инфо</button>
+  </div>
 </div>
 
 <div id="edit-backdrop"></div>
@@ -925,10 +932,6 @@
     </div>
   </div>
   <div id="chartpage-right">
-    <div id="right-panel-tabs">
-      <button class="tab-btn active" id="rightTabTimeline" data-i18n="timeline">Таймлайн</button>
-      <button class="tab-btn" id="rightTabInfo" data-i18n="info">Инфо</button>
-    </div>
     <div id="right-timeline-content"></div>
     <div id="right-info-content" style="display:none">
       <table id="info-table">
@@ -1543,15 +1546,15 @@ const COLORS = {
   ringLine:    '#B8AEA9',  // thin structural circles and house axes
 
   // ── Timeline section backgrounds ─────────────────────────────────────────
-  tlProg:      '#F5F1EE',  // progressed events section fill
-  tlMoon:      '#F5F1EE',  // progressed moon sub-band fill
-  tlDir:       '#F5F1EE',  // solar arc direction section fill
+  tlProg:      'transparent',  // progressed events section fill
+  tlMoon:      'transparent',  // progressed moon sub-band fill
+  tlDir:       'transparent',  // solar arc direction section fill
   tlMoonLine:  '#E4DAD5',  // moon band border
   tlMoonGlyph: '#A69990',  // moon glyph / collapse chevron
 
   // ── Timeline general ─────────────────────────────────────────────────────
-  tlRowAlt:    '#FAF7F6',  // alternating natal-row background
-  tlFastBg:    '#F5F1EE',  // fast-transits sub-section tint
+  tlRowAlt:    'transparent',  // alternating natal-row background
+  tlFastBg:    'transparent',  // fast-transits sub-section tint
   tlSepLine:   '#DDD5D0',  // dashed separator: slow / fast rows
   tlGrid:      '#E8E2DE',  // month / year grid lines
   tlCursor:    '#C0392B',  // today / selected-date cursor line
@@ -2573,6 +2576,7 @@ function buildAspectGrid(natalPlanets, secondPlanets = null, orbMode = 'natal') 
 function setActiveTab(id) {
   const pl = document.getElementById('chartpage-layout');
   pl.classList.toggle('transit-active', id === 'transit');
+  document.body.classList.toggle('transit-active', id === 'transit');
   pl.style.removeProperty('display');
 }
 

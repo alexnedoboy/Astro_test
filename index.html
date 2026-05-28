@@ -116,7 +116,7 @@
 
   #right-panel-tabs {
     display: none;
-    position: absolute; bottom: -1px; left: calc(50% + 8px); z-index: 10;
+    position: absolute; bottom: -1px; left: 50%; z-index: 10;
     align-items: flex-end; gap: 2px; padding: 0;
     background: transparent;
   }
@@ -2244,7 +2244,7 @@ function drawZodiacGlyphs(g, asc) {
     const a = lonToRad(i * 30 + 15, asc);
     const p = polar(a, R_RING); // centre of ring strip
     g.appendChild(txt(p.x, p.y, SIGNS[i], {
-      'font-size': 17, fill: '#FCF9F8',
+      'font-size': 17, fill: '#808080',
       'text-anchor': 'middle', 'dominant-baseline': 'central',
     }));
   }

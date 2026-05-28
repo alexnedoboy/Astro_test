@@ -155,9 +155,9 @@
   /* ── Date navigator (universal, bottom of left panel) ────── */
   #date-nav {
     display: flex; align-items: center; gap: 6px;
-    padding: 8px 0 2px;
-    border-top: 1px solid var(--bd-light);
-    margin-top: 6px;
+    padding: 6px 0 2px;
+    border-top: none;
+    margin-top: 4px;
   }
   .nav-group {
     display: flex; flex-direction: column; align-items: center; gap: 2px;
@@ -228,7 +228,7 @@
   /* Controls panel below chart (visible only in transit mode) */
   #prog-controls {
     display: none;
-    padding: 10px 10px 6px;
+    padding: 12px 10px 6px;
     border-top: none;
     margin-top: 0;
   }
@@ -693,7 +693,8 @@
     width: 100%; max-width: 740px;
     gap: 2px; margin: 0 0 8px;
     display: none;
-    background: var(--bg-active);
+    background: var(--bg-nav);
+    border: 1px solid var(--bd);
     border-radius: 10px;
     padding: 3px;
   }

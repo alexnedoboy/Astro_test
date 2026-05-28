@@ -739,7 +739,7 @@
     top: 0; left: 0; right: 0; bottom: 0;
     flex-direction: column;
     overflow: hidden;
-    background: var(--bg-page);
+    background: var(--bd);
     z-index: 100;
   }
   #layout-v2.v2-visible { display: flex; }
@@ -748,35 +748,58 @@
     height: 65vh;
     flex-shrink: 0;
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 8px 12px;
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px 8px 8px;
     box-sizing: border-box;
     overflow: hidden;
     transition: height 0.25s ease;
-    border-bottom: 1px solid var(--bd-light);
   }
-  #v2-chart-area {
-    flex: 0 0 auto;
-    height: 100%;
+  #v2-chart-area, #v2-chart-area-2 {
+    flex: 1;
+    min-width: 0;
     aspect-ratio: 1 / 1;
+    max-height: calc(65vh - 16px);
+    align-self: center;
     overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    border-radius: 8px;
   }
-  #v2-chart-area #chart-block {
+  #v2-chart-area svg {
+    width: 100%;
+    height: auto;
+    max-height: 100%;
+    display: block;
+  }
+  #v2-chart-area-2 #chart-block {
     width: 100% !important;
     max-width: none !important;
     height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
-  #v2-chart-area #chart-block svg {
+  #v2-chart-area-2 #chart-block svg {
     width: 100% !important;
     height: auto !important;
+    max-height: 100%;
   }
-  #v2-controls {
-    flex: 1;
+  #v2-info-panel {
+    flex: 0 0 160px;
     overflow-y: auto;
-    min-width: 160px;
-    padding: 4px 0;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 8px 4px;
+    font-size: 0.83em;
   }
+  #v2-info-table { width: 100%; border-collapse: collapse; }
+  #v2-info-table td { padding: 2px 4px; }
+  #v2-info-table .v2-sep td { padding: 4px 0; }
+  #v2-info-table .v2-sep td hr { border: none; border-top: 1px solid var(--bd-light); margin: 0; }
+  #v2-info-table .v2-angular { font-weight: 600; color: var(--tx-2); }
 
   /* tongue/tab at the chart–timeline boundary */
   #v2-tl-tab {
@@ -838,12 +861,16 @@
     flex: 1;
     min-height: 0;
     overflow: hidden;
+    padding: 0 8px 8px;
+    box-sizing: border-box;
   }
   #v2-timeline-wrap {
     height: 100%;
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    background: var(--bg);
+    border-radius: 8px;
   }
   #v2-timeline-wrap #right-timeline-content {
     flex: 1;
@@ -862,8 +889,6 @@
   }
 
   /* prog-controls visible when inside v2 */
-  #v2-controls #prog-controls { display: block; }
-
   /* v2 button in header */
   #layout-v2-btn {
     background: none;
@@ -1112,7 +1137,10 @@
 <div id="layout-v2">
   <div id="v2-top">
     <div id="v2-chart-area"></div>
-    <div id="v2-controls"></div>
+    <div id="v2-chart-area-2"></div>
+    <div id="v2-info-panel">
+      <table id="v2-info-table"><tbody id="v2-tableBody"></tbody></table>
+    </div>
   </div>
   <div id="v2-tl-tab">
     <button id="v2-tl-toggle">▲ развернуть</button>
@@ -5739,13 +5767,42 @@ let layout2TlState  = 0;
 
 function activateLayout2() {
   if (layout2Active) return;
-  const v2       = document.getElementById('layout-v2');
-  const chartArea = document.getElementById('v2-chart-area');
-  const controls  = document.getElementById('v2-controls');
-  const tlWrap    = document.getElementById('v2-timeline-wrap');
+  const v2         = document.getElementById('layout-v2');
+  const chartArea  = document.getElementById('v2-chart-area');
+  const chartArea2 = document.getElementById('v2-chart-area-2');
+  const tlWrap     = document.getElementById('v2-timeline-wrap');
 
-  chartArea.appendChild(document.getElementById('chart-block'));
-  controls.appendChild(document.getElementById('prog-controls'));
+  // Left panel: static natal SVG clone
+  if (natalData) renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
+  const natalSvg = document.querySelector('#chart-block svg')?.cloneNode(true);
+  if (natalSvg) chartArea.appendChild(natalSvg);
+
+  // Info panel: natal planets
+  const v2tbody = document.getElementById('v2-tableBody');
+  v2tbody.innerHTML = '';
+  if (natalData) {
+    filterNatalPlanets(natalData.planets).forEach(p => {
+      const si = Math.floor(p.longitude / 30) % 12;
+      const retro = p.retrograde ? ' <span class="info-retro">R</span>' : '';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="info-glyph">${p.hamburgGlyph}</td><td class="info-pos">${fmtDeg(p.longitude)}${retro}&nbsp;${SIGNS[si]}</td>`;
+      v2tbody.appendChild(tr);
+    });
+    const sep = document.createElement('tr'); sep.className = 'v2-sep';
+    sep.innerHTML = '<td colspan="2"><hr></td>'; v2tbody.appendChild(sep);
+    natalData.cusps.forEach((lon, i) => {
+      const si = Math.floor(lon / 30) % 12;
+      const tr = document.createElement('tr');
+      const cls = [0,3,6,9].includes(i) ? 'v2-angular' : '';
+      tr.innerHTML = `<td class="info-house-lbl ${cls}">${HOUSE_LABELS[i]}</td><td class="info-pos ${cls}">${fmtDeg(lon)}&nbsp;${SIGNS[si]}</td>`;
+      v2tbody.appendChild(tr);
+    });
+  }
+
+  // Right panel: chart-block for transit biwheel
+  chartArea2.appendChild(document.getElementById('chart-block'));
+
+  // Timeline
   tlWrap.appendChild(document.getElementById('right-timeline-content'));
 
   document.getElementById('chartpage-layout').style.display = 'none';
@@ -5755,6 +5812,12 @@ function activateLayout2() {
   v2.classList.add(V2_TL_STATES[layout2TlState]);
   document.getElementById('v2-tl-toggle').textContent = V2_TL_LABELS[layout2TlState];
   layout2Active = true;
+
+  // Show transit biwheel on the right
+  if (natalData) {
+    currentMode = 'transit';
+    renderBiwheelAt(currentTransitJD ?? computeJDNow());
+  }
 
   if (natalData) {
     if (!tlYearScale) {
@@ -5776,8 +5839,13 @@ function deactivateLayout2() {
   const chartpageLeft = document.getElementById('chartpage-left');
   const chartpageRight = document.getElementById('chartpage-right');
 
+  // Remove cloned natal SVG and info panel content
+  document.getElementById('v2-chart-area').replaceChildren();
+  document.getElementById('v2-tableBody').innerHTML = '';
+
+  // Move chart-block back from right area
   chartpageLeft.appendChild(document.getElementById('chart-block'));
-  chartpageLeft.appendChild(document.getElementById('prog-controls'));
+
   const vtlContent = document.getElementById('right-vtimeline-content');
   chartpageRight.insertBefore(document.getElementById('right-timeline-content'), vtlContent);
 

@@ -489,6 +489,11 @@
   }
   #tl-hdr-scroll { overflow: hidden; flex: 1; }
 
+  /* ── Vertical Timeline (grid) ─────────────────────────────────── */
+  #vt-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+  #vt-header { position: sticky; top: 28px; z-index: 4; background: var(--bg-page); }
+  #vt-header svg, #vt-body svg { display: block; }
+
   .tab-btn {
     flex: 1; padding: 9px 0; border-radius: 8px;
     font-size: 0.88em; font-weight: 600; cursor: pointer;
@@ -716,6 +721,114 @@
     color: var(--tx-2); font-weight: 600;
   }
 
+  /* ── Layout V2 (experimental horizontal split) ──────────────────────────── */
+  #layout-v2 {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-page);
+    z-index: 100;
+  }
+  #layout-v2.v2-visible { display: flex; }
+
+  #v2-top {
+    height: 75vh;
+    flex-shrink: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 8px 12px;
+    box-sizing: border-box;
+    overflow: hidden;
+    transition: height 0.25s ease;
+  }
+  #v2-chart-area {
+    flex: 0 0 auto;
+    height: 100%;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+  }
+  #v2-chart-area #chart-block {
+    width: 100% !important;
+    max-width: none !important;
+    height: 100%;
+  }
+  #v2-chart-area #chart-block svg {
+    width: 100% !important;
+    height: auto !important;
+  }
+  #v2-controls {
+    flex: 1;
+    overflow-y: auto;
+    min-width: 160px;
+    padding: 4px 0;
+  }
+
+  #v2-divider {
+    height: 28px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px;
+    background: var(--bg);
+    border-top: 1px solid var(--bd);
+    border-bottom: 1px solid var(--bd-light);
+    z-index: 1;
+  }
+  #v2-divider-lbl {
+    flex: 1;
+    font-size: 12px;
+    color: var(--tx-5);
+  }
+  #v2-tl-toggle, #v2-exit-btn {
+    background: none;
+    border: 1px solid var(--bd);
+    border-radius: 4px;
+    padding: 1px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--tx-4);
+    white-space: nowrap;
+  }
+  #v2-tl-toggle:hover, #v2-exit-btn:hover { background: var(--bg-hover); }
+
+  #v2-bottom {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    transition: opacity 0.2s ease;
+  }
+  #v2-timeline-wrap {
+    height: 100%;
+    overflow: auto;
+  }
+  #v2-timeline-wrap #right-timeline-content { height: 100%; }
+
+  /* tl-expanded: chart collapses, timeline fills all */
+  #layout-v2.tl-expanded #v2-top { height: 0; padding: 0; }
+  /* tl-hidden: timeline collapses */
+  #layout-v2.tl-hidden #v2-top { height: calc(100vh - 28px); }
+  #layout-v2.tl-hidden #v2-bottom { flex: 0 0 0; height: 0; overflow: hidden; }
+
+  /* prog-controls visible when inside v2 */
+  #v2-controls #prog-controls { display: block; }
+
+  /* v2 button in header */
+  #layout-v2-btn {
+    background: none;
+    border: 1px solid var(--bd);
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--tx-4);
+    margin-left: 4px;
+  }
+  #layout-v2-btn:hover { background: var(--bg-hover); }
+
 </style>
 </head>
 <body>
@@ -791,6 +904,7 @@
       <button id="editChartBtn" class="icon-btn" data-i18n-title="editData" title="Редактировать данные">✎</button>
       <button id="saveChartBtn" class="icon-btn" data-i18n-title="saveChartHeader" title="Сохранить карту">💾</button>
       <span id="save-confirm"></span>
+      <button id="layout-v2-btn" class="icon-btn" title="Экспериментальный layout">⊞</button>
     </div>
     <div id="header-right">
       <button id="settingsBtn" class="icon-btn settings-btn" data-i18n-title="settings" title="Настройки">⚙&#xFE0E;</button>
@@ -933,8 +1047,10 @@
     <div id="right-panel-tabs">
       <button class="tab-btn active" id="rightTabTimeline" data-i18n="timeline">Таймлайн</button>
       <button class="tab-btn" id="rightTabInfo" data-i18n="info">Инфо</button>
+      <button class="tab-btn" id="rightTabGrid" data-i18n="grid">Сетка</button>
     </div>
     <div id="right-timeline-content"></div>
+    <div id="right-vtimeline-content" style="display:none"></div>
     <div id="right-info-content" style="display:none">
       <table id="info-table">
         <tbody id="tableBody"></tbody>
@@ -943,6 +1059,28 @@
     </div>
   </div>
 </div>
+<!-- ── Layout V2: experimental top/bottom split ──────────────────────── -->
+<div id="layout-v2">
+  <div id="v2-top">
+    <div id="v2-chart-area">
+      <!-- #chart-block moved here when active -->
+    </div>
+    <div id="v2-controls">
+      <!-- #prog-controls moved here when active -->
+    </div>
+  </div>
+  <div id="v2-divider">
+    <span id="v2-divider-lbl">Таймлайн</span>
+    <button id="v2-tl-toggle">▲ весь экран</button>
+    <button id="v2-exit-btn">← обычный вид</button>
+  </div>
+  <div id="v2-bottom">
+    <div id="v2-timeline-wrap">
+      <!-- #right-timeline-content moved here when active -->
+    </div>
+  </div>
+</div>
+
 <div id="tl-tooltip"></div>
 <div id="chart-tooltip"></div>
 
@@ -994,7 +1132,7 @@ const STRINGS = {
     elements:'Стихии', login:'Войти', charts:'📂 Карты', logout:'Выйти',
     transitsTab:'Прогностика', natal:'Натал', forecast:'Прогноз',
     transits:'Транзиты', progressions:'Прогрессии', directions:'Дирекции',
-    timeline:'Таймлайн', info:'Инфо',
+    timeline:'Таймлайн', info:'Инфо', grid:'Сетка',
     nameLabel:'Имя', namePlaceholder:'Имя человека',
     birthDateLabel:'Дата рождения', birthTimeLabel:'Время (местное)',
     birthPlaceLabel:'Место рождения', cityPlaceholder:'Начните вводить город…',
@@ -1056,7 +1194,7 @@ const STRINGS = {
     elements:'Elements', login:'Sign In', charts:'📂 Charts', logout:'Sign Out',
     transitsTab:'Transits', natal:'Natal', forecast:'Forecast',
     transits:'Transits', progressions:'Progressions', directions:'Directions',
-    timeline:'Timeline', info:'Info',
+    timeline:'Timeline', info:'Info', grid:'Grid',
     nameLabel:'Name', namePlaceholder:"Person's name",
     birthDateLabel:'Birth date', birthTimeLabel:'Birth time (local)',
     birthPlaceLabel:'Birth place', cityPlaceholder:'Start typing city…',
@@ -2586,12 +2724,21 @@ function setActiveTab(id) {
 function setRightPanelTab(id) {
   document.getElementById('rightTabTimeline').classList.toggle('active', id === 'timeline');
   document.getElementById('rightTabInfo').classList.toggle('active', id === 'info');
-  document.getElementById('right-timeline-content').style.display = id === 'timeline' ? '' : 'none';
-  document.getElementById('right-info-content').style.display    = id === 'info'     ? '' : 'none';
+  document.getElementById('rightTabGrid').classList.toggle('active', id === 'grid');
+  document.getElementById('right-timeline-content').style.display   = id === 'timeline' ? '' : 'none';
+  document.getElementById('right-vtimeline-content').style.display  = id === 'grid'     ? '' : 'none';
+  document.getElementById('right-info-content').style.display       = id === 'info'     ? '' : 'none';
+  if (id === 'grid' && cachedTimeline)
+    renderVTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() });
 }
 
 document.getElementById('rightTabTimeline').addEventListener('click', () => setRightPanelTab('timeline'));
 document.getElementById('rightTabInfo').addEventListener('click', () => setRightPanelTab('info'));
+document.getElementById('rightTabGrid').addEventListener('click', () => {
+  if (!natalData) return;
+  setRightPanelTab('grid');
+  if (!cachedTimeline) computeAndRenderTimeline(natalData.planets);
+});
 
 // ── Date navigator helpers ────────────────────────────────────────────────────
 
@@ -3766,6 +3913,8 @@ function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
         : [];
       cachedTimeline = { ...transitData, progEvents, dirEvents, center };
       renderTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? jdToday });
+      if (document.getElementById('rightTabGrid')?.classList.contains('active'))
+        renderVTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? jdToday });
     } catch (e) {
       tl.innerHTML = `<div class="tl-status">${tr('error')}${e.message}</div>`;
     }
@@ -4149,9 +4298,15 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
     return;
   }
 
-  const PX_PER_DAY = tlYearScale ? TL.PX_PER_DAY_YEAR : TL.PX_PER_DAY_MONTH;
   const { LABEL_W, HDR_H, BAR_H, SUB_H } = TL;
   const SPAN  = jdEnd - jdStart;
+  let PX_PER_DAY;
+  if (tlYearScale && layout2Active) {
+    const availW = Math.max((tl.clientWidth || tl.offsetWidth || 800) - LABEL_W - 4, 200);
+    PX_PER_DAY = availW / SPAN;
+  } else {
+    PX_PER_DAY = tlYearScale ? TL.PX_PER_DAY_YEAR : TL.PX_PER_DAY_MONTH;
+  }
   const BARS_W = Math.ceil(SPAN * PX_PER_DAY);
 
   const xOf = jd => Math.min(Math.max((jd - jdStart) * PX_PER_DAY, 0), BARS_W);
@@ -5300,6 +5455,266 @@ function renderLongTermTimeline({ dirEvents, progEvents, transitData, jdStart, j
     scrollWrap.scrollLeft = Math.max(0, xN - scrollWrap.clientWidth * 0.25);
   });
 }
+
+// ── Vertical Timeline (grid view) ─────────────────────────────────────────────
+
+const VT_PX_PER_DAY = 3;   // pixels per day
+const VT_LABEL_W    = 36;   // left column width for month labels
+const VT_COL_W      = 44;   // width per natal-planet column
+const VT_HDR_H      = 30;   // header height (planet glyphs row)
+const VT_BAR_W      = 9;    // max bar width per lane
+const VT_BAR_GAP    = 1;    // gap between adjacent lanes in same column
+
+function renderVTimeline({ periods, jdToday, jdCursor }) {
+  const container = document.getElementById('right-vtimeline-content');
+  const slowPeriods = (periods ?? []).filter(p => SLOW_IDS.includes(p.tPlanet?.id));
+  if (!slowPeriods.length) {
+    container.innerHTML = `<div class="tl-status">${tr('noTransits')}</div>`;
+    return;
+  }
+
+  // Fixed 2-year window centered on today/cursor
+  const jdNow  = jdCursor ?? jdToday ?? computeJDNow();
+  const vtStart = jdNow - 365;
+  const vtEnd   = jdNow + 365;
+
+  // Keep only periods overlapping [vtStart, vtEnd]
+  const visible = slowPeriods.filter(p => p.endJD >= vtStart && p.startJD <= vtEnd);
+  if (!visible.length) {
+    container.innerHTML = `<div class="tl-status">${tr('noTransits')}</div>`;
+    return;
+  }
+
+  // Collect natal planet column IDs in PLANETS declaration order
+  const natalIdSet = new Set(visible.map(p => p.na.id));
+  const natalIds   = PLANETS.filter(p => natalIdSet.has(p.id)).map(p => p.id);
+  const nCols      = natalIds.length;
+  const colIdx     = new Map(natalIds.map((id, i) => [id, i]));
+
+  // Group bars by column; greedy lane assignment to avoid vertical overlaps
+  const colBars = Array.from({ length: nCols }, () => []);
+  for (const p of visible) {
+    const ci = colIdx.get(p.na.id);
+    if (ci == null) continue;
+    colBars[ci].push({ p, lane: 0 });
+  }
+  const maxLanes = colBars.map(bars => {
+    bars.sort((a, b) => a.p.startJD - b.p.startJD);
+    const laneEnd = [];
+    for (const bar of bars) {
+      let lane = laneEnd.findIndex(e => e <= bar.p.startJD);
+      if (lane < 0) { lane = laneEnd.length; laneEnd.push(0); }
+      laneEnd[lane] = bar.p.endJD;
+      bar.lane = lane;
+    }
+    return Math.max(laneEnd.length, 1);
+  });
+
+  const totalDays = vtEnd - vtStart;
+  const BODY_H    = Math.ceil(totalDays * VT_PX_PER_DAY);
+  const TOTAL_W   = VT_LABEL_W + nCols * VT_COL_W;
+  const SVG_H     = VT_HDR_H + BODY_H;
+
+  const yOf = jd => {
+    const raw = VT_HDR_H + (jd - vtStart) * VT_PX_PER_DAY;
+    return Math.max(VT_HDR_H, Math.min(raw, SVG_H));
+  };
+
+  const hel = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
+  const tooltip = document.getElementById('tl-tooltip');
+
+  // ── Single SVG (header + body) ───────────────────────────────────────────────
+  const svg = el('svg', { width: TOTAL_W, height: SVG_H });
+
+  // ── Header row ───────────────────────────────────────────────────────────────
+  svg.appendChild(el('rect', { x: 0, y: 0, width: TOTAL_W, height: VT_HDR_H, fill: 'var(--bg-page)' }));
+  for (let ci = 0; ci < nCols; ci++) {
+    const natPl = PLANETS.find(p => p.id === natalIds[ci]);
+    const cx = VT_LABEL_W + ci * VT_COL_W + VT_COL_W / 2;
+    if (ci > 0)
+      svg.appendChild(ln(VT_LABEL_W + ci * VT_COL_W, 0, VT_LABEL_W + ci * VT_COL_W, VT_HDR_H,
+        { stroke: 'var(--bd-light)', 'stroke-width': 0.5 }));
+    svg.appendChild(txt(cx, VT_HDR_H / 2 + 1, natPl.hamburgGlyph, {
+      'font-family': 'HamburgSymbols', 'font-size': 16,
+      fill: 'var(--tx-2)', 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    }));
+  }
+  svg.appendChild(ln(0, VT_HDR_H, TOTAL_W, VT_HDR_H, { stroke: 'var(--bd)', 'stroke-width': 1 }));
+
+  // ── Column backgrounds (alternating) ─────────────────────────────────────────
+  for (let ci = 0; ci < nCols; ci++) {
+    if (ci % 2 === 1)
+      svg.appendChild(el('rect', {
+        x: VT_LABEL_W + ci * VT_COL_W, y: VT_HDR_H,
+        width: VT_COL_W, height: BODY_H, fill: 'var(--bg-row-alt)',
+      }));
+  }
+
+  // ── Column separators ────────────────────────────────────────────────────────
+  for (let ci = 1; ci < nCols; ci++)
+    svg.appendChild(ln(VT_LABEL_W + ci * VT_COL_W, VT_HDR_H,
+      VT_LABEL_W + ci * VT_COL_W, SVG_H,
+      { stroke: 'var(--bd-light)', 'stroke-width': 0.5 }));
+
+  // ── Month grid lines + labels ────────────────────────────────────────────────
+  const MONTHS = tr('months');
+  {
+    const d  = new Date((vtStart - 2440587.5) * 86400000);
+    let yr = d.getUTCFullYear(), mo = d.getUTCMonth() + 1;
+    for (;;) {
+      const jdMo = swe.julday(yr, mo, 1, 0);
+      if (jdMo > vtEnd + 1) break;
+      const y      = yOf(jdMo);
+      const isJan  = mo === 1;
+      svg.appendChild(ln(VT_LABEL_W, y, TOTAL_W, y, {
+        stroke: isJan ? '#bbb' : '#e2e2e0',
+        'stroke-width': isJan ? 1 : 0.5,
+      }));
+      const lbl = isJan ? `${MONTHS[mo - 1]} ${yr}` : MONTHS[mo - 1];
+      svg.appendChild(txt(VT_LABEL_W - 3, y + 2, lbl, {
+        'font-size': isJan ? 9 : 8, fill: isJan ? '#777' : '#bbb',
+        'text-anchor': 'end', 'dominant-baseline': 'hanging',
+      }));
+      if (++mo > 12) { mo = 1; yr++; }
+    }
+  }
+
+  // ── Transit bars ─────────────────────────────────────────────────────────────
+  for (let ci = 0; ci < nCols; ci++) {
+    const nLanes     = maxLanes[ci];
+    const availW     = VT_COL_W - 4;
+    const actualBarW = Math.max(4, Math.min(VT_BAR_W, Math.floor(availW / nLanes) - VT_BAR_GAP));
+
+    for (const { p, lane } of colBars[ci]) {
+      const y1    = yOf(p.startJD);
+      const y2    = yOf(p.endJD + 1);
+      const barH  = Math.max(y2 - y1, 3);
+      const bx    = VT_LABEL_W + ci * VT_COL_W + 2 + lane * (actualBarW + VT_BAR_GAP);
+      const color = p.asp.color;
+
+      const rect  = el('rect', { x: bx, y: y1, width: actualBarW, height: barH,
+        fill: color, rx: 2, opacity: '0.85' });
+
+      // Tooltip: "Юпитер △ Солнце"
+      const natName = PLANETS.find(pl => pl.id === p.na.id)?.name ?? p.na.name;
+      const tipText = `${p.tPlanet.name} ${p.asp.symbol} ${natName}`;
+      rect.addEventListener('mouseover', () => { tooltip.textContent = tipText; tooltip.style.display = 'block'; });
+      rect.addEventListener('mousemove', e => { tooltip.style.left = (e.clientX + 14) + 'px'; tooltip.style.top = (e.clientY - 30) + 'px'; });
+      rect.addEventListener('mouseout',  () => { tooltip.style.display = 'none'; });
+      svg.appendChild(rect);
+
+      // Exact aspect dots
+      for (const ejd of (p.exactJDs ?? [])) {
+        const ey = yOf(ejd);
+        if (ey >= y1 - 1 && ey <= y2 + 1)
+          svg.appendChild(circ(bx + actualBarW / 2, ey, 2,
+            { fill: '#fff', stroke: color, 'stroke-width': 1.2 }));
+      }
+
+      // Planet glyph inside bar (if bar is wide & tall enough)
+      if (actualBarW >= 7 && barH >= 16) {
+        svg.appendChild(txt(bx + actualBarW / 2, y1 + Math.min(barH / 2, 22), p.tPlanet.hamburgGlyph, {
+          'font-family': 'HamburgSymbols', 'font-size': 8,
+          fill: 'rgba(255,255,255,0.9)', 'text-anchor': 'middle', 'dominant-baseline': 'central',
+          'pointer-events': 'none',
+        }));
+      }
+    }
+  }
+
+  // ── Today / cursor line ───────────────────────────────────────────────────────
+  if (jdNow >= vtStart && jdNow <= vtEnd) {
+    const y = yOf(jdNow);
+    svg.appendChild(ln(0, y, TOTAL_W, y,
+      { stroke: '#e44', 'stroke-width': 1.5, 'stroke-dasharray': '4,2', opacity: '0.85' }));
+    svg.appendChild(txt(VT_LABEL_W - 3, y - 1, '▶',
+      { 'font-size': 7, fill: '#e44', 'text-anchor': 'end', 'dominant-baseline': 'auto' }));
+  }
+
+  // ── Assemble ─────────────────────────────────────────────────────────────────
+  const scrollDiv = hel('div'); scrollDiv.id = 'vt-scroll';
+  scrollDiv.appendChild(svg);
+  container.replaceChildren(scrollDiv);
+
+  // Auto-scroll so today is ~28% from top of visible area.
+  // Double rAF ensures layout settles after display:none→'' transition.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const scrollEl = document.getElementById('chartpage-right');
+    if (!scrollEl) return;
+    const y        = yOf(jdNow);
+    const cRect    = container.getBoundingClientRect();
+    const sRect    = scrollEl.getBoundingClientRect();
+    const offsetIn = scrollEl.scrollTop + cRect.top - sRect.top;
+    scrollEl.scrollTop = Math.max(0, offsetIn + y - scrollEl.clientHeight * 0.28);
+  }));
+}
+
+// ── Layout V2: experimental top/bottom split ──────────────────────────────────
+let layout2Active = false;
+const V2_TL_STATES  = ['tl-normal', 'tl-expanded', 'tl-hidden'];
+const V2_TL_LABELS  = ['▲ весь экран', '▼ скрыть', '▲ показать'];
+let layout2TlState  = 0;
+
+function activateLayout2() {
+  if (layout2Active) return;
+  const v2       = document.getElementById('layout-v2');
+  const chartArea = document.getElementById('v2-chart-area');
+  const controls  = document.getElementById('v2-controls');
+  const tlWrap    = document.getElementById('v2-timeline-wrap');
+
+  chartArea.appendChild(document.getElementById('chart-block'));
+  controls.appendChild(document.getElementById('prog-controls'));
+  tlWrap.appendChild(document.getElementById('right-timeline-content'));
+
+  document.getElementById('chartpage-layout').style.display = 'none';
+  document.getElementById('app-header').style.display = 'none';
+  v2.classList.add('v2-visible');
+  v2.classList.remove(...V2_TL_STATES);
+  v2.classList.add(V2_TL_STATES[layout2TlState]);
+  document.getElementById('v2-tl-toggle').textContent = V2_TL_LABELS[layout2TlState];
+  layout2Active = true;
+
+  if (cachedTimeline) {
+    const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
+    requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
+  }
+}
+
+function deactivateLayout2() {
+  if (!layout2Active) return;
+  const v2            = document.getElementById('layout-v2');
+  const chartpageLeft = document.getElementById('chartpage-left');
+  const chartpageRight = document.getElementById('chartpage-right');
+
+  chartpageLeft.appendChild(document.getElementById('chart-block'));
+  chartpageLeft.appendChild(document.getElementById('prog-controls'));
+  const vtlContent = document.getElementById('right-vtimeline-content');
+  chartpageRight.insertBefore(document.getElementById('right-timeline-content'), vtlContent);
+
+  document.getElementById('chartpage-layout').style.display = '';
+  document.getElementById('app-header').style.display = '';
+  v2.classList.remove('v2-visible');
+  layout2Active = false;
+}
+
+document.getElementById('layout-v2-btn').addEventListener('click', () => {
+  if (layout2Active) deactivateLayout2();
+  else activateLayout2();
+});
+
+document.getElementById('v2-exit-btn').addEventListener('click', deactivateLayout2);
+
+document.getElementById('v2-tl-toggle').addEventListener('click', () => {
+  const v2 = document.getElementById('layout-v2');
+  v2.classList.remove(V2_TL_STATES[layout2TlState]);
+  layout2TlState = (layout2TlState + 1) % 3;
+  v2.classList.add(V2_TL_STATES[layout2TlState]);
+  document.getElementById('v2-tl-toggle').textContent = V2_TL_LABELS[layout2TlState];
+  if (cachedTimeline) {
+    const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
+    requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
+  }
+});
 
 // ── Apply saved language on startup ───────────────────────────────────────────
 applyLang();

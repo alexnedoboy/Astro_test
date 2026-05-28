@@ -9,53 +9,53 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
     /* ── Surfaces ─────────────────────────────────────────── */
-    --bg-page:    #f3f3f3;   /* outer page background */
+    --bg-page:    #FCF9F8;   /* outer page background */
     --bg:         #fff;      /* cards, panels, modals */
-    --bg-input:   #f8f8f5;   /* input fields, secondary surfaces */
-    --bg-hover:   #f0f0ec;   /* button / item hover state */
-    --bg-active:  #e8e8e4;   /* pressed / active, nav hover */
-    --bg-row-alt: #f7f7f4;   /* alternating table rows */
+    --bg-input:   #FAF7F5;   /* input fields, secondary surfaces */
+    --bg-hover:   #F2EDEA;   /* button / item hover state */
+    --bg-active:  #E9E3DF;   /* pressed / active, nav hover */
+    --bg-row-alt: #FAF7F6;   /* alternating table rows */
 
     /* ── Borders ──────────────────────────────────────────── */
-    --bd:         #ddd;      /* standard border */
-    --bd-light:   #eee;      /* subtle separator */
-    --bd-input:   #ccc;      /* input & button borders */
+    --bd:         #E4DAD5;   /* standard border */
+    --bd-light:   #EEE7E3;   /* subtle separator */
+    --bd-input:   #D9CEC9;   /* input & button borders */
 
     /* ── Text (primary → muted) ───────────────────────────── */
-    --tx:         #222;      /* primary */
-    --tx-2:       #333;      /* secondary, headings */
-    --tx-3:       #555;      /* muted */
-    --tx-4:       #666;      /* more muted */
-    --tx-5:       #777;      /* labels */
-    --tx-6:       #888;      /* helper text */
-    --tx-7:       #999;      /* placeholder */
-    --tx-8:       #aaa;      /* very muted */
-    --tx-9:       #bbb;      /* disabled / dimmed */
+    --tx:         #1A1410;   /* primary */
+    --tx-2:       #2D2420;   /* secondary, headings */
+    --tx-3:       #4A3E38;   /* muted */
+    --tx-4:       #6A5E58;   /* more muted */
+    --tx-5:       #8C8480;   /* labels */
+    --tx-6:       #A69990;   /* helper text */
+    --tx-7:       #C0B4AF;   /* placeholder */
+    --tx-8:       #D4CBC6;   /* very muted */
+    --tx-9:       #E2DDD9;   /* disabled / dimmed */
 
     /* ── Brand & actions ──────────────────────────────────── */
-    --accent:     #444;      /* primary buttons, active states */
-    --accent-hv:  #333;      /* action hover */
-    --link:       #2244bb;   /* links, active date label */
-    --link-bg:    #eef2ff;   /* link hover background */
+    --accent:     #2C2420;   /* primary buttons, active states */
+    --accent-hv:  #1A1410;   /* action hover */
+    --link:       #7A5C3A;   /* links, active date label */
+    --link-bg:    #FBF3E8;   /* link hover background */
 
     /* ── Semantic ─────────────────────────────────────────── */
-    --danger:     #e44;      /* errors, today cursor, delete */
-    --danger-bg:  #fff0f0;   /* danger hover background */
-    --ok:         #228833;   /* auth success */
-    --retro:      #bb1111;   /* retrograde R marker */
-    --err:        #c0392b;   /* save / form error */
-    --tl-scale-act: #5544aa; /* active scale option in timeline menu */
+    --danger:     #C0392B;   /* errors, today cursor, delete */
+    --danger-bg:  #FEF0EE;   /* danger hover background */
+    --ok:         #2D8A4E;   /* auth success */
+    --retro:      #B44444;   /* retrograde R marker */
+    --err:        #C0392B;   /* save / form error */
+    --tl-scale-act: #7A5C3A; /* active scale option in timeline menu */
     /* ── Extra surfaces ──────────────────────────────────── */
-    --bg-nav:     #f5f5f2;   /* nav arrow / date picker buttons */
-    --bg-hover-2: #f4f4f0;   /* geo-dropdown items, tl-sm-item hover */
-    --bg-row-info:#fafaf6;   /* info-table row hover */
-    --bg-chart-item: #f9f9f6; /* home recent chart items */
+    --bg-nav:     #F5F0ED;   /* nav arrow / date picker buttons */
+    --bg-hover-2: #EDE8E5;   /* geo-dropdown items, tl-sm-item hover */
+    --bg-row-info:#FAF6F4;   /* info-table row hover */
+    --bg-chart-item: #FAF7F5; /* home recent chart items */
 
     /* ── Aspect grid ──────────────────────────────────────── */
-    --ag-empty:   #f5f5f2;   /* empty cell in aspect grid */
-    --ag-self:    #eaeae6;   /* diagonal (same planet) cell */
-    --ag-hdr-bd:  #e0e0da;   /* header cell border */
-    --ag-cell-bd: #e8e8e3;   /* body cell border */
+    --ag-empty:   #F5F0ED;   /* empty cell in aspect grid */
+    --ag-self:    #EDE8E4;   /* diagonal (same planet) cell */
+    --ag-hdr-bd:  #E4DAD4;   /* header cell border */
+    --ag-cell-bd: #EDE7E2;   /* body cell border */
 
     /* ── Dark / Apple ─────────────────────────────────────── */
     --apple-bg:   #111;      /* Apple sign-in button */
@@ -64,7 +64,7 @@
   }
 
   body {
-    font-family: 'Segoe UI', sans-serif;
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
     background: var(--bg-page);
     color: var(--tx);
     min-height: 100vh;
@@ -78,10 +78,10 @@
   #form-wrap {
     width: 100%; max-width: 480px;
     background: var(--bg);
-    border-radius: 8px;
-    padding: 14px;
+    border: 1px solid var(--bd);
+    border-radius: 12px;
+    padding: 16px;
     margin: 0 8px 10px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
   }
   .row { display: flex; gap: 10px; margin-bottom: 10px; }
   .field { display: flex; flex-direction: column; gap: 4px; flex: 1; }
@@ -91,7 +91,7 @@
     border: 1px solid var(--bd);
     color: var(--tx);
     padding: 8px 10px;
-    border-radius: 5px;
+    border-radius: 8px;
     font-size: 0.92em;
     width: 100%;
     outline: none;
@@ -101,7 +101,7 @@
   .btn-row { display: flex; gap: 10px; margin-top: 6px; }
   button {
     flex: 1; padding: 9px; border: none;
-    border-radius: 5px; font-size: 0.88em;
+    border-radius: 8px; font-size: 0.88em;
     cursor: pointer; font-weight: 600;
   }
   #geoBtn  { background: var(--bg-hover); color: var(--accent); border: 1px solid var(--bd-input); }
@@ -121,11 +121,11 @@
   #right-panel-tabs .tab-btn {
     flex: 1; border-radius: 0; border: none;
     border-bottom: 2px solid transparent; background: none;
-    padding: 7px 12px; font-size: 0.85em; font-weight: 600; color: var(--tx-7);
+    padding: 7px 12px; font-size: 0.85em; font-weight: 600; color: var(--tx-5);
     cursor: pointer; transition: background 0.15s;
   }
-  #right-panel-tabs .tab-btn.active { color: var(--tx); border-bottom-color: var(--accent-hv); }
-  #right-panel-tabs .tab-btn:hover:not(.active) { background: var(--bg-input); color: var(--accent); }
+  #right-panel-tabs .tab-btn.active { color: var(--tx-2); border-bottom-color: var(--tx-3); }
+  #right-panel-tabs .tab-btn:hover:not(.active) { background: var(--bg-input); color: var(--tx-3); }
   #right-info-content { overflow-y: auto; }
   #info-table { width: 100%; border-collapse: collapse; font-size: 0.87em; }
   #info-table td { padding: 2px 5px; }
@@ -156,8 +156,8 @@
   #date-nav {
     display: flex; align-items: center; gap: 6px;
     padding: 8px 0 2px;
-    border-top: 1px solid var(--bg-active);
-    margin-top: 8px;
+    border-top: 1px solid var(--bd-light);
+    margin-top: 6px;
   }
   .nav-group {
     display: flex; flex-direction: column; align-items: center; gap: 2px;
@@ -168,7 +168,7 @@
   }
   #date-nav .nav-arrow {
     flex-shrink: 0; min-height: 44px; min-width: 32px;
-    border: 1px solid var(--bd-input); border-radius: 5px;
+    border: 1px solid var(--bd-input); border-radius: 8px;
     background: var(--bg-nav); color: var(--tx-3);
     cursor: pointer; line-height: 1;
     display: flex; align-items: center; justify-content: center;
@@ -191,12 +191,12 @@
     display: flex; flex-direction: column; align-items: center; gap: 2px;
   }
   #transit-date-lbl {
-    font-size: 0.82em; font-weight: 500; color: var(--accent);
+    font-size: 0.82em; font-weight: 500; color: var(--link);
     transition: color 0.15s; cursor: pointer;
     text-decoration-style: dotted; text-underline-offset: 2px;
   }
-  #transit-date-lbl:hover { text-decoration: underline; color: var(--link); }
-  #transit-date-lbl.active { color: var(--link); }
+  #transit-date-lbl:hover { text-decoration: underline; color: var(--accent); }
+  #transit-date-lbl.active { color: var(--accent); }
   #nav-today {
     font-size: 0.73em; color: var(--link); background: none; border: none;
     padding: 1px 4px; cursor: pointer; border-radius: 3px;
@@ -210,15 +210,27 @@
   /* ── Page modes ─────────────────────────────────────────── */
   #chartpage-layout { display: none; width: 100%; margin: 0 auto; }
   #chartpage-layout.visible { display: block; }
-  #chartpage-left { width: 100%; }
-  #chartpage-right { width: 100%; margin: 8px auto 0; display: none; }
+  #chartpage-left {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--bd);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  #chartpage-right {
+    width: 100%; margin: 10px auto 0; display: none;
+    background: var(--bg);
+    border: 1px solid var(--bd);
+    border-radius: 14px;
+    overflow: hidden;
+  }
 
   /* Controls panel below chart (visible only in transit mode) */
   #prog-controls {
     display: none;
-    padding: 8px 6px 4px;
-    border-top: 1px solid var(--bg-active);
-    margin-top: 4px;
+    padding: 10px 10px 6px;
+    border-top: none;
+    margin-top: 0;
   }
   #chartpage-layout.transit-active #prog-controls { display: block; }
 
@@ -274,7 +286,7 @@
   /* chart-mode-bar inside prog-controls is always shown */
   #prog-controls #chart-mode-bar {
     display: flex; max-width: none;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
   }
 
   /* ── Header: home vs chart mode ───────────────────────── */
@@ -352,8 +364,9 @@
       max-width: none;
       display: flex !important;
       align-items: stretch;
-      gap: 16px;
-      height: calc(100vh - 60px);
+      gap: 12px;
+      padding: 0 16px 16px;
+      height: calc(100vh - 56px);
     }
     #chartpage-layout.transit-active #chartpage-left {
       flex: 0 0 50%;
@@ -382,6 +395,7 @@
       min-width: 0;
       margin-top: 0;
       overflow-y: auto;
+      overflow-x: hidden;
     }
     #forecast-layout.forecast-active {
       max-width: none;
@@ -474,12 +488,12 @@
   #tl-hdr-scroll { overflow: hidden; flex: 1; }
 
   .tab-btn {
-    flex: 1; padding: 9px 0; border-radius: 5px;
+    flex: 1; padding: 9px 0; border-radius: 8px;
     font-size: 0.88em; font-weight: 600; cursor: pointer;
     border: 1px solid var(--bd-input); background: var(--bg-input); color: var(--tx-4);
     transition: background 0.15s;
   }
-  .tab-btn:hover { background: var(--bd-light); }
+  .tab-btn:hover { background: var(--bg-hover); }
   .tab-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 
   #geo-place-wrap { position: relative; }
@@ -502,8 +516,8 @@
   #app-header {
     width: 100%; max-width: 480px;
     display: flex; flex-direction: column;
-    position: relative; background: var(--bg);
-    border-bottom: 1px solid var(--bd-light); margin-bottom: 18px;
+    position: relative; background: transparent;
+    border-bottom: none; margin-bottom: 12px;
   }
   #app-header.chart-mode { max-width: none; }
   #app-header h1 { margin-bottom: 0; }
@@ -677,15 +691,24 @@
 
   #chart-mode-bar {
     width: 100%; max-width: 740px;
-    gap: 4px; margin: -2px 0 6px;
+    gap: 2px; margin: 0 0 8px;
     display: none;
+    background: var(--bg-active);
+    border-radius: 10px;
+    padding: 3px;
   }
   #chart-mode-bar.visible { display: flex; }
   #chart-mode-bar .tab-btn {
-    font-size: 0.74em; padding: 5px 0;
-    background: var(--bg-hover); border-color: var(--bd); color: var(--tx-5);
+    font-size: 0.75em; padding: 6px 0;
+    background: transparent; border: none; color: var(--tx-4);
+    font-weight: 500; border-radius: 7px;
   }
-  #chart-mode-bar .tab-btn.active { background: var(--tx-4); color: var(--bg); border-color: var(--tx-4); }
+  #chart-mode-bar .tab-btn:hover { background: rgba(0,0,0,0.06); }
+  #chart-mode-bar .tab-btn.active {
+    background: var(--bg); color: var(--tx-2);
+    border-color: transparent; font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 0 0 0.5px rgba(0,0,0,0.05);
+  }
 
 </style>
 </head>
@@ -1515,28 +1538,29 @@ const COLORS = {
   water:       '#6FCCF8',
 
   // ── Chart SVG structure ──────────────────────────────────────────────────
-  ring:        '#808080',  // circle strokes, divider lines
+  ring:        '#8C8480',  // zodiac ring band (thick)
+  ringLine:    '#B8AEA9',  // thin structural circles and house axes
 
   // ── Timeline section backgrounds ─────────────────────────────────────────
-  tlProg:      '#eeeaf5',  // progressed events section fill
-  tlMoon:      '#dde8f5',  // progressed moon sub-band fill
-  tlDir:       '#f5ede0',  // solar arc direction section fill
-  tlMoonLine:  '#c8d8ee',  // moon band border
-  tlMoonGlyph: '#7799cc',  // moon glyph / collapse chevron
+  tlProg:      '#F5F1EE',  // progressed events section fill
+  tlMoon:      '#F5F1EE',  // progressed moon sub-band fill
+  tlDir:       '#F5F1EE',  // solar arc direction section fill
+  tlMoonLine:  '#E4DAD5',  // moon band border
+  tlMoonGlyph: '#A69990',  // moon glyph / collapse chevron
 
   // ── Timeline general ─────────────────────────────────────────────────────
-  tlRowAlt:    '#f7f7f4',  // alternating natal-row background
-  tlFastBg:    '#f0f0f8',  // fast-transits sub-section tint
-  tlSepLine:   '#d0d0cc',  // dashed separator: slow / fast rows
-  tlGrid:      '#ddd',     // month / year grid lines
-  tlCursor:    '#e44',     // today / selected-date cursor line
-  tlPlusBg:    '#f4f4ef',  // extend-range (+) button fill
-  tlPlusStr:   '#bbb',     // extend-range (+) button stroke
-  tlGlyph:     '#333',     // planet glyph text in left panel
-  tlMuted:     '#aaa',     // gear icon, expand arrows, italic labels
-  tlLabel:     '#999',     // month / year header labels
-  tlRowBd:     '#e8e8e4',  // row separator line
-  tlSectionBd: '#bbb',     // section bottom border
+  tlRowAlt:    '#FAF7F6',  // alternating natal-row background
+  tlFastBg:    '#F5F1EE',  // fast-transits sub-section tint
+  tlSepLine:   '#DDD5D0',  // dashed separator: slow / fast rows
+  tlGrid:      '#E8E2DE',  // month / year grid lines
+  tlCursor:    '#C0392B',  // today / selected-date cursor line
+  tlPlusBg:    '#F5F0ED',  // extend-range (+) button fill
+  tlPlusStr:   '#D4CBC6',  // extend-range (+) button stroke
+  tlGlyph:     '#2D2420',  // planet glyph text in left panel
+  tlMuted:     '#B0A8A4',  // gear icon, expand arrows, italic labels
+  tlLabel:     '#B0A8A4',  // month / year header labels
+  tlRowBd:     '#ECE6E2',  // row separator line
+  tlSectionBd: '#D4CBC6',  // section bottom border
 };
 
 // ── Element color arrays (derived from COLORS) ────────────────────────────────
@@ -2067,7 +2091,7 @@ function drawDegreeRing(g, rOuter, ringW, signExt) {
   const rInner = rOuter - ringW;
 
   // Только внутренний круг — внешний уже нарисован основным кругом карты
-  g.appendChild(circ(CX, CY, rInner, { fill: 'none', stroke: COLORS.ring, 'stroke-width': 0.8 }));
+  g.appendChild(circ(CX, CY, rInner, { fill: 'none', stroke: COLORS.ringLine, 'stroke-width': 0.8 }));
 
   // Черточки через каждые 10°
   for (let deg = 0; deg < 360; deg += 10) {
@@ -2134,7 +2158,7 @@ function renderChart(planets, cusps, asc, mc) {
 
   // 6. Inner circle
   g.appendChild(circ(CX, CY, R_INNER, {
-    fill: '#fff', stroke: COLORS.ring, 'stroke-width': 0.8,
+    fill: '#fff', stroke: COLORS.ringLine, 'stroke-width': 0.8,
   }));
 
   // 6a. Degree ring (10° ticks on inner circle boundary)
@@ -2167,8 +2191,8 @@ function drawHouseAxes(g, cusps, asc, biwheel = false) {
 
     // In element colors mode, angular axes use per-cusp colors and are split at center
     const useColor = elementColorsMode && isAng;
-    const c1 = useColor ? ANGULAR_COLORS[i]     : COLORS.ring;
-    const c2 = useColor ? ANGULAR_COLORS[i + 6] : COLORS.ring;
+    const c1 = useColor ? ANGULAR_COLORS[i]     : COLORS.ringLine;
+    const c2 = useColor ? ANGULAR_COLORS[i + 6] : COLORS.ringLine;
     const w  = isAng ? 2 : 1;
 
     if (biwheel) {
@@ -2204,7 +2228,7 @@ function drawSignDividers(g, asc) {
     const p1 = polar(a, R_ZOD_IN);
     const p2 = polar(a, R_ZOD_OUT);
     g.appendChild(ln(p1.x, p1.y, p2.x, p2.y, {
-      stroke: '#fff', 'stroke-width': 1.5,
+      stroke: '#FAF7F5', 'stroke-width': 1.5,
     }));
   }
 }
@@ -2216,7 +2240,7 @@ function drawZodiacGlyphs(g, asc) {
     const a = lonToRad(i * 30 + 15, asc);
     const p = polar(a, R_RING); // centre of ring strip
     g.appendChild(txt(p.x, p.y, SIGNS[i], {
-      'font-size': 17, fill: '#fff',
+      'font-size': 17, fill: '#FCF9F8',
       'text-anchor': 'middle', 'dominant-baseline': 'central',
     }));
   }
@@ -2741,12 +2765,12 @@ function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) 
 
   // 5. Divider circle between directed / natal rings
   g.appendChild(circ(CX, CY, R_DIVIDER, {
-    fill: 'none', stroke: COLORS.ring, 'stroke-width': 0.8,
+    fill: 'none', stroke: COLORS.ringLine, 'stroke-width': 0.8,
   }));
 
   // 6. Inner circle
   g.appendChild(circ(CX, CY, R_BW_INNER, {
-    fill: '#fff', stroke: COLORS.ring, 'stroke-width': 0.8,
+    fill: '#fff', stroke: COLORS.ringLine, 'stroke-width': 0.8,
   }));
   drawDegreeRing(g, R_BW_INNER, CHART.BW_DEG_RING_W, CHART.BW_DEG_SIGN_EXT);
 
@@ -2775,8 +2799,8 @@ function drawDirectedCusps(g, directedCusps, asc) {
     const a2 = lonToRad(directedCusps[i + 6], asc);
     const w = isAng ? 2 : 1;
     const useColor = elementColorsMode && isAng;
-    const c1 = useColor ? ANGULAR_COLORS[i]     : COLORS.ring;
-    const c2 = useColor ? ANGULAR_COLORS[i + 6] : COLORS.ring;
+    const c1 = useColor ? ANGULAR_COLORS[i]     : COLORS.ringLine;
+    const c2 = useColor ? ANGULAR_COLORS[i + 6] : COLORS.ringLine;
     // Visible only in the directed ring: R_DIVIDER → R_ZOD_IN (each side)
     const p1a = polar(a1, R_DIVIDER), p1b = polar(a1, R_ZOD_IN);
     const p2a = polar(a2, R_DIVIDER), p2b = polar(a2, R_ZOD_IN);
@@ -2944,8 +2968,8 @@ function renderProgressedBiwheelChart(natal, progressed, cusps, asc, lunarPhases
   drawZodiacRing(g);
   drawSignDividers(g, 0);
   drawZodiacGlyphs(g, 0);
-  g.appendChild(circ(CX, CY, R_DIVIDER, { fill: 'none', stroke: COLORS.ring, 'stroke-width': 0.8 }));
-  g.appendChild(circ(CX, CY, R_BW_INNER, { fill: '#fff', stroke: COLORS.ring, 'stroke-width': 0.8 }));
+  g.appendChild(circ(CX, CY, R_DIVIDER, { fill: 'none', stroke: COLORS.ringLine, 'stroke-width': 0.8 }));
+  g.appendChild(circ(CX, CY, R_BW_INNER, { fill: '#fff', stroke: COLORS.ringLine, 'stroke-width': 0.8 }));
   drawDegreeRing(g, R_BW_INNER, CHART.BW_DEG_RING_W, CHART.BW_DEG_SIGN_EXT);
 
   // Progressed → natal aspects with progression orbs
@@ -3211,12 +3235,12 @@ function renderBiwheel(natal, transit, cusps, asc) {
 
   // 5. Divider circle between transit / natal rings
   g.appendChild(circ(CX, CY, R_DIVIDER, {
-    fill: 'none', stroke: COLORS.ring, 'stroke-width': 0.8,
+    fill: 'none', stroke: COLORS.ringLine, 'stroke-width': 0.8,
   }));
 
   // 6. Inner circle (smaller in biwheel to make room for two rings)
   g.appendChild(circ(CX, CY, R_BW_INNER, {
-    fill: '#fff', stroke: COLORS.ring, 'stroke-width': 0.8,
+    fill: '#fff', stroke: COLORS.ringLine, 'stroke-width': 0.8,
   }));
   drawDegreeRing(g, R_BW_INNER, CHART.BW_DEG_RING_W, CHART.BW_DEG_SIGN_EXT);
 

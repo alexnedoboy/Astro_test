@@ -3,7 +3,7 @@
 ## Обзор проекта
 
 Одностраничное веб-приложение для построения натальных карт и просмотра транзитов.
-Весь код — в одном файле: **`index.html`** (~4600+ строк).
+Весь код — в одном файле: **`index.html`** (~5300+ строк).
 
 **Стек:**
 - Vanilla JS (ES modules, `<script type="module">`)
@@ -67,20 +67,28 @@ Hash-based роутинг для карт:
 
 ## Ключевые константы (layout)
 
-```js
-W = 740, H = 740, CX = 370, CY = 370   // размер SVG и центр
-VB_CROP = 58                            // кроп viewport для мобильных
-R_RING = 273, RING_W = 26              // зодиакальное кольцо
-R_ZOD_OUT = 286, R_ZOD_IN = 260       // внешний/внутренний край кольца
-R_INNER = 196                           // внутренний круг натальной карты
-R_PLANET = 230 (drawPlanets)           // радиус глифов планет
-R_LABEL = 298                           // подписи домов (снаружи кольца)
+Все размеры карты — в объекте `CHART` (единая точка редактирования):
 
-// Биколесо (biwheel)
-R_BW_INNER = 128                       // внутренний круг биколеса
-R_DIVIDER = 196                        // разделитель транзит/натал
-R_T_PLANET = 230                       // глифы транзитных планет
-R_N_PLANET = 160                       // глифы натальных планет (в биколесе)
+```js
+CHART.W = 740, CHART.H = 740          // размер SVG
+CHART.R_RING = 273, CHART.RING_W = 26 // зодиакальное кольцо
+CHART.R_INNER = 196                    // внутренний круг натальной карты
+CHART.R_LABEL = 304                    // подписи домов (снаружи кольца)
+
+// Биколесо
+CHART.BW_R_INNER   = 128              // внутренний круг биколеса
+CHART.BW_R_DIVIDER = 196              // разделитель натал / внешнее кольцо
+```
+
+Геометрия таймлайна — в объекте `TL`:
+
+```js
+TL.PX_PER_DAY_MONTH = 3               // пикселей на день (масштаб по месяцам)
+TL.PX_PER_DAY_YEAR  = 70 / 365.25     // пикселей на день (масштаб по годам)
+TL.LABEL_W = 44                        // ширина левой панели с планетами
+TL.HDR_H   = 28                        // высота заголовка (месяцы/годы)
+TL.BAR_H   = 4                         // высота полосы транзита
+TL.SUB_H   = 18                        // высота одной дорожки в строке
 ```
 
 ---
@@ -126,18 +134,68 @@ R_N_PLANET = 160                       // глифы натальных план
 `setActiveTab('transit')` — управляет классом `transit-active` на `#chartpage-layout`.
 Класс `transit-active` включает двухколоночный desktop-layout через CSS.
 
+### `computeTlLayout(periods, progEvents, dirEvents)`
+Чистая функция, вызывается из `renderTimeline`. Возвращает объект:
+`{ rows, TL_H, progAspects, progMoonAsps, progPoints, PROG_ASP_H, PROG_MOON_H, PROG_TICK_H, PROG_SECTION_H, DIR_TICK_H, moonBandY }`
+Содержит всю логику распределения дорожек по строкам и расчёт высот секций таймлайна.
+
+---
+
+## Цветовая палитра
+
+### CSS `:root` — цвета UI (фон, текст, границы)
+Определены в блоке `:root {}` в начале `<style>`. Используются в CSS правилах через `var(--name)`.
+
+```css
+--bg-page, --bg, --bg-input, --bg-hover, --bg-active, --bg-row-alt  /* фоны */
+--bd, --bd-light, --bd-input                                          /* границы */
+--tx, --tx-2 … --tx-9                                                 /* текст (от тёмного к светлому) */
+--accent, --accent-hv                                                  /* акцентный цвет */
+--link, --link-bg                                                      /* ссылки */
+--danger, --danger-bg, --ok, --retro, --err                           /* статусные цвета */
+--tl-scale-act                                                         /* активная кнопка масштаба таймлайна */
+```
+
+### JS `COLORS` — цвета SVG-рендеринга
+Объект-константа, единая точка редактирования для всех SVG-цветов. Используется в `ASPECTS`, `T_ASPECTS`, `D_ASPECTS`, `SIGN_ELEM_COLORS` и функциях рендеринга.
+
+```js
+COLORS = {
+  // Аспекты на карте
+  conj: '#2244bb',         // соединение (синий)
+  chartSoft: '#FF0000',    // мягкие аспекты натала (секстиль, трин)
+  chartHard: '#000000',    // жёсткие аспекты натала (квадрат, оппозиция)
+  tlSoft: '#228833',       // мягкие транзитные аспекты
+  tlHard: '#cc1111',       // жёсткие транзитные аспекты
+  tlNeutral: '#000000',    // нейтральные транзитные аспекты
+
+  // Элементы зодиака
+  fire, earth, air, water,
+
+  // Кольцо зодиака
+  ring: '#808080',
+
+  // Фоны строк таймлайна
+  tlProg, tlMoon, tlDir, tlMoonLine, tlMoonGlyph,
+  tlRowAlt, tlFastBg, tlSepLine, tlGrid,
+
+  // UI таймлайна
+  tlCursor, tlPlusBg, tlPlusStr, tlGlyph, tlMuted, tlLabel, tlRowBd, tlSectionBd,
+}
+```
+
 ---
 
 ## Аспекты
 
-Натальные аспекты (`ASPECTS`):
-- Соединение (0°, orb 8°) — синий, эллипс
-- Секстиль (60°, orb 5°) — красный
-- Квадрат (90°, orb 7°) — чёрный
-- Трин (120°, orb 7°) — красный
-- Оппозиция (180°, orb 8°) — чёрный
+Натальные аспекты (`ASPECTS`): цвета берутся из `COLORS.*`
+- Соединение (0°, orb 8°) — `COLORS.conj`, эллипс
+- Секстиль (60°, orb 5°) — `COLORS.chartSoft`
+- Квадрат (90°, orb 7°) — `COLORS.chartHard`
+- Трин (120°, orb 7°) — `COLORS.chartSoft`
+- Оппозиция (180°, orb 8°) — `COLORS.chartHard`
 
-Транзитные аспекты (`T_ASPECTS`, orb 3° для всех).
+Транзитные аспекты (`T_ASPECTS`, orb 3°): используют `COLORS.tlSoft`, `COLORS.tlHard`, `COLORS.tlNeutral`.
 
 ---
 

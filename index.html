@@ -2166,6 +2166,7 @@ function enterChartMode(name, date, time) {
   document.getElementById('header-chart-date').textContent = dateTime;
   document.getElementById('chartpage-layout').classList.add('visible');
   setV2ChartInfo(name, dateTime);
+  activateLayout2();
 }
 
 function setV2ChartInfo(name, dateTime) {
@@ -2174,6 +2175,7 @@ function setV2ChartInfo(name, dateTime) {
 }
 
 function exitChartMode(updateHistory = true) {
+  if (layout2Active) deactivateLayout2();
   currentChartId = null;
   if (updateHistory) {
     history.pushState('', document.title, window.location.pathname + window.location.search);

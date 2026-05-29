@@ -679,6 +679,15 @@
   .v2-nav-row { display: flex; gap: 2px; }
   .v2-nav-row .v2-nav-btn { flex: 1; font-size: 0.72em; }
   .v2-today-btn { margin-top: 2px; }
+  #v2-nav-date-lbl {
+    background: none; border: 1px solid var(--bd-input); border-radius: 6px;
+    color: var(--tx-6); font-size: 0.72em; padding: 5px 4px;
+    cursor: pointer; text-align: center; width: 100%; margin-top: 4px;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+    box-sizing: border-box; line-height: 1.2;
+  }
+  #v2-nav-date-lbl:hover { background: var(--bg-hover); color: var(--tx-3); }
+  #v2-nav-date-lbl.v2-date-active { color: var(--accent); border-color: var(--accent); }
   #v2-bottom-row {
     display: flex; flex-shrink: 0;
     border-top: 1px solid var(--bd-light);
@@ -937,6 +946,7 @@
         <button class="v2-nav-btn" data-nav="next-day">▶</button>
       </div>
       <button class="v2-nav-btn v2-today-btn" data-nav="today">↺</button>
+      <button id="v2-nav-date-lbl" style="display:none"></button>
       <div class="v2-ctrl-spacer"></div>
       <div id="v2-bottom-row">
         <button class="v2-icon-btn" id="v2-settings-btn" title="Настройки">⚙︎</button>
@@ -2638,6 +2648,7 @@ function applyNavigatedJD(jd, unit = null) {
   else if (currentMode === 'direction') renderDirectionBiwheel(currentTransitJD);
   else renderProgressedBiwheel(currentTransitJD);
   syncTimelineCursor(unit);
+  syncV2DateLabel();
 }
 
 function switchModeAndNavigate(mode, jd) {
@@ -3082,6 +3093,7 @@ function switchToMode(mode) {
   if (!natalData || !swe) return;
   currentMode = mode;
   syncV2ModeButtons();
+  syncV2DateLabel();
   if (mode === 'natal') {
     renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
     setInfoTableMode('natal');
@@ -5280,6 +5292,38 @@ function syncV2ModeButtons() {
   );
 }
 
+function syncV2DateLabel() {
+  const lbl = document.getElementById('v2-nav-date-lbl');
+  if (!lbl) return;
+  const show = currentMode !== 'natal';
+  lbl.style.display = show ? '' : 'none';
+  if (!show) return;
+  if (currentTransitJD === null) {
+    lbl.textContent = tr('today');
+    lbl.classList.remove('v2-date-active');
+  } else {
+    const d = new Date((currentTransitJD - 2440587.5) * 86400000);
+    lbl.textContent =
+      String(d.getUTCDate()).padStart(2, '0') + '.' +
+      String(d.getUTCMonth() + 1).padStart(2, '0') + '.' +
+      d.getUTCFullYear();
+    lbl.classList.add('v2-date-active');
+  }
+}
+
+document.getElementById('v2-nav-date-lbl').addEventListener('click', () => {
+  const baseJD = currentTransitJD ?? computeJDNow();
+  if (baseJD) {
+    const d = new Date((baseJD - 2440587.5) * 86400000);
+    document.getElementById('nav-date-input').value =
+      d.getUTCFullYear() + '-' +
+      String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getUTCDate()).padStart(2, '0');
+  }
+  try { document.getElementById('nav-date-input').showPicker(); }
+  catch { document.getElementById('nav-date-input').click(); }
+});
+
 document.getElementById('v2-control-panel').addEventListener('click', e => {
   const modeBtn = e.target.closest('.v2-mode-btn');
   if (modeBtn) {
@@ -5295,6 +5339,7 @@ document.getElementById('v2-control-panel').addEventListener('click', e => {
       else if (currentMode === 'direction') renderDirectionBiwheel(null);
       else renderProgressedBiwheel(null);
       syncTimelineCursor();
+      syncV2DateLabel();
     } else {
       const unitMap = {
         'prev-day': ['day', -1], 'next-day': ['day', +1],
@@ -5328,6 +5373,7 @@ function activateLayout2() {
     currentMode = 'transit';
     renderBiwheelAt(currentTransitJD ?? computeJDNow());
     syncV2ModeButtons();
+    syncV2DateLabel();
   }
 
   if (natalData) {

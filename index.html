@@ -756,7 +756,7 @@
   #v2-chart-area {
     flex: 0 0 auto;
     width: calc(77vh - 16px);
-    max-width: calc(100vw - 112px);
+    max-width: calc(100vw - 124px);
     aspect-ratio: 1 / 1;
     overflow: hidden;
     display: flex;
@@ -769,7 +769,7 @@
   }
   #layout-v2.tl-hidden #v2-chart-area {
     width: calc(100vh - 16px);
-    max-width: calc(100vw - 112px);
+    max-width: calc(100vw - 124px);
   }
   #v2-chart-area #chart-block {
     width: 100% !important;
@@ -789,6 +789,7 @@
     min-width: 0;
     max-height: calc(77vh - 16px);
     overflow-y: auto;
+    overflow-x: hidden;
     background: var(--bg);
     border-radius: 8px;
   }
@@ -797,21 +798,71 @@
   }
   #v2-aspect-panel #right-info-content {
     width: 100%;
-    overflow: visible;
+    overflow: hidden;
     display: block !important;
   }
+  #v2-aspect-panel #aspect-grid {
+    overflow-x: hidden;
+  }
   #v2-control-panel {
-    flex: 0 0 96px;
+    flex: 0 0 116px;
+    align-self: stretch;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
     background: var(--bg);
     border-radius: 8px;
     padding: 6px 4px;
     box-sizing: border-box;
     overflow-y: auto;
+    overflow-x: hidden;
   }
-  .v2-mode-btn, .v2-nav-btn {
+  #v2-logo {
+    display: block;
+    width: 52px;
+    height: 52px;
+    margin: 2px auto 4px;
+    object-fit: contain;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  #v2-chart-info {
+    flex-shrink: 0;
+    padding: 2px 2px 4px;
+    min-width: 0;
+  }
+  #v2-chart-info-top {
+    display: flex; align-items: center; gap: 1px; min-width: 0;
+  }
+  #v2-chart-name {
+    flex: 1; min-width: 0;
+    font-size: 0.78em; font-weight: 600;
+    color: var(--tx);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #v2-chart-date {
+    display: block;
+    font-size: 0.68em; color: var(--tx-8);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    padding: 1px 0;
+  }
+  .v2-icon-btn {
+    width: 22px; height: 22px;
+    background: none; border: none; border-radius: 3px;
+    cursor: pointer; font-size: 0.9em;
+    color: var(--tx-4);
+    display: flex; align-items: center; justify-content: center;
+    padding: 0; flex-shrink: 0;
+  }
+  .v2-icon-btn:hover { background: var(--bg-hover); color: var(--tx-2); }
+  .v2-mode-btn {
+    width: 100%; height: 52px;
+    background: none; border: none; border-radius: 6px;
+    cursor: pointer; font-size: 0.9em;
+    color: var(--tx-4); padding: 0 4px;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .v2-nav-btn {
     width: 100%; height: 28px;
     background: none; border: none; border-radius: 4px;
     cursor: pointer; font-size: 0.8em;
@@ -821,9 +872,26 @@
   .v2-mode-btn:hover, .v2-nav-btn:hover { background: var(--bg-hover); color: var(--tx-2); }
   .v2-mode-btn.active { background: var(--bg-active); color: var(--tx); font-weight: 600; }
   .v2-ctrl-sep { height: 1px; background: var(--bd-light); margin: 4px 0; flex-shrink: 0; }
+  .v2-ctrl-spacer { flex: 1; min-height: 4px; }
   .v2-nav-row { display: flex; gap: 2px; }
   .v2-nav-row .v2-nav-btn { flex: 1; font-size: 0.72em; }
   .v2-today-btn { margin-top: 2px; }
+  #v2-bottom-row {
+    display: flex; flex-shrink: 0;
+    border-top: 1px solid var(--bd-light);
+    margin: 0 -4px -6px;
+  }
+  #v2-bottom-row .v2-icon-btn {
+    flex: 1; width: auto; height: 34px;
+    font-size: 1.05em; color: var(--tx-5);
+    border-radius: 0;
+  }
+  #v2-bottom-row .v2-icon-btn:first-child { border-radius: 0 0 0 4px; }
+  #v2-bottom-row .v2-icon-btn:last-child {
+    border-left: 1px solid var(--bd-light);
+    border-radius: 0 0 4px 0;
+    font-size: 1.15em;
+  }
 
   /* compact toggle: sits at top-left of v2-bottom, over the timeline header's blank area */
   #v2-tl-tab {
@@ -842,15 +910,7 @@
     color: var(--tx-5); padding: 0;
     display: flex; align-items: center; justify-content: center;
   }
-  #v2-exit-btn {
-    width: 24px; height: 28px;
-    background: none; border: none;
-    border-left: 1px solid var(--bd-light);
-    font-size: 11px; cursor: pointer;
-    color: var(--tx-6); padding: 0;
-    display: flex; align-items: center; justify-content: center;
-  }
-  #v2-tl-toggle:hover, #v2-exit-btn:hover { background: var(--bg-hover); }
+  #v2-tl-toggle:hover { background: var(--bg-hover); }
 
   /* tl-expanded: chart hidden, timeline fills screen */
   #layout-v2.tl-expanded #v2-top { flex: 0 0 0; padding: 0; overflow: hidden; }
@@ -1147,9 +1207,17 @@
 <!-- ── Layout V2: experimental top/bottom split ──────────────────────── -->
 <div id="layout-v2">
   <div id="v2-top">
-    <div id="v2-chart-area"></div>
-    <div id="v2-aspect-panel"></div>
     <div id="v2-control-panel">
+      <img src="Aspectus%20logo.png" id="v2-logo" alt="Aspectus">
+      <div id="v2-chart-info">
+        <div id="v2-chart-info-top">
+          <span id="v2-chart-name"></span>
+          <button class="v2-icon-btn" id="v2-edit-btn" title="Редактировать данные">✎</button>
+          <button class="v2-icon-btn" id="v2-save-btn" title="Сохранить карту">💾</button>
+        </div>
+        <span id="v2-chart-date"></span>
+      </div>
+      <div class="v2-ctrl-sep"></div>
       <button class="v2-mode-btn" data-mode="natal">Натал</button>
       <button class="v2-mode-btn" data-mode="transit">Транзит</button>
       <button class="v2-mode-btn" data-mode="progressed">Прогр.</button>
@@ -1168,12 +1236,18 @@
         <button class="v2-nav-btn" data-nav="next-day">▶</button>
       </div>
       <button class="v2-nav-btn v2-today-btn" data-nav="today">↺</button>
+      <div class="v2-ctrl-spacer"></div>
+      <div id="v2-bottom-row">
+        <button class="v2-icon-btn" id="v2-settings-btn" title="Настройки">⚙︎</button>
+        <button class="v2-icon-btn" id="v2-exit-btn" title="Обычный вид">↩</button>
+      </div>
     </div>
+    <div id="v2-chart-area"></div>
+    <div id="v2-aspect-panel"></div>
   </div>
   <div id="v2-bottom">
     <div id="v2-tl-tab">
       <button id="v2-tl-toggle">▲</button>
-      <button id="v2-exit-btn" title="Обычный вид">←</button>
     </div>
     <div id="v2-timeline-wrap"></div>
   </div>
@@ -2091,6 +2165,12 @@ function enterChartMode(name, date, time) {
   const dateTime = [date, time].filter(Boolean).join(' · ');
   document.getElementById('header-chart-date').textContent = dateTime;
   document.getElementById('chartpage-layout').classList.add('visible');
+  setV2ChartInfo(name, dateTime);
+}
+
+function setV2ChartInfo(name, dateTime) {
+  document.getElementById('v2-chart-name').textContent = name || '';
+  document.getElementById('v2-chart-date').textContent = dateTime || '';
 }
 
 function exitChartMode(updateHistory = true) {
@@ -2214,8 +2294,9 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     if (document.getElementById('form-wrap').classList.contains('editing')) {
       exitEditMode();
       document.getElementById('header-chart-name').textContent = chartName;
-      document.getElementById('header-chart-date').textContent =
-        [fmtDate, fmtTime].filter(Boolean).join(' · ');
+      const editedDateTime = [fmtDate, fmtTime].filter(Boolean).join(' · ');
+      document.getElementById('header-chart-date').textContent = editedDateTime;
+      setV2ChartInfo(chartName, editedDateTime);
     } else {
       enterChartMode(chartName, fmtDate, fmtTime);
     }
@@ -5891,6 +5972,21 @@ document.getElementById('layout-v2-btn').addEventListener('click', () => {
 });
 
 document.getElementById('v2-exit-btn').addEventListener('click', deactivateLayout2);
+
+document.getElementById('v2-logo').addEventListener('click', () => {
+  deactivateLayout2();
+  exitChartMode(true);
+});
+
+document.getElementById('v2-edit-btn').addEventListener('click', enterEditMode);
+
+document.getElementById('v2-save-btn').addEventListener('click', () => {
+  document.getElementById('saveBtn').click();
+});
+
+document.getElementById('v2-settings-btn').addEventListener('click', () => {
+  document.getElementById('settingsBtn').click();
+});
 
 document.getElementById('v2-tl-toggle').addEventListener('click', () => {
   const v2 = document.getElementById('layout-v2');

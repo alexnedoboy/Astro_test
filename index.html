@@ -3657,14 +3657,15 @@ function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
       let jdStart, jdEnd, jdCoreStart = null, jdCoreEnd = null;
       if (tlYearScale) {
         const cy = new Date((center - 2440587.5) * 86400000).getUTCFullYear();
-        jdStart = swe.julday(cy - 5, 1, 1, 0);
-        jdEnd   = swe.julday(cy + 5, 1, 1, 0);
+        const ds = Math.floor(cy / 10) * 10;
+        jdStart = swe.julday(ds, 1, 1, 0);
+        jdEnd   = swe.julday(ds + 11, 1, 1, 0);
       } else {
-        const baseHalf = 182;
-        jdStart    = center - baseHalf - 30;
-        jdEnd      = center + baseHalf + 1 + 30;
-        jdCoreStart = center - baseHalf;
-        jdCoreEnd   = center + baseHalf + 1;
+        const cy = new Date((center - 2440587.5) * 86400000).getUTCFullYear();
+        jdCoreStart = swe.julday(cy, 1, 1, 0);
+        jdCoreEnd   = swe.julday(cy + 1, 1, 1, 0);
+        jdStart     = jdCoreStart - 30;
+        jdEnd       = jdCoreEnd + 30;
       }
       const transitData = computeTransits(natalPlanets, jdStart, jdEnd);
       const returnPeriods = computeReturnPeriods(natalPlanets, transitData.jdStart, transitData.jdEnd);
@@ -4138,7 +4139,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
   const fmtDate = jd => new Date((jd - 2440587.5) * 86400000)
     .toLocaleDateString(currentLang, { day: 'numeric', month: 'short', year: 'numeric' });
   const nav = hel('div'); nav.id = 'tl-nav';
-  const shiftStep = tlYearScale ? 5 * 365 : 365;
+  const shiftStep = tlYearScale ? 10 * 365 : 365;
   const prevShiftBtn = hel('button', 'tl-nav-btn'); prevShiftBtn.textContent = '◀';
   prevShiftBtn.title = tlYearScale ? '−5 лет' : '−1 год';
   prevShiftBtn.addEventListener('click', () => shiftTimelineBy(-shiftStep));
@@ -4424,7 +4425,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
       if (mJD < jdStart - 1 || mJD > jdEnd + 1) continue;
       const x   = xOf(mJD);
       svgHdr.appendChild(ln(x, 0, x, HDR_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
-      const monLbl = md.getMonth() === 0 ? `${MS[0]} ${md.getFullYear()}` : MS[md.getMonth()];
+      const monLbl = MS[md.getMonth()];
       svgHdr.appendChild(txt(x + 3, 16, monLbl, { 'font-size': 11, fill: '#999' }));
       svgR.appendChild(ln(x, 0, x, TL_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
     }
@@ -4457,18 +4458,12 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
     });
     hdrHit.addEventListener('click', e => drillDownToYear(hdrXtoYear(e.clientX)));
   } else {
-    const zoomOut = () => {
-      tlYearScale = true;
-      const c = cachedTimeline?.center;
-      cachedTimeline = null; fastCache = {};
-      computeAndRenderTimeline(natalData.planets, c);
-    };
     hdrHit.addEventListener('touchend', e => {
       const dx = e.changedTouches[0].clientX - hdrTouchStartX;
       const dy = e.changedTouches[0].clientY - hdrTouchStartY;
-      if (dx * dx + dy * dy < 144) zoomOut();
+      if (dx * dx + dy * dy < 144) applyNavigatedJD(hdrXtoJD(e.changedTouches[0].clientX));
     });
-    hdrHit.addEventListener('click', () => zoomOut());
+    hdrHit.addEventListener('click', e => applyNavigatedJD(hdrXtoJD(e.clientX)));
   }
   svgHdr.appendChild(hdrHit);
 

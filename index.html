@@ -4037,7 +4037,7 @@ function computeTlLayout(periods, progEvents, dirEvents) {
   const rows = PLANETS
     .filter(pl => byNatal[pl.id]?.length)
     .map(pl => {
-      const { ps, nSubs } = packSeries(byNatal[pl.id], tlYearScale ? 30 : 1);
+      const { ps, nSubs } = packSeries(byNatal[pl.id], tlYearScale ? 7 : 1);
       const slowH = nSubs * SUB_H + 20;
       const isExpanded = expandedRows.has(pl.id);
       let fastPs = [], fastNSubs = 0, fastH = 0;
@@ -4473,21 +4473,12 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
     hdrTouchStartX = e.touches[0].clientX;
     hdrTouchStartY = e.touches[0].clientY;
   }, { passive: true });
-  if (tlYearScale) {
-    hdrHit.addEventListener('touchend', e => {
-      const dx = e.changedTouches[0].clientX - hdrTouchStartX;
-      const dy = e.changedTouches[0].clientY - hdrTouchStartY;
-      if (dx * dx + dy * dy < 144) drillDownToYear(hdrXtoYear(e.changedTouches[0].clientX));
-    });
-    hdrHit.addEventListener('click', e => drillDownToYear(hdrXtoYear(e.clientX)));
-  } else {
-    hdrHit.addEventListener('touchend', e => {
-      const dx = e.changedTouches[0].clientX - hdrTouchStartX;
-      const dy = e.changedTouches[0].clientY - hdrTouchStartY;
-      if (dx * dx + dy * dy < 144) applyNavigatedJD(hdrXtoJD(e.changedTouches[0].clientX));
-    });
-    hdrHit.addEventListener('click', e => applyNavigatedJD(hdrXtoJD(e.clientX)));
-  }
+  hdrHit.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - hdrTouchStartX;
+    const dy = e.changedTouches[0].clientY - hdrTouchStartY;
+    if (dx * dx + dy * dy < 144) applyNavigatedJD(hdrXtoJD(e.changedTouches[0].clientX));
+  });
+  hdrHit.addEventListener('click', e => applyNavigatedJD(hdrXtoJD(e.clientX)));
   svgHdr.appendChild(hdrHit);
 
   // Current date line (full height in svgR) + marker in svgHdr

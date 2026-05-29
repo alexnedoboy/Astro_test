@@ -114,35 +114,6 @@
 
   #chart-block { width: 100%; max-width: 740px; margin: 0 auto; line-height: 0; }
 
-  #right-panel-tabs {
-    display: flex; align-items: flex-end;
-    gap: 2px; padding: 0 0 0 8px;
-    border-bottom: 1px solid var(--bd-light);
-    flex-shrink: 0;
-    background: var(--bg-page);
-    position: sticky; top: 0; z-index: 5;
-  }
-  #right-panel-tabs .tab-btn {
-    flex: initial; border-radius: 6px 6px 0 0;
-    border: 1px solid transparent; border-bottom: none; background: transparent;
-    padding: 5px 16px; font-size: 0.83em; font-weight: 500; color: var(--tx-6);
-    cursor: pointer; transition: background 0.1s, color 0.1s;
-    margin-bottom: 0; position: relative;
-  }
-  #right-panel-tabs .tab-btn.active {
-    background: var(--bg-page); border-color: var(--bd-light);
-    border-bottom-color: var(--bg-page);
-    color: var(--tx-2); font-weight: 600;
-  }
-  #right-panel-tabs .tab-btn:hover:not(.active) { background: rgba(0,0,0,0.04); color: var(--tx-4); }
-  #tl-wide-btn {
-    margin-left: auto; margin-right: 4px; padding: 2px 7px;
-    border: none; background: transparent; color: var(--tx-7);
-    cursor: pointer; font-size: 1.05em; border-radius: 4px;
-    align-self: center; line-height: 1; flex-shrink: 0;
-    transition: color 0.1s, background 0.1s;
-  }
-  #tl-wide-btn:hover { color: var(--tx-3); background: rgba(0,0,0,0.06); }
   #right-info-content { overflow-y: auto; }
   #info-table { width: 100%; border-collapse: collapse; font-size: 0.87em; }
   #info-table td { padding: 2px 5px; }
@@ -169,80 +140,6 @@
   .ag-empty { background: var(--bg-nav); }
   .ag-self  { background: var(--ag-self); }
 
-  /* ── Date navigator (universal, bottom of left panel) ────── */
-  #date-nav {
-    display: flex; align-items: center; gap: 6px;
-    padding: 6px 0 2px;
-    border-top: none;
-    margin-top: 4px;
-  }
-  .nav-group {
-    display: flex; flex-direction: column; align-items: center; gap: 2px;
-  }
-  .nav-lbl {
-    font-size: 0.6em; color: var(--tx-8); line-height: 1; pointer-events: none;
-    text-align: center;
-  }
-  #date-nav .nav-arrow {
-    flex-shrink: 0; min-height: 44px; min-width: 32px;
-    border: 1px solid var(--bd-input); border-radius: 8px;
-    background: var(--bg-nav); color: var(--tx-3);
-    cursor: pointer; line-height: 1;
-    display: flex; align-items: center; justify-content: center;
-  }
-  #date-nav .nav-arrow:hover { background: var(--bg-active); }
-  #date-nav .nav-year {
-    font-size: 0.9em; font-weight: 700; letter-spacing: -1.5px;
-    padding: 0 5px;
-  }
-  #date-nav .nav-month {
-    font-size: 0.85em; font-weight: 600; letter-spacing: -0.5px;
-    padding: 0 6px;
-  }
-  #date-nav .nav-day {
-    font-size: 0.78em; font-weight: 400;
-    padding: 0 8px;
-  }
-  #nav-center {
-    flex: 1; text-align: center;
-    display: flex; flex-direction: column; align-items: center; gap: 2px;
-  }
-  #transit-date-lbl {
-    font-size: 0.82em; font-weight: 500; color: var(--link);
-    transition: color 0.15s; cursor: pointer;
-    text-decoration-style: dotted; text-underline-offset: 2px;
-  }
-  #transit-date-lbl:hover { text-decoration: underline; color: var(--accent); }
-  #transit-date-lbl.active { color: var(--accent); }
-  #nav-today {
-    font-size: 0.73em; color: var(--link); background: none; border: none;
-    padding: 1px 4px; cursor: pointer; border-radius: 3px;
-    display: none; text-decoration: underline;
-  }
-  #nav-today:hover { background: var(--link-bg); }
-
-  /* ── Mode-specific controls ───────────────────────────────── */
-  #mode-content { padding: 4px 0 2px; }
-  #transit-mode-content, #prog-mode-content { display: block; }
-  /* ── Page modes ─────────────────────────────────────────── */
-  #chartpage-layout { display: none; width: 100%; margin: 0 auto; }
-  #chartpage-layout.visible { display: block; }
-  #chartpage-left {
-    width: 100%;
-  }
-  #chartpage-right {
-    width: 100%; margin: 10px auto 0; display: none;
-    border-left: 1px solid var(--bd-light);
-  }
-
-  /* Controls panel below chart (visible only in transit mode) */
-  #prog-controls {
-    display: none;
-    padding: 0 10px 6px;
-    border-top: none;
-    margin-top: 0;
-  }
-  #chartpage-layout.transit-active #prog-controls { display: block; }
 
   /* ── Forecast (long-term) page ──────────────────────────── */
   #forecast-layout { display: none; width: 100%; margin: 0 auto; }
@@ -293,35 +190,12 @@
   }
   #fc-calc-btn:hover { background: var(--accent-hv); }
 
-  /* chart-mode-bar inside prog-controls is always shown */
-  #prog-controls #chart-mode-bar {
-    display: flex; max-width: none;
-    margin-bottom: 0;
-  }
-
-  /* ── Header: home vs chart mode ───────────────────────── */
+  /* ── Header ───────────────────────────────────────────── */
   #header-top {
     display: flex; align-items: center;
     padding: 0 12px; height: 48px; gap: 8px;
   }
   #header-home { display: flex; align-items: center; }
-  #header-chart {
-    display: none; align-items: center;
-    gap: 6px; min-width: 0;
-  }
-  #app-header.chart-mode #header-home { display: none; }
-  #app-header.chart-mode #header-chart { display: flex; }
-  #header-chart-info {
-    display: flex; align-items: baseline;
-    gap: 6px; min-width: 0; flex-shrink: 1;
-  }
-  #header-chart-name {
-    font-size: 0.95em; font-weight: 600; color: var(--tx);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  #header-chart-date {
-    font-size: 0.78em; color: var(--tx-8); white-space: nowrap; flex-shrink: 0;
-  }
 
   /* ── Icon buttons ──────────────────────────────────────── */
   .icon-btn {
@@ -354,62 +228,8 @@
   .lang-btn:hover { background: var(--bd-light); }
   .lang-btn-active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 
-  /* ── Chart tabs bar — hidden (single chart page, no top tabs) ── */
-  #chart-tabs-bar { display: none !important; }
-  #chart-tabs-bar .tab-btn {
-    flex: 1; border-radius: 0; border: none;
-    border-bottom: 2px solid transparent; background: none;
-    padding: 7px 12px; font-size: 0.85em; font-weight: 600; color: var(--tx-7);
-  }
-  #chart-tabs-bar .tab-btn.active { color: var(--tx); border-bottom-color: var(--accent-hv); }
-  #chart-tabs-bar .tab-btn:hover:not(.active) { background: var(--bg-input); color: var(--accent); }
-
-  @media (max-width: 500px) {
-    #header-chart-info { flex-direction: column; align-items: flex-start; gap: 1px; }
-    #header-chart-date { line-height: 1.2; }
-  }
 
   @media (min-width: 700px) {
-    #chartpage-layout.transit-active {
-      max-width: none;
-      display: flex !important;
-      align-items: stretch;
-      gap: 0;
-      padding: 0;
-      height: calc(100vh - 56px);
-    }
-    #chartpage-layout.transit-active #chartpage-left {
-      flex: 0 0 50%;
-      width: 50%;
-      display: flex;
-      flex-direction: column;
-    }
-    #chartpage-layout.transit-active #chart-block {
-      flex: 1;
-      min-height: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    #chartpage-layout.transit-active #chart-block svg {
-      width: 100%;
-      height: 100%;
-      max-width: 100%;
-      max-height: 100%;
-    }
-    #chartpage-layout.transit-active #prog-controls {
-      flex-shrink: 0;
-    }
-    #chartpage-layout.transit-active #chartpage-right {
-      flex: 1;
-      min-width: 0;
-      margin-top: 0;
-      overflow-y: auto;
-      overflow-x: hidden;
-    }
-    #chartpage-layout.transit-active.tl-wide #chartpage-left {
-      display: none !important;
-    }
     #forecast-layout.forecast-active {
       max-width: none;
       display: flex !important;
@@ -443,10 +263,6 @@
       margin-top: 0;
       overflow-y: auto;
     }
-  }
-  #chartpage-right .tl-status {
-    padding: 16px; text-align: center;
-    color: var(--tx-7); font-size: 0.85em;
   }
   #tl-tooltip, #chart-tooltip {
     position: fixed; z-index: 600; pointer-events: none;
@@ -500,20 +316,6 @@
   }
   #tl-hdr-scroll { overflow: hidden; flex: 1; }
 
-  /* ── Vertical Timeline (grid) ─────────────────────────────────── */
-  #vt-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
-  #vt-header { position: sticky; top: 28px; z-index: 4; background: var(--bg-page); }
-  #vt-header svg, #vt-body svg { display: block; }
-
-  .tab-btn {
-    flex: 1; padding: 9px 0; border-radius: 8px;
-    font-size: 0.88em; font-weight: 600; cursor: pointer;
-    border: 1px solid var(--bd-input); background: var(--bg-input); color: var(--tx-4);
-    transition: background 0.15s;
-  }
-  .tab-btn:hover { background: var(--bg-hover); }
-  .tab-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
-
   #geo-place-wrap { position: relative; }
   #geo-dropdown {
     position: absolute; top: 100%; left: 0; right: 0; z-index: 200;
@@ -537,7 +339,6 @@
     position: relative; background: transparent;
     border-bottom: 1px solid var(--bd-light); margin-bottom: 0;
   }
-  #app-header.chart-mode { max-width: none; }
   #app-header h1 { margin-bottom: 0; }
   #auth-zone { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
   #user-info { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
@@ -707,30 +508,6 @@
   #home-charts-list .chart-item:hover { background: var(--bg-hover); }
   svg text { font-family: 'Apple Symbols', 'Segoe UI Symbol', 'Noto Sans Symbols', serif; }
 
-  #chart-mode-bar {
-    width: 100%; max-width: 740px;
-    display: none; margin: 0 0 6px;
-    padding: 0 0 0 8px; gap: 2px;
-    align-items: flex-start;
-    background: transparent;
-    border: none;
-    border-top: 1px solid var(--bd-light);
-  }
-  #chart-mode-bar.visible { display: flex; }
-  #chart-mode-bar .tab-btn {
-    flex: initial; border-radius: 0 0 6px 6px;
-    border: 1px solid transparent; border-top: none;
-    padding: 5px 14px; font-size: 0.78em; font-weight: 500;
-    background: transparent; color: var(--tx-6);
-    cursor: pointer; transition: background 0.1s, color 0.1s;
-    margin-top: -1px; position: relative; z-index: 1;
-  }
-  #chart-mode-bar .tab-btn:hover { background: rgba(0,0,0,0.04); color: var(--tx-4); }
-  #chart-mode-bar .tab-btn.active {
-    background: var(--bg-page); border-color: var(--bd-light);
-    border-top-color: var(--bg-page);
-    color: var(--tx-2); font-weight: 600;
-  }
 
   /* ── Layout V2 (experimental horizontal split) ──────────────────────────── */
   #layout-v2 {
@@ -964,19 +741,6 @@
     overflow-y: auto;
   }
 
-  /* prog-controls visible when inside v2 */
-  /* v2 button in header */
-  #layout-v2-btn {
-    background: none;
-    border: 1px solid var(--bd);
-    border-radius: 4px;
-    padding: 2px 7px;
-    font-size: 12px;
-    cursor: pointer;
-    color: var(--tx-4);
-    margin-left: 4px;
-  }
-  #layout-v2-btn:hover { background: var(--bg-hover); }
 
 </style>
 </head>
@@ -1044,25 +808,9 @@
     <div id="header-home">
       <h1 data-i18n="appTitle">Натальная карта</h1>
     </div>
-    <div id="header-chart">
-      <button id="backBtn" class="icon-btn back-btn" data-i18n-title="back" title="Назад">←</button>
-      <div id="header-chart-info">
-        <span id="header-chart-name"></span>
-        <span id="header-chart-date"></span>
-      </div>
-      <button id="editChartBtn" class="icon-btn" data-i18n-title="editData" title="Редактировать данные">✎</button>
-      <button id="saveChartBtn" class="icon-btn" data-i18n-title="saveChartHeader" title="Сохранить карту">💾</button>
-      <span id="save-confirm"></span>
-      <button id="layout-v2-btn" class="icon-btn" title="Экспериментальный layout">⊞</button>
-    </div>
     <div id="header-right">
       <button id="settingsBtn" class="icon-btn settings-btn" data-i18n-title="settings" title="Настройки">⚙&#xFE0E;</button>
     </div>
-  </div>
-  <div id="chart-tabs-bar">
-    <button class="tab-btn" id="tabTransit" data-i18n="transitsTab">Прогностика</button>
-    <button class="tab-btn active" id="tabNatal" data-i18n="natal">Натал</button>
-    <button class="tab-btn" id="tabForecast" data-i18n="forecast">Прогноз</button>
   </div>
 </div>
 <div id="settings-dropdown">
@@ -1142,74 +890,7 @@
   <div id="home-charts-list"></div>
 </div>
 
-<div id="chartpage-layout">
-  <div id="chartpage-left">
-    <div id="chart-block"></div>
-    <div id="prog-controls">
-      <!-- Mode switcher -->
-      <div id="chart-mode-bar">
-        <button class="tab-btn" id="subTabNatal" data-i18n="natal">Натал</button>
-        <button class="tab-btn active" id="subTabTransit" data-i18n="transits">Транзиты</button>
-        <button class="tab-btn" id="subTabProgressed" data-i18n="progressions">Прогрессии</button>
-        <button class="tab-btn" id="subTabDirection" data-i18n="directions">Дирекции</button>
-      </div>
-      <!-- Mode-specific controls (tl-filter inserted into transit-mode-content by JS) -->
-      <div id="mode-content">
-        <div id="transit-mode-content"></div>
-        <div id="prog-mode-content" style="display:none"></div>
-      </div>
-      <!-- Universal date navigator -->
-      <div id="date-nav">
-        <div class="nav-group">
-          <button class="nav-arrow nav-year" id="nav-prev-year" data-i18n-title="prevYear" title="-1 год">&#9664;&#9664;&#9664;</button>
-          <span class="nav-lbl" data-i18n="yearLbl">год</span>
-        </div>
-        <div class="nav-group">
-          <button class="nav-arrow nav-month" id="nav-prev-month" data-i18n-title="prevMonth" title="-1 месяц">&#9664;&#9664;</button>
-          <span class="nav-lbl" data-i18n="monthLbl">мес</span>
-        </div>
-        <div class="nav-group">
-          <button class="nav-arrow nav-day" id="nav-prev-day" data-i18n-title="prevDay" title="-1 день">&#9664;</button>
-          <span class="nav-lbl" data-i18n="dayLbl">день</span>
-        </div>
-        <div id="nav-center">
-          <span id="transit-date-lbl" data-i18n-title="clickToSelectDate" title="Нажмите для выбора даты" data-i18n="today">Сегодня</span>
-          <input type="date" id="nav-date-input" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px">
-          <button id="nav-today">↺ Сегодня</button>
-        </div>
-        <div class="nav-group">
-          <button class="nav-arrow nav-day" id="nav-next-day" data-i18n-title="nextDay" title="+1 день">&#9654;</button>
-          <span class="nav-lbl" data-i18n="dayLbl">день</span>
-        </div>
-        <div class="nav-group">
-          <button class="nav-arrow nav-month" id="nav-next-month" data-i18n-title="nextMonth" title="+1 месяц">&#9654;&#9654;</button>
-          <span class="nav-lbl" data-i18n="monthLbl">мес</span>
-        </div>
-        <div class="nav-group">
-          <button class="nav-arrow nav-year" id="nav-next-year" data-i18n-title="nextYear" title="+1 год">&#9654;&#9654;&#9654;</button>
-          <span class="nav-lbl" data-i18n="yearLbl">год</span>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div id="chartpage-right">
-    <div id="right-panel-tabs">
-      <button class="tab-btn active" id="rightTabTimeline" data-i18n="timeline">Таймлайн</button>
-      <button class="tab-btn" id="rightTabInfo" data-i18n="info">Инфо</button>
-      <button class="tab-btn" id="rightTabGrid" data-i18n="grid">Сетка</button>
-      <button id="tl-wide-btn" title="Развернуть на всю ширину">⤡</button>
-    </div>
-    <div id="right-timeline-content"></div>
-    <div id="right-vtimeline-content" style="display:none"></div>
-    <div id="right-info-content" style="display:none">
-      <table id="info-table">
-        <tbody id="tableBody"></tbody>
-      </table>
-      <div id="aspect-grid"></div>
-    </div>
-  </div>
-</div>
-<!-- ── Layout V2: experimental top/bottom split ──────────────────────── -->
+<!-- ── Layout V2 ──────────────────────────────────────────────────────── -->
 <div id="layout-v2">
   <div id="v2-top">
     <div id="v2-control-panel">
@@ -1219,6 +900,7 @@
           <span id="v2-chart-name"></span>
           <button class="v2-icon-btn" id="v2-edit-btn" title="Редактировать данные">✎</button>
           <button class="v2-icon-btn" id="v2-save-btn" title="Сохранить карту">💾</button>
+          <span id="save-confirm"></span>
         </div>
         <span id="v2-chart-date"></span>
       </div>
@@ -1249,16 +931,27 @@
     </div>
     <div id="v2-chart-area">
       <button id="v2-chart-expand-btn" title="Развернуть карту">⤢</button>
+      <div id="chart-block"></div>
     </div>
-    <div id="v2-aspect-panel"></div>
+    <div id="v2-aspect-panel">
+      <div id="right-info-content" style="display:none">
+        <table id="info-table">
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div id="aspect-grid"></div>
+      </div>
+    </div>
   </div>
   <div id="v2-bottom">
     <div id="v2-tl-tab">
       <button id="v2-tl-toggle">▲</button>
     </div>
-    <div id="v2-timeline-wrap"></div>
+    <div id="v2-timeline-wrap">
+      <div id="right-timeline-content"></div>
+    </div>
   </div>
 </div>
+<input type="date" id="nav-date-input" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
 
 <div id="tl-tooltip"></div>
 <div id="chart-tooltip"></div>
@@ -1457,8 +1150,6 @@ function applyLang() {
   document.querySelectorAll('[data-i18n-title]').forEach(el => {
     el.title = tr(el.dataset.i18nTitle);
   });
-  // Special elements with mixed content
-  document.getElementById('nav-today').textContent = tr('todayBtn');
   // Update lang buttons active state
   document.querySelectorAll('.lang-btn').forEach(btn => {
     btn.classList.toggle('lang-btn-active', btn.dataset.lang === currentLang);
@@ -1472,7 +1163,6 @@ function applyLang() {
       cachedTimeline = null; fastCache = {};
       computeAndRenderTimeline(natalData.planets, savedCenter);
     }
-    updateDateNav(currentTransitJD);
   }
   // Sync calcBtn text with current mode
   const fw = document.getElementById('form-wrap');
@@ -1640,9 +1330,6 @@ function reRenderCurrentChart() {
 
 
 // ── Settings dropdown ─────────────────────────────────────────────────────────
-
-const appHeader    = document.getElementById('app-header');
-const headerRight  = document.getElementById('header-right');
 
 function positionSettingsDropdown(anchorBtn) {
   const dd = document.getElementById('settings-dropdown');
@@ -1816,6 +1503,7 @@ function loadChartFromDB(c) {
 let _saveConfirmTimer;
 function showSaveConfirm(msg, isError = false) {
   const el = document.getElementById('save-confirm');
+  if (!el) return;
   el.textContent = msg;
   el.classList.toggle('error', isError);
   el.classList.add('show');
@@ -2199,11 +1887,7 @@ document.getElementById('birthPlace').addEventListener('keydown', async e => {
 function enterChartMode(name, date, time) {
   document.getElementById('form-wrap').style.display = 'none';
   document.getElementById('home-charts').style.display = 'none';
-  document.getElementById('app-header').classList.add('chart-mode');
-  document.getElementById('header-chart-name').textContent = name || '';
   const dateTime = [date, time].filter(Boolean).join(' · ');
-  document.getElementById('header-chart-date').textContent = dateTime;
-  document.getElementById('chartpage-layout').classList.add('visible');
   setV2ChartInfo(name, dateTime);
   activateLayout2();
 }
@@ -2214,24 +1898,19 @@ function setV2ChartInfo(name, dateTime) {
 }
 
 function exitChartMode(updateHistory = true) {
-  if (layout2Active) deactivateLayout2();
   currentChartId = null;
   if (updateHistory) {
     history.pushState('', document.title, window.location.pathname + window.location.search);
   }
+  document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', ...V2_TL_STATES);
   document.getElementById('form-wrap').style.display = 'block';
   if (currentUser) document.getElementById('home-charts').style.display = '';
-  document.getElementById('app-header').classList.remove('chart-mode');
-  document.getElementById('chartpage-layout').classList.remove('visible', 'transit-active', 'tl-wide');
-  document.getElementById('tl-wide-btn').textContent = '⤡';
-  document.getElementById('tl-wide-btn').title = 'Развернуть на всю ширину';
-  document.getElementById('chartpage-right').style.display = 'none';
-  setRightPanelTab('timeline');
   natalData = null;
   cachedTimeline = null;
+  layout2Active = false;
+  chartExpanded = false;
+  layout2TlState = 0;
 }
-
-document.getElementById('backBtn').addEventListener('click', () => exitChartMode(true));
 
 // ── Hash routing ──────────────────────────────────────────────────────────────
 
@@ -2262,13 +1941,7 @@ window.addEventListener('popstate', () => {
   }
 });
 
-document.getElementById('editChartBtn').addEventListener('click', enterEditMode);
-
 document.getElementById('cancelEditBtn').addEventListener('click', exitEditMode);
-
-document.getElementById('saveChartBtn').addEventListener('click', () => {
-  document.getElementById('saveBtn').click();
-});
 
 function enterEditMode() {
   const fw = document.getElementById('form-wrap');
@@ -2334,9 +2007,7 @@ document.getElementById('calcBtn').addEventListener('click', () => {
 
     if (document.getElementById('form-wrap').classList.contains('editing')) {
       exitEditMode();
-      document.getElementById('header-chart-name').textContent = chartName;
       const editedDateTime = [fmtDate, fmtTime].filter(Boolean).join(' · ');
-      document.getElementById('header-chart-date').textContent = editedDateTime;
       setV2ChartInfo(chartName, editedDateTime);
     } else {
       enterChartMode(chartName, fmtDate, fmtTime);
@@ -2344,7 +2015,11 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     renderChart(planets, cusps, asc, mc);
     buildInfoTable(planets, cusps);
     buildAspectGrid(addSouthNode(planets, cusps));
-    document.getElementById('tabTransit').click();
+    currentMode = 'transit';
+    syncV2ModeButtons();
+    if (currentTransitJD) renderBiwheelAt(currentTransitJD);
+    else showTransitNow();
+    computeAndRenderTimeline(natalData.planets);
     setStatus('');
   } catch (e) { setStatus(tr('error') + e.message); }
 });
@@ -2933,46 +2608,6 @@ function buildAspectGrid(natalPlanets, secondPlanets = null, orbMode = 'natal') 
   container.innerHTML = html;
 }
 
-// ── Tabs ──────────────────────────────────────────────────────────────────────
-
-function setActiveTab(id) {
-  const pl = document.getElementById('chartpage-layout');
-  pl.classList.toggle('transit-active', id === 'transit');
-  pl.style.removeProperty('display');
-}
-
-// ── Right panel tabs (Timeline / Info) ───────────────────────────────────────
-
-function setRightPanelTab(id) {
-  document.getElementById('rightTabTimeline').classList.toggle('active', id === 'timeline');
-  document.getElementById('rightTabInfo').classList.toggle('active', id === 'info');
-  document.getElementById('rightTabGrid').classList.toggle('active', id === 'grid');
-  document.getElementById('right-timeline-content').style.display   = id === 'timeline' ? '' : 'none';
-  document.getElementById('right-vtimeline-content').style.display  = id === 'grid'     ? '' : 'none';
-  document.getElementById('right-info-content').style.display       = id === 'info'     ? '' : 'none';
-  if (id === 'grid' && cachedTimeline)
-    renderVTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() });
-}
-
-document.getElementById('rightTabTimeline').addEventListener('click', () => setRightPanelTab('timeline'));
-document.getElementById('rightTabInfo').addEventListener('click', () => setRightPanelTab('info'));
-document.getElementById('rightTabGrid').addEventListener('click', () => {
-  if (!natalData) return;
-  setRightPanelTab('grid');
-  if (!cachedTimeline) computeAndRenderTimeline(natalData.planets);
-});
-
-document.getElementById('tl-wide-btn').addEventListener('click', () => {
-  const layout = document.getElementById('chartpage-layout');
-  const btn = document.getElementById('tl-wide-btn');
-  const wide = layout.classList.toggle('tl-wide');
-  btn.textContent = wide ? '⤢' : '⤡';
-  btn.title = wide ? 'Свернуть' : 'Развернуть на всю ширину';
-  if (cachedTimeline) requestAnimationFrame(() =>
-    renderTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() })
-  );
-});
-
 // ── Date navigator helpers ────────────────────────────────────────────────────
 
 function computeJDNow() {
@@ -2980,21 +2615,6 @@ function computeJDNow() {
   const now = new Date();
   return swe.julday(now.getUTCFullYear(), now.getUTCMonth() + 1,
     now.getUTCDate(), now.getUTCHours() + now.getUTCMinutes() / 60);
-}
-
-function updateDateNav(jd) {
-  const lbl      = document.getElementById('transit-date-lbl');
-  const todayBtn = document.getElementById('nav-today');
-  if (jd === null) {
-    lbl.textContent = tr('today');
-    lbl.classList.remove('active');
-    todayBtn.style.display = 'none';
-  } else {
-    lbl.textContent = new Date((jd - 2440587.5) * 86400000)
-      .toLocaleDateString(currentLang, { day: 'numeric', month: 'long', year: 'numeric' });
-    lbl.classList.add('active');
-    todayBtn.style.display = 'inline';
-  }
 }
 
 function applyNavigatedJD(jd, unit = null) {
@@ -3007,28 +2627,8 @@ function applyNavigatedJD(jd, unit = null) {
 
 function switchModeAndNavigate(mode, jd) {
   if (!natalData || !swe) return;
-  if (mode === 'direction') {
-    currentMode = 'direction';
-    setSubTab('subTabDirection');
-    document.getElementById('date-nav').style.display = '';
-    document.getElementById('transit-mode-content').style.display = 'none';
-    document.getElementById('prog-mode-content').style.display = 'none';
-    renderDirectionBiwheel(jd);
-  } else if (mode === 'progressed') {
-    currentMode = 'progressed';
-    setSubTab('subTabProgressed');
-    document.getElementById('date-nav').style.display = '';
-    document.getElementById('transit-mode-content').style.display = 'none';
-    document.getElementById('prog-mode-content').style.display = 'block';
-    renderProgressedBiwheel(jd);
-  } else {
-    currentMode = 'transit';
-    setSubTab('subTabTransit');
-    document.getElementById('date-nav').style.display = '';
-    document.getElementById('transit-mode-content').style.display = 'block';
-    document.getElementById('prog-mode-content').style.display = 'none';
-    renderBiwheelAt(jd);
-  }
+  currentTransitJD = jd;
+  switchToMode(mode);
   syncTimelineCursor();
 }
 
@@ -3068,39 +2668,11 @@ function navigateDateBy(unit, delta) {
   applyNavigatedJD(newJD, unit);
 }
 
-document.getElementById('nav-prev-day').addEventListener('click', () => navigateDateBy('day', -1));
-document.getElementById('nav-next-day').addEventListener('click', () => navigateDateBy('day', +1));
-document.getElementById('nav-prev-month').addEventListener('click', () => navigateDateBy('month', -1));
-document.getElementById('nav-next-month').addEventListener('click', () => navigateDateBy('month', +1));
-document.getElementById('nav-prev-year').addEventListener('click', () => navigateDateBy('year', -1));
-document.getElementById('nav-next-year').addEventListener('click', () => navigateDateBy('year', +1));
-
-document.getElementById('transit-date-lbl').addEventListener('click', () => {
-  const baseJD = currentTransitJD ?? computeJDNow();
-  if (baseJD) {
-    const d = new Date((baseJD - 2440587.5) * 86400000);
-    const yyyy = d.getUTCFullYear();
-    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const dd = String(d.getUTCDate()).padStart(2, '0');
-    document.getElementById('nav-date-input').value = `${yyyy}-${mm}-${dd}`;
-  }
-  try { document.getElementById('nav-date-input').showPicker(); }
-  catch { document.getElementById('nav-date-input').click(); }
-});
-
 document.getElementById('nav-date-input').addEventListener('change', () => {
   const val = document.getElementById('nav-date-input').value;
   if (!val) return;
   const [y, m, d] = val.split('-').map(Number);
   applyNavigatedJD(new Date(Date.UTC(y, m - 1, d)).getTime() / 86400000 + 2440587.5);
-});
-
-document.getElementById('nav-today').addEventListener('click', () => {
-  currentTransitJD = null;
-  if (currentMode === 'transit') showTransitNow();
-  else if (currentMode === 'direction') renderDirectionBiwheel(null);
-  else renderProgressedBiwheel(null);
-  syncTimelineCursor();
 });
 
 function renderDirectionBiwheel(jd = null) {
@@ -3120,7 +2692,6 @@ function renderDirectionBiwheel(jd = null) {
   setInfoTableMode('biwheel-houses');
   buildAspectGrid(addSouthNode(natal, natalCusps), addSouthNode(directed), 'direction');
   currentTransitJD = jd;
-  updateDateNav(jd);
 }
 
 function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) {
@@ -3253,13 +2824,6 @@ function drawDirectionAspects(g, natal, directed, asc) {
   }
 }
 
-document.getElementById('tabNatal').addEventListener('click', () => {
-  if (!natalData) return;
-  setActiveTab('natal');
-  document.getElementById('chartpage-right').style.display = 'none';
-  renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
-  renderTable(natalData.planets);
-});
 
 function showTransitNow() {
   const now   = new Date();
@@ -3277,7 +2841,6 @@ function showTransitNow() {
   setInfoTableMode('biwheel');
   buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps), addSouthNode(transit), 'transit');
   currentTransitJD = null;
-  updateDateNav(null);
 }
 
 // ── Progressed aspects (orbs: 2° Sun/Moon, 1° others) ────────────────────────
@@ -3505,72 +3068,25 @@ function renderProgressedBiwheel(jd = null) {
   setInfoTableMode('biwheel');
   buildAspectGrid(addSouthNode(natal, cusps), addSouthNode(progressed), 'progressed');
   currentTransitJD = jd;
-  updateDateNav(jd);
 }
 
-document.getElementById('tabTransit').addEventListener('click', () => {
+function switchToMode(mode) {
   if (!natalData || !swe) return;
-  currentMode = 'transit';
-  currentTransitJD = null;
-  setActiveTab('transit');
-  setSubTab('subTabTransit');
-  document.getElementById('date-nav').style.display = '';
-  document.getElementById('transit-mode-content').style.display = 'block';
-  document.getElementById('prog-mode-content').style.display = 'none';
-  showTransitNow();
-  document.getElementById('chartpage-right').style.display = 'block';
-  computeAndRenderTimeline(natalData.planets);
-});
-
-function setSubTab(id) {
-  ['subTabNatal','subTabTransit','subTabProgressed','subTabDirection'].forEach(t =>
-    document.getElementById(t).classList.toggle('active', t === id)
-  );
+  currentMode = mode;
+  syncV2ModeButtons();
+  if (mode === 'natal') {
+    renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
+    setInfoTableMode('natal');
+    buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps));
+  } else if (mode === 'transit') {
+    if (currentTransitJD) renderBiwheelAt(currentTransitJD);
+    else showTransitNow();
+  } else if (mode === 'progressed') {
+    renderProgressedBiwheel(currentTransitJD);
+  } else if (mode === 'direction') {
+    renderDirectionBiwheel(currentTransitJD);
+  }
 }
-
-document.getElementById('subTabNatal').addEventListener('click', () => {
-  if (!natalData) return;
-  currentMode = 'natal';
-  setSubTab('subTabNatal');
-  document.getElementById('transit-mode-content').style.display = 'none';
-  document.getElementById('prog-mode-content').style.display = 'none';
-  document.getElementById('date-nav').style.display = '';
-  renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
-  setInfoTableMode('natal');
-  buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps));
-});
-
-document.getElementById('subTabTransit').addEventListener('click', () => {
-  if (!natalData || !swe) return;
-  currentMode = 'transit';
-  setSubTab('subTabTransit');
-  document.getElementById('date-nav').style.display = '';
-  document.getElementById('transit-mode-content').style.display = 'block';
-  document.getElementById('prog-mode-content').style.display = 'none';
-  // Navigate to current date or keep currentTransitJD
-  if (currentTransitJD) renderBiwheelAt(currentTransitJD);
-  else showTransitNow();
-});
-
-document.getElementById('subTabProgressed').addEventListener('click', () => {
-  if (!natalData || !swe) return;
-  currentMode = 'progressed';
-  setSubTab('subTabProgressed');
-  document.getElementById('date-nav').style.display = '';
-  document.getElementById('transit-mode-content').style.display = 'none';
-  document.getElementById('prog-mode-content').style.display = 'block';
-  renderProgressedBiwheel(currentTransitJD);
-});
-
-document.getElementById('subTabDirection').addEventListener('click', () => {
-  if (!natalData || !swe) return;
-  currentMode = 'direction';
-  setSubTab('subTabDirection');
-  document.getElementById('date-nav').style.display = '';
-  document.getElementById('transit-mode-content').style.display = 'none';
-  document.getElementById('prog-mode-content').style.display = 'none';
-  renderDirectionBiwheel(currentTransitJD);
-});
 
 // ── Render biwheel for a specific JD (called from timeline bar tap) ──────────
 function renderBiwheelAt(jd) {
@@ -3585,7 +3101,6 @@ function renderBiwheelAt(jd) {
   setInfoTableMode('biwheel');
   buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps), addSouthNode(transit), 'transit');
   currentTransitJD = jd;
-  updateDateNav(jd);
 }
 
 
@@ -4146,8 +3661,6 @@ function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
         : [];
       cachedTimeline = { ...transitData, progEvents, dirEvents, center };
       renderTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? jdToday });
-      if (document.getElementById('rightTabGrid')?.classList.contains('active'))
-        renderVTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? jdToday });
     } catch (e) {
       tl.innerHTML = `<div class="tl-status">${tr('error')}${e.message}</div>`;
     }
@@ -5080,10 +4593,10 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
   scrollWrap.addEventListener('scroll', () => { hdrScrollWrap.scrollLeft = scrollWrap.scrollLeft; });
   hdrScrollWrap.addEventListener('scroll', () => { scrollWrap.scrollLeft = hdrScrollWrap.scrollLeft; });
 
-  // filterBar → transit-mode-content in left panel
-  const modeContent = document.getElementById('transit-mode-content');
+  // filterBar → V2 timeline wrap (V1 transit-mode-content removed)
+  const modeContent = document.getElementById('v2-timeline-wrap');
   modeContent.querySelector('#tl-filter')?.remove();
-  modeContent.appendChild(filterBar);
+  modeContent.insertBefore(filterBar, modeContent.firstChild);
 
   const prevBodyScrollTop = document.getElementById('tl-body')?.scrollTop ?? 0;
 
@@ -5103,14 +4616,6 @@ function setStatus(msg) { document.getElementById('status').textContent = msg; }
 // ── Long-term Forecast page ───────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 
-document.getElementById('tabForecast').addEventListener('click', () => {
-  if (!natalData || !swe) return;
-  setActiveTab('forecast');
-  const fcWrap = document.getElementById('forecast-chart-wrap');
-  const natSVG = document.querySelector('#chart-block svg');
-  if (natSVG) fcWrap.replaceChildren(natSVG.cloneNode(true));
-  initForecastUI();
-});
 
 function initForecastUI() {
   // House selector buttons
@@ -5716,200 +5221,8 @@ function renderLongTermTimeline({ dirEvents, progEvents, transitData, jdStart, j
   });
 }
 
-// ── Vertical Timeline (grid view) ─────────────────────────────────────────────
+// ── Layout V2 ─────────────────────────────────────────────────────────────────
 
-const VT_PX_PER_DAY = 3;   // pixels per day
-const VT_LABEL_W    = 36;   // left column width for month labels
-const VT_COL_W      = 44;   // width per natal-planet column
-const VT_HDR_H      = 30;   // header height (planet glyphs row)
-const VT_BAR_W      = 9;    // max bar width per lane
-const VT_BAR_GAP    = 1;    // gap between adjacent lanes in same column
-
-function renderVTimeline({ periods, jdToday, jdCursor }) {
-  const container = document.getElementById('right-vtimeline-content');
-  const slowPeriods = (periods ?? []).filter(p => SLOW_IDS.includes(p.tPlanet?.id));
-  if (!slowPeriods.length) {
-    container.innerHTML = `<div class="tl-status">${tr('noTransits')}</div>`;
-    return;
-  }
-
-  // Fixed 2-year window centered on today/cursor
-  const jdNow  = jdCursor ?? jdToday ?? computeJDNow();
-  const vtStart = jdNow - 365;
-  const vtEnd   = jdNow + 365;
-
-  // Keep only periods overlapping [vtStart, vtEnd]
-  const visible = slowPeriods.filter(p => p.endJD >= vtStart && p.startJD <= vtEnd);
-  if (!visible.length) {
-    container.innerHTML = `<div class="tl-status">${tr('noTransits')}</div>`;
-    return;
-  }
-
-  // Collect natal planet column IDs in PLANETS declaration order
-  const natalIdSet = new Set(visible.map(p => p.na.id));
-  const natalIds   = PLANETS.filter(p => natalIdSet.has(p.id)).map(p => p.id);
-  const nCols      = natalIds.length;
-  const colIdx     = new Map(natalIds.map((id, i) => [id, i]));
-
-  // Group bars by column; greedy lane assignment to avoid vertical overlaps
-  const colBars = Array.from({ length: nCols }, () => []);
-  for (const p of visible) {
-    const ci = colIdx.get(p.na.id);
-    if (ci == null) continue;
-    colBars[ci].push({ p, lane: 0 });
-  }
-  const maxLanes = colBars.map(bars => {
-    bars.sort((a, b) => a.p.startJD - b.p.startJD);
-    const laneEnd = [];
-    for (const bar of bars) {
-      let lane = laneEnd.findIndex(e => e <= bar.p.startJD);
-      if (lane < 0) { lane = laneEnd.length; laneEnd.push(0); }
-      laneEnd[lane] = bar.p.endJD;
-      bar.lane = lane;
-    }
-    return Math.max(laneEnd.length, 1);
-  });
-
-  const totalDays = vtEnd - vtStart;
-  const BODY_H    = Math.ceil(totalDays * VT_PX_PER_DAY);
-  const TOTAL_W   = VT_LABEL_W + nCols * VT_COL_W;
-  const SVG_H     = VT_HDR_H + BODY_H;
-
-  const yOf = jd => {
-    const raw = VT_HDR_H + (jd - vtStart) * VT_PX_PER_DAY;
-    return Math.max(VT_HDR_H, Math.min(raw, SVG_H));
-  };
-
-  const hel = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
-  const tooltip = document.getElementById('tl-tooltip');
-
-  // ── Single SVG (header + body) ───────────────────────────────────────────────
-  const svg = el('svg', { width: TOTAL_W, height: SVG_H });
-
-  // ── Header row ───────────────────────────────────────────────────────────────
-  svg.appendChild(el('rect', { x: 0, y: 0, width: TOTAL_W, height: VT_HDR_H, fill: 'var(--bg-page)' }));
-  for (let ci = 0; ci < nCols; ci++) {
-    const natPl = PLANETS.find(p => p.id === natalIds[ci]);
-    const cx = VT_LABEL_W + ci * VT_COL_W + VT_COL_W / 2;
-    if (ci > 0)
-      svg.appendChild(ln(VT_LABEL_W + ci * VT_COL_W, 0, VT_LABEL_W + ci * VT_COL_W, VT_HDR_H,
-        { stroke: 'var(--bd-light)', 'stroke-width': 0.5 }));
-    svg.appendChild(txt(cx, VT_HDR_H / 2 + 1, natPl.hamburgGlyph, {
-      'font-family': 'HamburgSymbols', 'font-size': 16,
-      fill: 'var(--tx-2)', 'text-anchor': 'middle', 'dominant-baseline': 'central',
-    }));
-  }
-  svg.appendChild(ln(0, VT_HDR_H, TOTAL_W, VT_HDR_H, { stroke: 'var(--bd)', 'stroke-width': 1 }));
-
-  // ── Column backgrounds (alternating) ─────────────────────────────────────────
-  for (let ci = 0; ci < nCols; ci++) {
-    if (ci % 2 === 1)
-      svg.appendChild(el('rect', {
-        x: VT_LABEL_W + ci * VT_COL_W, y: VT_HDR_H,
-        width: VT_COL_W, height: BODY_H, fill: 'var(--bg-row-alt)',
-      }));
-  }
-
-  // ── Column separators ────────────────────────────────────────────────────────
-  for (let ci = 1; ci < nCols; ci++)
-    svg.appendChild(ln(VT_LABEL_W + ci * VT_COL_W, VT_HDR_H,
-      VT_LABEL_W + ci * VT_COL_W, SVG_H,
-      { stroke: 'var(--bd-light)', 'stroke-width': 0.5 }));
-
-  // ── Month grid lines + labels ────────────────────────────────────────────────
-  const MONTHS = tr('months');
-  {
-    const d  = new Date((vtStart - 2440587.5) * 86400000);
-    let yr = d.getUTCFullYear(), mo = d.getUTCMonth() + 1;
-    for (;;) {
-      const jdMo = swe.julday(yr, mo, 1, 0);
-      if (jdMo > vtEnd + 1) break;
-      const y      = yOf(jdMo);
-      const isJan  = mo === 1;
-      svg.appendChild(ln(VT_LABEL_W, y, TOTAL_W, y, {
-        stroke: isJan ? '#bbb' : '#e2e2e0',
-        'stroke-width': isJan ? 1 : 0.5,
-      }));
-      const lbl = isJan ? `${MONTHS[mo - 1]} ${yr}` : MONTHS[mo - 1];
-      svg.appendChild(txt(VT_LABEL_W - 3, y + 2, lbl, {
-        'font-size': isJan ? 9 : 8, fill: isJan ? '#777' : '#bbb',
-        'text-anchor': 'end', 'dominant-baseline': 'hanging',
-      }));
-      if (++mo > 12) { mo = 1; yr++; }
-    }
-  }
-
-  // ── Transit bars ─────────────────────────────────────────────────────────────
-  for (let ci = 0; ci < nCols; ci++) {
-    const nLanes     = maxLanes[ci];
-    const availW     = VT_COL_W - 4;
-    const actualBarW = Math.max(4, Math.min(VT_BAR_W, Math.floor(availW / nLanes) - VT_BAR_GAP));
-
-    for (const { p, lane } of colBars[ci]) {
-      const y1    = yOf(p.startJD);
-      const y2    = yOf(p.endJD + 1);
-      const barH  = Math.max(y2 - y1, 3);
-      const bx    = VT_LABEL_W + ci * VT_COL_W + 2 + lane * (actualBarW + VT_BAR_GAP);
-      const color = p.asp.color;
-
-      const rect  = el('rect', { x: bx, y: y1, width: actualBarW, height: barH,
-        fill: color, rx: 2, opacity: '0.85' });
-
-      // Tooltip: "Юпитер △ Солнце"
-      const natName = PLANETS.find(pl => pl.id === p.na.id)?.name ?? p.na.name;
-      const tipText = `${p.tPlanet.name} ${p.asp.symbol} ${natName}`;
-      rect.addEventListener('mouseover', () => { tooltip.textContent = tipText; tooltip.style.display = 'block'; });
-      rect.addEventListener('mousemove', e => { tooltip.style.left = (e.clientX + 14) + 'px'; tooltip.style.top = (e.clientY - 30) + 'px'; });
-      rect.addEventListener('mouseout',  () => { tooltip.style.display = 'none'; });
-      svg.appendChild(rect);
-
-      // Exact aspect dots
-      for (const ejd of (p.exactJDs ?? [])) {
-        const ey = yOf(ejd);
-        if (ey >= y1 - 1 && ey <= y2 + 1)
-          svg.appendChild(circ(bx + actualBarW / 2, ey, 2,
-            { fill: '#fff', stroke: color, 'stroke-width': 1.2 }));
-      }
-
-      // Planet glyph inside bar (if bar is wide & tall enough)
-      if (actualBarW >= 7 && barH >= 16) {
-        svg.appendChild(txt(bx + actualBarW / 2, y1 + Math.min(barH / 2, 22), p.tPlanet.hamburgGlyph, {
-          'font-family': 'HamburgSymbols', 'font-size': 8,
-          fill: 'rgba(255,255,255,0.9)', 'text-anchor': 'middle', 'dominant-baseline': 'central',
-          'pointer-events': 'none',
-        }));
-      }
-    }
-  }
-
-  // ── Today / cursor line ───────────────────────────────────────────────────────
-  if (jdNow >= vtStart && jdNow <= vtEnd) {
-    const y = yOf(jdNow);
-    svg.appendChild(ln(0, y, TOTAL_W, y,
-      { stroke: '#e44', 'stroke-width': 1.5, 'stroke-dasharray': '4,2', opacity: '0.85' }));
-    svg.appendChild(txt(VT_LABEL_W - 3, y - 1, '▶',
-      { 'font-size': 7, fill: '#e44', 'text-anchor': 'end', 'dominant-baseline': 'auto' }));
-  }
-
-  // ── Assemble ─────────────────────────────────────────────────────────────────
-  const scrollDiv = hel('div'); scrollDiv.id = 'vt-scroll';
-  scrollDiv.appendChild(svg);
-  container.replaceChildren(scrollDiv);
-
-  // Auto-scroll so today is ~28% from top of visible area.
-  // Double rAF ensures layout settles after display:none→'' transition.
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    const scrollEl = document.getElementById('chartpage-right');
-    if (!scrollEl) return;
-    const y        = yOf(jdNow);
-    const cRect    = container.getBoundingClientRect();
-    const sRect    = scrollEl.getBoundingClientRect();
-    const offsetIn = scrollEl.scrollTop + cRect.top - sRect.top;
-    scrollEl.scrollTop = Math.max(0, offsetIn + y - scrollEl.clientHeight * 0.28);
-  }));
-}
-
-// ── Layout V2: experimental top/bottom split ──────────────────────────────────
 function syncV2ModeButtons() {
   document.querySelectorAll('.v2-mode-btn').forEach(btn =>
     btn.classList.toggle('active', btn.dataset.mode === currentMode)
@@ -5919,15 +5232,27 @@ function syncV2ModeButtons() {
 document.getElementById('v2-control-panel').addEventListener('click', e => {
   const modeBtn = e.target.closest('.v2-mode-btn');
   if (modeBtn) {
-    const ids = { natal: 'subTabNatal', transit: 'subTabTransit', progressed: 'subTabProgressed', direction: 'subTabDirection' };
-    document.getElementById(ids[modeBtn.dataset.mode])?.click();
-    syncV2ModeButtons();
+    switchToMode(modeBtn.dataset.mode);
     return;
   }
   const navBtn = e.target.closest('.v2-nav-btn');
   if (navBtn) {
-    const ids = { 'prev-year': 'nav-prev-year', 'next-year': 'nav-next-year', 'prev-month': 'nav-prev-month', 'next-month': 'nav-next-month', 'prev-day': 'nav-prev-day', 'next-day': 'nav-next-day', 'today': 'nav-today' };
-    document.getElementById(ids[navBtn.dataset.nav])?.click();
+    const nav = navBtn.dataset.nav;
+    if (nav === 'today') {
+      currentTransitJD = null;
+      if (currentMode === 'transit') showTransitNow();
+      else if (currentMode === 'direction') renderDirectionBiwheel(null);
+      else renderProgressedBiwheel(null);
+      syncTimelineCursor();
+    } else {
+      const unitMap = {
+        'prev-day': ['day', -1], 'next-day': ['day', +1],
+        'prev-month': ['month', -1], 'next-month': ['month', +1],
+        'prev-year': ['year', -1], 'next-year': ['year', +1],
+      };
+      const [unit, delta] = unitMap[nav] || [];
+      if (unit) navigateDateBy(unit, delta);
+    }
   }
 });
 
@@ -5939,22 +5264,7 @@ let chartExpanded   = false;
 
 function activateLayout2() {
   if (layout2Active) return;
-  const v2           = document.getElementById('layout-v2');
-  const chartArea    = document.getElementById('v2-chart-area');
-  const aspectPanel  = document.getElementById('v2-aspect-panel');
-  const tlWrap       = document.getElementById('v2-timeline-wrap');
-
-  // Left: live chart-block (mode-switchable)
-  chartArea.appendChild(document.getElementById('chart-block'));
-
-  // Center: info panel (planet positions)
-  aspectPanel.appendChild(document.getElementById('right-info-content'));
-
-  // Timeline
-  tlWrap.appendChild(document.getElementById('right-timeline-content'));
-
-  document.getElementById('chartpage-layout').style.display = 'none';
-  document.getElementById('app-header').style.display = 'none';
+  const v2 = document.getElementById('layout-v2');
   v2.classList.add('v2-visible');
   v2.classList.remove(...V2_TL_STATES, 'tl-hidden');
   v2.classList.add(V2_TL_STATES[layout2TlState]);
@@ -5963,17 +5273,14 @@ function activateLayout2() {
   document.getElementById('v2-chart-expand-btn').textContent = '⤢';
   layout2Active = true;
 
-  // Show transit biwheel
   if (natalData) {
     currentMode = 'transit';
     renderBiwheelAt(currentTransitJD ?? computeJDNow());
     syncV2ModeButtons();
   }
 
-
   if (natalData) {
     if (tlYearScale) {
-      // switch to month scale on entering v2
       tlYearScale = false;
       const c = cachedTimeline?.center;
       cachedTimeline = null;
@@ -5988,40 +5295,9 @@ function activateLayout2() {
   }
 }
 
-function deactivateLayout2() {
-  if (!layout2Active) return;
-  const v2            = document.getElementById('layout-v2');
-  const chartpageLeft = document.getElementById('chartpage-left');
-  const chartpageRight = document.getElementById('chartpage-right');
+document.getElementById('v2-exit-btn').addEventListener('click', () => exitChartMode(true));
 
-  // Move chart-block back
-  chartpageLeft.appendChild(document.getElementById('chart-block'));
-
-  // Move info content back, then timeline before vtimeline
-  chartpageRight.appendChild(document.getElementById('right-info-content'));
-  chartpageRight.insertBefore(
-    document.getElementById('right-timeline-content'),
-    document.getElementById('right-vtimeline-content')
-  );
-
-  document.getElementById('chartpage-layout').style.display = '';
-  document.getElementById('app-header').style.display = '';
-  v2.classList.remove('v2-visible', 'tl-hidden');
-  chartExpanded = false;
-  layout2Active = false;
-}
-
-document.getElementById('layout-v2-btn').addEventListener('click', () => {
-  if (layout2Active) deactivateLayout2();
-  else activateLayout2();
-});
-
-document.getElementById('v2-exit-btn').addEventListener('click', deactivateLayout2);
-
-document.getElementById('v2-logo').addEventListener('click', () => {
-  deactivateLayout2();
-  exitChartMode(true);
-});
+document.getElementById('v2-logo').addEventListener('click', () => exitChartMode(true));
 
 document.getElementById('v2-edit-btn').addEventListener('click', enterEditMode);
 

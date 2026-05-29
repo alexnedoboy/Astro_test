@@ -338,13 +338,13 @@
   #header-right { position: relative; flex-shrink: 0; margin-left: auto; }
   .settings-btn { font-size: 1.05em; }
   #settings-dropdown {
-    display: none; position: absolute; right: 0; top: calc(100% + 4px);
+    display: none; position: fixed;
     background: var(--bg); border: 1px solid var(--bd); border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.12); padding: 10px 14px;
-    min-width: 180px; z-index: 300;
+    min-width: 180px; z-index: 400;
     flex-direction: column; gap: 8px;
   }
-  #header-right.open #settings-dropdown { display: flex; }
+  body.settings-open #settings-dropdown { display: flex; }
   #settings-dropdown #auth-zone { display: flex; flex-direction: column; gap: 6px; }
   #settings-dropdown #user-info { display: flex; flex-direction: column; gap: 5px; }
   #settings-dropdown .auth-btn { width: 100%; text-align: center; }
@@ -1052,26 +1052,26 @@
     </div>
     <div id="header-right">
       <button id="settingsBtn" class="icon-btn settings-btn" data-i18n-title="settings" title="Настройки">⚙&#xFE0E;</button>
-      <div id="settings-dropdown">
-        <label id="elem-colors-label" style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
-          <input type="checkbox" id="elemColorsToggle"> <span data-i18n="elements">Стихии</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
-          <input type="checkbox" id="progLunarPhasesToggle"> <span data-i18n="progLunarPhases">Фазы прогр. Луны</span>
-        </label>
-        <div id="lang-switcher">
-          <button class="lang-btn lang-btn-active" data-lang="ru">RU</button>
-          <button class="lang-btn" data-lang="en">EN</button>
-        </div>
-        <button class="auth-btn" id="planetFilterBtn" data-i18n="planetVisibility">Планеты натала</button>
-        <div id="auth-zone">
-          <button id="loginBtn" class="auth-btn primary" data-i18n="login">Войти</button>
-          <div id="user-info" style="display:none">
-            <span id="user-email-short"></span>
-            <button id="chartsBtn" class="auth-btn" data-i18n="charts">📂 Карты</button>
-            <button id="logoutBtn" class="auth-btn ghost" data-i18n="logout">Выйти</button>
-          </div>
-        </div>
+    </div>
+  </div>
+  <div id="settings-dropdown">
+    <label id="elem-colors-label" style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
+      <input type="checkbox" id="elemColorsToggle"> <span data-i18n="elements">Стихии</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
+      <input type="checkbox" id="progLunarPhasesToggle"> <span data-i18n="progLunarPhases">Фазы прогр. Луны</span>
+    </label>
+    <div id="lang-switcher">
+      <button class="lang-btn lang-btn-active" data-lang="ru">RU</button>
+      <button class="lang-btn" data-lang="en">EN</button>
+    </div>
+    <button class="auth-btn" id="planetFilterBtn" data-i18n="planetVisibility">Планеты натала</button>
+    <div id="auth-zone">
+      <button id="loginBtn" class="auth-btn primary" data-i18n="login">Войти</button>
+      <div id="user-info" style="display:none">
+        <span id="user-email-short"></span>
+        <button id="chartsBtn" class="auth-btn" data-i18n="charts">📂 Карты</button>
+        <button id="logoutBtn" class="auth-btn ghost" data-i18n="logout">Выйти</button>
       </div>
     </div>
   </div>
@@ -1635,22 +1635,47 @@ function reRenderCurrentChart() {
 const appHeader    = document.getElementById('app-header');
 const headerRight  = document.getElementById('header-right');
 
+function positionSettingsDropdown(anchorBtn) {
+  const dd = document.getElementById('settings-dropdown');
+  const r = anchorBtn.getBoundingClientRect();
+  const ddW = dd.offsetWidth || 200;
+  let left = r.right - ddW;
+  let top = r.bottom + 4;
+  if (left < 8) left = r.left;
+  if (left + ddW > window.innerWidth - 8) left = window.innerWidth - ddW - 8;
+  if (top + 220 > window.innerHeight - 8) top = r.top - 220 - 4;
+  dd.style.left = Math.max(8, left) + 'px';
+  dd.style.top = Math.max(8, top) + 'px';
+}
+
+function openSettingsDropdown(anchorBtn, e) {
+  if (e) e.stopPropagation();
+  const isOpen = document.body.classList.toggle('settings-open');
+  if (isOpen) positionSettingsDropdown(anchorBtn);
+}
+
+function closeSettingsDropdown() {
+  document.body.classList.remove('settings-open');
+}
+
 document.getElementById('settingsBtn').addEventListener('click', e => {
-  e.stopPropagation();
-  headerRight.classList.toggle('open');
+  openSettingsDropdown(e.currentTarget, e);
 });
 
 // Close on outside click
 document.addEventListener('click', e => {
-  if (headerRight.classList.contains('open') && !headerRight.contains(e.target)) {
-    headerRight.classList.remove('open');
+  if (!document.body.classList.contains('settings-open')) return;
+  const dd = document.getElementById('settings-dropdown');
+  if (!dd.contains(e.target) &&
+      e.target.id !== 'settingsBtn' && e.target.id !== 'v2-settings-btn') {
+    closeSettingsDropdown();
   }
 });
 
 // Close when a button inside dropdown is clicked (but not lang buttons)
 document.getElementById('settings-dropdown').addEventListener('click', e => {
   if (e.target.closest('.auth-btn')) {
-    headerRight.classList.remove('open');
+    closeSettingsDropdown();
   }
 });
 
@@ -1690,7 +1715,7 @@ function rerenderNatal() {
 }
 
 document.getElementById('planetFilterBtn').addEventListener('click', () => {
-  headerRight.classList.remove('open');
+  closeSettingsDropdown();
   buildPlanetFilterGrid();
   planetFilterOverlay.classList.add('open');
 });
@@ -5986,8 +6011,8 @@ document.getElementById('v2-save-btn').addEventListener('click', () => {
   document.getElementById('saveBtn').click();
 });
 
-document.getElementById('v2-settings-btn').addEventListener('click', () => {
-  document.getElementById('settingsBtn').click();
+document.getElementById('v2-settings-btn').addEventListener('click', e => {
+  openSettingsDropdown(e.currentTarget, e);
 });
 
 document.getElementById('v2-tl-toggle').addEventListener('click', () => {

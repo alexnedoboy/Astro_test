@@ -1758,7 +1758,8 @@ let tlFutureYears    = 0;      // extra years extended into the future
 let expandedRows     = new Set();  // natal planet IDs whose row is expanded
 let fastCache        = {};         // natal planet id → fast-transit periods[]
 let hiddenTPlants    = new Set();  // transiting planet IDs hidden from timeline
-let tlYearScale      = false;      // year-scale vs month-scale timeline
+let tlYearScale      = false;      // 10Y scale timeline
+let tl2Year         = false;      // 2Y scale timeline
 let moonBandCollapsed = false;     // whether progressed Moon band is collapsed
 let detectedTimezone = null;   // IANA timezone name after geocoding
 let currentTransitJD = null;   // currently displayed JD (null = today)
@@ -3663,7 +3664,7 @@ function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
       } else {
         const cy = new Date((center - 2440587.5) * 86400000).getUTCFullYear();
         jdCoreStart = swe.julday(cy, 1, 1, 0);
-        jdCoreEnd   = swe.julday(cy + 1, 1, 1, 0);
+        jdCoreEnd   = swe.julday(tl2Year ? cy + 2 : cy + 1, 1, 1, 0);
         jdStart     = jdCoreStart - 30;
         jdEnd       = jdCoreEnd + 30;
       }
@@ -3694,7 +3695,7 @@ function shiftTimelineBy(days) {
 
 function drillDownToYear(yr) {
   if (!natalData || !swe) return;
-  tlYearScale = false;
+  tlYearScale = false; tl2Year = false;
   // July 2 ≈ day 183 → center - 182 ≈ Jan 1, center + 182 ≈ Dec 31
   const jdCenter = swe.julday(yr, 7, 2, 0);
   cachedTimeline = null; fastCache = {};
@@ -4141,38 +4142,60 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
   const nav = hel('div'); nav.id = 'tl-nav';
   const shiftStep = tlYearScale ? 10 * 365 : 365;
   const prevShiftBtn = hel('button', 'tl-nav-btn'); prevShiftBtn.textContent = '◀';
-  prevShiftBtn.title = tlYearScale ? '−5 лет' : '−1 год';
+  prevShiftBtn.title = tlYearScale ? '−10 лет' : '−1 год';
   prevShiftBtn.addEventListener('click', () => shiftTimelineBy(-shiftStep));
   const navLbl = hel('span'); navLbl.id = 'tl-nav-lbl';
   const fmtYear = jd => new Date((jd - 2440587.5) * 86400000).getUTCFullYear();
-  navLbl.textContent = jdCoreStart
-    ? String(fmtYear(jdCoreStart))
-    : `${fmtYear(jdStart)} — ${fmtYear(jdEnd - 1)}`;
+  navLbl.textContent = !jdCoreStart
+    ? `${fmtYear(jdStart)} — ${fmtYear(jdEnd - 1)}`
+    : tl2Year
+      ? `${fmtYear(jdCoreStart)} — ${fmtYear(jdCoreEnd - 1)}`
+      : String(fmtYear(jdCoreStart));
   if (jdCoreStart) {
     navLbl.style.cssText += 'cursor:pointer; text-decoration:underline dotted;';
     navLbl.title = 'Показать 10 лет';
     navLbl.addEventListener('click', () => {
-      tlYearScale = true;
-      const c = cachedTimeline?.center;
+      tlYearScale = true; tl2Year = false;
+      const c = currentTransitJD ?? computeJDNow();
       cachedTimeline = null; fastCache = {};
       computeAndRenderTimeline(natalData.planets, c);
     });
   }
   const nextShiftBtn = hel('button', 'tl-nav-btn'); nextShiftBtn.textContent = '▶';
-  nextShiftBtn.title = tlYearScale ? '+5 лет' : '+1 год';
+  nextShiftBtn.title = tlYearScale ? '+10 лет' : '+1 год';
   nextShiftBtn.addEventListener('click', () => shiftTimelineBy(shiftStep));
   const scaleWrap = hel('div', 'tl-scale-btns');
-  const btn1Y = hel('button', 'tl-scale-btn' + (!tlYearScale ? ' tl-scale-active' : ''));
+  const btn1Y = hel('button', 'tl-scale-btn' + (!tlYearScale && !tl2Year ? ' tl-scale-active' : ''));
   btn1Y.textContent = '1Y';
   btn1Y.addEventListener('click', () => {
-    if (tlYearScale) { tlYearScale = false; const c = cachedTimeline?.center; cachedTimeline = null; fastCache = {}; computeAndRenderTimeline(natalData.planets, c); }
+    if (tlYearScale || tl2Year) {
+      tlYearScale = false; tl2Year = false;
+      const c = currentTransitJD ?? computeJDNow();
+      cachedTimeline = null; fastCache = {};
+      computeAndRenderTimeline(natalData.planets, c);
+    }
+  });
+  const btn2Y = hel('button', 'tl-scale-btn' + (tl2Year ? ' tl-scale-active' : ''));
+  btn2Y.textContent = '2Y';
+  btn2Y.addEventListener('click', () => {
+    if (!tl2Year) {
+      tlYearScale = false; tl2Year = true;
+      const c = currentTransitJD ?? computeJDNow();
+      cachedTimeline = null; fastCache = {};
+      computeAndRenderTimeline(natalData.planets, c);
+    }
   });
   const btn10Y = hel('button', 'tl-scale-btn' + (tlYearScale ? ' tl-scale-active' : ''));
   btn10Y.textContent = '10Y';
   btn10Y.addEventListener('click', () => {
-    if (!tlYearScale) { tlYearScale = true; const c = cachedTimeline?.center; cachedTimeline = null; fastCache = {}; computeAndRenderTimeline(natalData.planets, c); }
+    if (!tlYearScale) {
+      tlYearScale = true; tl2Year = false;
+      const c = currentTransitJD ?? computeJDNow();
+      cachedTimeline = null; fastCache = {};
+      computeAndRenderTimeline(natalData.planets, c);
+    }
   });
-  scaleWrap.append(btn1Y, btn10Y);
+  scaleWrap.append(btn1Y, btn2Y, btn10Y);
   nav.append(prevShiftBtn, navLbl, nextShiftBtn, scaleWrap);
 
   // ── Left panel SVG (sticky planet labels) ───────────────────────────────────
@@ -5319,7 +5342,7 @@ function activateLayout2() {
   if (natalData) {
     if (tlYearScale) {
       tlYearScale = false;
-      const c = cachedTimeline?.center;
+      const c = currentTransitJD ?? computeJDNow();
       cachedTimeline = null;
       fastCache = {};
       computeAndRenderTimeline(natalData.planets, c);

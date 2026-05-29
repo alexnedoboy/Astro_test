@@ -766,7 +766,18 @@
     border-radius: 8px;
     padding: 8px;
     box-sizing: border-box;
+    position: relative;
   }
+  #v2-chart-expand-btn {
+    position: absolute; bottom: 7px; right: 7px;
+    width: 26px; height: 26px; z-index: 10;
+    background: var(--bg); border: 1px solid var(--bd-light);
+    border-radius: 5px; font-size: 0.85em; cursor: pointer;
+    color: var(--tx-6); opacity: 0.6;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0; line-height: 1;
+  }
+  #v2-chart-expand-btn:hover { opacity: 1; background: var(--bg-hover); color: var(--tx-2); }
   #layout-v2.tl-hidden #v2-chart-area {
     width: calc(100vh - 16px);
     max-width: calc(100vw - 124px);
@@ -918,14 +929,7 @@
   /* tl-hidden: timeline hidden, chart fills screen */
   #layout-v2.tl-hidden #v2-top { flex: 0 0 100vh; }
   #layout-v2.tl-hidden #v2-bottom { flex: 0 0 0; height: 0; overflow: hidden; }
-  #layout-v2.tl-hidden #v2-tl-tab {
-    position: fixed;
-    top: auto;
-    bottom: 16px;
-    left: 16px;
-    border: 1px solid var(--bd-light);
-    border-radius: 6px;
-  }
+  #layout-v2.tl-hidden #v2-tl-tab { display: none; }
 
   #v2-bottom {
     flex: 1;
@@ -1242,7 +1246,9 @@
         <button class="v2-icon-btn" id="v2-exit-btn" title="Обычный вид">↩</button>
       </div>
     </div>
-    <div id="v2-chart-area"></div>
+    <div id="v2-chart-area">
+      <button id="v2-chart-expand-btn" title="Развернуть карту">⤢</button>
+    </div>
     <div id="v2-aspect-panel"></div>
   </div>
   <div id="v2-bottom">
@@ -2110,9 +2116,14 @@ async function applyGeoResult(item) {
   closeGeoDropdown();
   setStatus(tr('detectingTimezone'));
   try {
-    const tz  = await fetch(`https://timeapi.io/api/timezone/coordinate?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`);
-    const tzd = await tz.json();
-    detectedTimezone = tzd.timeZone;
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 6000);
+    const tz   = await fetch(`https://timeapi.io/api/timezone/coordinate?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`, { signal: ctrl.signal });
+    clearTimeout(tid);
+    const tzd  = await tz.json();
+    const zone = tzd.timeZone;
+    if (!zone) throw new Error('no timeZone field');
+    detectedTimezone = zone;
     applyTimezoneOffset();
     setStatus(`${shortName}  •  ${detectedTimezone}`);
   } catch {
@@ -5920,9 +5931,10 @@ document.getElementById('v2-control-panel').addEventListener('click', e => {
 });
 
 let layout2Active = false;
-const V2_TL_STATES  = ['tl-normal', 'tl-expanded', 'tl-hidden'];
-const V2_TL_LABELS  = ['▲', '▼', '▲'];
+const V2_TL_STATES  = ['tl-normal', 'tl-expanded'];
+const V2_TL_LABELS  = ['▲', '▼'];
 let layout2TlState  = 0;
+let chartExpanded   = false;
 
 function activateLayout2() {
   if (layout2Active) return;
@@ -5943,9 +5955,11 @@ function activateLayout2() {
   document.getElementById('chartpage-layout').style.display = 'none';
   document.getElementById('app-header').style.display = 'none';
   v2.classList.add('v2-visible');
-  v2.classList.remove(...V2_TL_STATES);
+  v2.classList.remove(...V2_TL_STATES, 'tl-hidden');
   v2.classList.add(V2_TL_STATES[layout2TlState]);
   document.getElementById('v2-tl-toggle').textContent = V2_TL_LABELS[layout2TlState];
+  chartExpanded = false;
+  document.getElementById('v2-chart-expand-btn').textContent = '⤢';
   layout2Active = true;
 
   // Show transit biwheel
@@ -5991,7 +6005,8 @@ function deactivateLayout2() {
 
   document.getElementById('chartpage-layout').style.display = '';
   document.getElementById('app-header').style.display = '';
-  v2.classList.remove('v2-visible');
+  v2.classList.remove('v2-visible', 'tl-hidden');
+  chartExpanded = false;
   layout2Active = false;
 }
 
@@ -6020,12 +6035,30 @@ document.getElementById('v2-settings-btn').addEventListener('click', e => {
 document.getElementById('v2-tl-toggle').addEventListener('click', () => {
   const v2 = document.getElementById('layout-v2');
   v2.classList.remove(V2_TL_STATES[layout2TlState]);
-  layout2TlState = (layout2TlState + 1) % 3;
+  layout2TlState = (layout2TlState + 1) % 2;
   v2.classList.add(V2_TL_STATES[layout2TlState]);
   document.getElementById('v2-tl-toggle').textContent = V2_TL_LABELS[layout2TlState];
   if (cachedTimeline) {
     const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
     requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
+  }
+});
+
+document.getElementById('v2-chart-expand-btn').addEventListener('click', () => {
+  const v2 = document.getElementById('layout-v2');
+  chartExpanded = !chartExpanded;
+  if (chartExpanded) {
+    v2.classList.remove(...V2_TL_STATES);
+    v2.classList.add('tl-hidden');
+    document.getElementById('v2-chart-expand-btn').textContent = '⤡';
+  } else {
+    v2.classList.remove('tl-hidden');
+    v2.classList.add(V2_TL_STATES[layout2TlState]);
+    document.getElementById('v2-chart-expand-btn').textContent = '⤢';
+    if (cachedTimeline) {
+      const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
+      requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
+    }
   }
 });
 

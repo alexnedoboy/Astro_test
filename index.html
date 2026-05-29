@@ -739,26 +739,25 @@
     top: 0; left: 0; right: 0; bottom: 0;
     flex-direction: column;
     overflow: hidden;
-    background: #b8b8b8;
+    background: #f5f5f5;
     z-index: 100;
   }
   #layout-v2.v2-visible { display: flex; }
 
   #v2-top {
-    flex: 0 0 auto;
-    max-height: 65vh;
+    flex: 0 0 80vh;
     display: flex;
-    align-items: stretch;
+    align-items: flex-start;
     gap: 8px;
     padding: 8px 8px 8px;
     box-sizing: border-box;
     overflow: hidden;
   }
-  #v2-chart-area, #v2-chart-area-2 {
+  #v2-chart-area {
     flex: 0 0 auto;
-    width: min(calc((100vw - 128px) / 2), calc(65vh - 16px));
+    width: calc(80vh - 16px);
+    max-width: calc(100vw - 112px);
     aspect-ratio: 1 / 1;
-    align-self: center;
     overflow: hidden;
     display: flex;
     align-items: center;
@@ -768,17 +767,11 @@
     padding: 8px;
     box-sizing: border-box;
   }
-  #layout-v2.tl-hidden #v2-chart-area,
-  #layout-v2.tl-hidden #v2-chart-area-2 {
-    width: min(calc((100vw - 128px) / 2), calc(100vh - 16px));
+  #layout-v2.tl-hidden #v2-chart-area {
+    width: calc(100vh - 16px);
+    max-width: calc(100vw - 112px);
   }
-  #v2-chart-area svg {
-    width: 100%;
-    height: auto;
-    max-height: 100%;
-    display: block;
-  }
-  #v2-chart-area-2 #chart-block {
+  #v2-chart-area #chart-block {
     width: 100% !important;
     max-width: none !important;
     height: 100%;
@@ -786,14 +779,29 @@
     align-items: center;
     justify-content: center;
   }
-  #v2-chart-area-2 #chart-block svg {
+  #v2-chart-area #chart-block svg {
     width: 100% !important;
     height: auto !important;
     max-height: 100%;
   }
+  #v2-aspect-panel {
+    flex: 1;
+    min-width: 0;
+    max-height: calc(80vh - 16px);
+    overflow-y: auto;
+    background: var(--bg);
+    border-radius: 8px;
+  }
+  #layout-v2.tl-hidden #v2-aspect-panel {
+    max-height: calc(100vh - 16px);
+  }
+  #v2-aspect-panel #right-info-content {
+    width: 100%;
+    overflow: visible;
+    display: block !important;
+  }
   #v2-control-panel {
     flex: 0 0 96px;
-    align-self: stretch;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -845,10 +853,10 @@
   #v2-tl-toggle:hover, #v2-exit-btn:hover { background: var(--bg-hover); }
 
   /* tl-expanded: chart hidden, timeline fills screen */
-  #layout-v2.tl-expanded #v2-top { flex: 0 0 0; max-height: 0; padding: 0; overflow: hidden; }
+  #layout-v2.tl-expanded #v2-top { flex: 0 0 0; padding: 0; overflow: hidden; }
 
   /* tl-hidden: timeline hidden, chart fills screen */
-  #layout-v2.tl-hidden #v2-top { flex: 0 0 100vh; max-height: 100vh; }
+  #layout-v2.tl-hidden #v2-top { flex: 0 0 100vh; }
   #layout-v2.tl-hidden #v2-bottom { flex: 0 0 0; height: 0; overflow: hidden; }
   #layout-v2.tl-hidden #v2-tl-tab {
     position: fixed;
@@ -1140,7 +1148,7 @@
 <div id="layout-v2">
   <div id="v2-top">
     <div id="v2-chart-area"></div>
-    <div id="v2-chart-area-2"></div>
+    <div id="v2-aspect-panel"></div>
     <div id="v2-control-panel">
       <button class="v2-mode-btn" data-mode="transit">Транзит</button>
       <button class="v2-mode-btn" data-mode="natal">Натал</button>
@@ -4428,7 +4436,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, progEvents = [], dir
   const { LABEL_W, HDR_H, BAR_H, SUB_H } = TL;
   const SPAN  = jdEnd - jdStart;
   let PX_PER_DAY;
-  if (tlYearScale && layout2Active) {
+  if (layout2Active) {
     const availW = Math.max((tl.clientWidth || tl.offsetWidth || 800) - LABEL_W - 18, 200);
     PX_PER_DAY = availW / SPAN;
   } else {
@@ -5808,18 +5816,16 @@ let layout2TlState  = 0;
 
 function activateLayout2() {
   if (layout2Active) return;
-  const v2         = document.getElementById('layout-v2');
-  const chartArea  = document.getElementById('v2-chart-area');
-  const chartArea2 = document.getElementById('v2-chart-area-2');
-  const tlWrap     = document.getElementById('v2-timeline-wrap');
+  const v2           = document.getElementById('layout-v2');
+  const chartArea    = document.getElementById('v2-chart-area');
+  const aspectPanel  = document.getElementById('v2-aspect-panel');
+  const tlWrap       = document.getElementById('v2-timeline-wrap');
 
-  // Left panel: static natal SVG clone
-  if (natalData) renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
-  const natalSvg = document.querySelector('#chart-block svg')?.cloneNode(true);
-  if (natalSvg) chartArea.appendChild(natalSvg);
+  // Left: live chart-block (mode-switchable)
+  chartArea.appendChild(document.getElementById('chart-block'));
 
-  // Right panel: chart-block for transit biwheel
-  chartArea2.appendChild(document.getElementById('chart-block'));
+  // Center: info panel (planet positions)
+  aspectPanel.appendChild(document.getElementById('right-info-content'));
 
   // Timeline
   tlWrap.appendChild(document.getElementById('right-timeline-content'));
@@ -5832,16 +5838,18 @@ function activateLayout2() {
   document.getElementById('v2-tl-toggle').textContent = V2_TL_LABELS[layout2TlState];
   layout2Active = true;
 
-  // Show transit biwheel on the right
+  // Show transit biwheel
   if (natalData) {
     currentMode = 'transit';
     renderBiwheelAt(currentTransitJD ?? computeJDNow());
     syncV2ModeButtons();
   }
 
+
   if (natalData) {
-    if (!tlYearScale) {
-      tlYearScale = true;
+    if (tlYearScale) {
+      // switch to month scale on entering v2
+      tlYearScale = false;
       const c = cachedTimeline?.center;
       cachedTimeline = null;
       fastCache = {};
@@ -5849,6 +5857,8 @@ function activateLayout2() {
     } else if (cachedTimeline) {
       const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
       requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
+    } else {
+      computeAndRenderTimeline(natalData.planets);
     }
   }
 }
@@ -5859,14 +5869,15 @@ function deactivateLayout2() {
   const chartpageLeft = document.getElementById('chartpage-left');
   const chartpageRight = document.getElementById('chartpage-right');
 
-  // Remove cloned natal SVG
-  document.getElementById('v2-chart-area').replaceChildren();
-
-  // Move chart-block back from right area
+  // Move chart-block back
   chartpageLeft.appendChild(document.getElementById('chart-block'));
 
-  const vtlContent = document.getElementById('right-vtimeline-content');
-  chartpageRight.insertBefore(document.getElementById('right-timeline-content'), vtlContent);
+  // Move info content back, then timeline before vtimeline
+  chartpageRight.appendChild(document.getElementById('right-info-content'));
+  chartpageRight.insertBefore(
+    document.getElementById('right-timeline-content'),
+    document.getElementById('right-vtimeline-content')
+  );
 
   document.getElementById('chartpage-layout').style.display = '';
   document.getElementById('app-header').style.display = '';

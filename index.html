@@ -680,14 +680,16 @@
   .v2-nav-row .v2-nav-btn { flex: 1; font-size: 0.72em; }
   .v2-today-btn { margin-top: 2px; }
   #v2-nav-date-lbl {
-    background: none; border: 1px solid var(--bd-input); border-radius: 6px;
-    color: var(--tx-6); font-size: 0.72em; padding: 5px 4px;
-    cursor: pointer; text-align: center; width: 100%; margin-top: 4px;
-    transition: background 0.12s, color 0.12s, border-color 0.12s;
-    box-sizing: border-box; line-height: 1.2;
+    position: absolute; top: 7px; left: 7px; z-index: 10;
+    background: none; border: none; outline: none;
+    color: var(--tx-6); font-size: 0.78em; padding: 3px 7px 3px 5px;
+    cursor: pointer; display: flex; align-items: center; gap: 4px;
+    opacity: 0.75; transition: opacity 0.15s, color 0.15s;
+    line-height: 1.3; white-space: nowrap;
   }
-  #v2-nav-date-lbl:hover { background: var(--bg-hover); color: var(--tx-3); }
-  #v2-nav-date-lbl.v2-date-active { color: var(--accent); border-color: var(--accent); }
+  #v2-nav-date-lbl:hover { opacity: 1; color: var(--tx-2); }
+  #v2-nav-date-lbl.v2-date-active { color: var(--accent); opacity: 0.9; }
+  #v2-nav-date-icon { font-size: 0.95em; line-height: 1; }
   #v2-bottom-row {
     display: flex; flex-shrink: 0;
     border-top: 1px solid var(--bd-light);
@@ -946,7 +948,6 @@
         <button class="v2-nav-btn" data-nav="next-day">▶</button>
       </div>
       <button class="v2-nav-btn v2-today-btn" data-nav="today">↺</button>
-      <button id="v2-nav-date-lbl" style="display:none"></button>
       <div class="v2-ctrl-spacer"></div>
       <div id="v2-bottom-row">
         <button class="v2-icon-btn" id="v2-settings-btn" title="Настройки">⚙︎</button>
@@ -955,6 +956,9 @@
     </div>
     <div id="v2-chart-area">
       <button id="v2-chart-expand-btn" title="Развернуть карту">⤢</button>
+      <button id="v2-nav-date-lbl" style="display:none">
+        <span id="v2-nav-date-icon">📅</span><span id="v2-nav-date-text"></span>
+      </button>
       <div id="chart-block"></div>
     </div>
     <div id="v2-aspect-panel">
@@ -5298,12 +5302,13 @@ function syncV2DateLabel() {
   const show = currentMode !== 'natal';
   lbl.style.display = show ? '' : 'none';
   if (!show) return;
+  const txt = document.getElementById('v2-nav-date-text');
   if (currentTransitJD === null) {
-    lbl.textContent = tr('today');
+    txt.textContent = tr('today');
     lbl.classList.remove('v2-date-active');
   } else {
     const d = new Date((currentTransitJD - 2440587.5) * 86400000);
-    lbl.textContent =
+    txt.textContent =
       String(d.getUTCDate()).padStart(2, '0') + '.' +
       String(d.getUTCMonth() + 1).padStart(2, '0') + '.' +
       d.getUTCFullYear();
@@ -5313,15 +5318,20 @@ function syncV2DateLabel() {
 
 document.getElementById('v2-nav-date-lbl').addEventListener('click', () => {
   const baseJD = currentTransitJD ?? computeJDNow();
+  const inp = document.getElementById('nav-date-input');
   if (baseJD) {
     const d = new Date((baseJD - 2440587.5) * 86400000);
-    document.getElementById('nav-date-input').value =
-      d.getUTCFullYear() + '-' +
+    inp.value = d.getUTCFullYear() + '-' +
       String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
       String(d.getUTCDate()).padStart(2, '0');
   }
-  try { document.getElementById('nav-date-input').showPicker(); }
-  catch { document.getElementById('nav-date-input').click(); }
+  // Позиционируем input рядом с кнопкой — браузеры требуют видимой области для showPicker
+  const r = document.getElementById('v2-nav-date-lbl').getBoundingClientRect();
+  Object.assign(inp.style, {
+    position: 'fixed', left: r.left + 'px', top: r.bottom + 'px',
+    width: '1px', height: '1px', opacity: '0', zIndex: '9999'
+  });
+  try { inp.showPicker(); } catch { inp.click(); }
 });
 
 document.getElementById('v2-control-panel').addEventListener('click', e => {

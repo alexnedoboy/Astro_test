@@ -680,7 +680,7 @@
   .v2-nav-row .v2-nav-btn { flex: 1; font-size: 0.72em; }
   .v2-today-btn { margin-top: 2px; }
   #v2-nav-date-lbl {
-    width: 100%; background: none; border: none; outline: none;
+    position: relative; width: 100%; background: none; border: none; outline: none;
     color: var(--tx-6); font-size: 0.78em; padding: 4px 4px;
     cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;
     opacity: 0.75; transition: opacity 0.15s, color 0.15s;
@@ -688,6 +688,10 @@
   }
   #v2-nav-date-lbl:hover { opacity: 1; color: var(--tx-2); }
   #v2-nav-date-lbl.v2-date-active { color: var(--accent); opacity: 0.9; }
+  #nav-date-input {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; cursor: pointer; border: none; padding: 0; margin: 0;
+  }
   #v2-bottom-row {
     display: flex; flex-shrink: 0;
     border-top: 1px solid var(--bd-light);
@@ -935,6 +939,7 @@
       <div class="v2-ctrl-sep"></div>
       <button id="v2-nav-date-lbl" style="display:none">
         <span id="v2-nav-date-text"></span>
+        <input type="date" id="nav-date-input" tabindex="-1">
       </button>
       <div class="v2-nav-row">
         <button class="v2-nav-btn" data-nav="prev-year">◀◀◀</button>
@@ -977,8 +982,6 @@
     </div>
   </div>
 </div>
-<input type="date" id="nav-date-input" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
-
 <div id="tl-tooltip"></div>
 <div id="chart-tooltip"></div>
 
@@ -5301,6 +5304,14 @@ function syncV2DateLabel() {
   lbl.style.display = show ? '' : 'none';
   if (!show) return;
   const txt = document.getElementById('v2-nav-date-text');
+  const inp = document.getElementById('nav-date-input');
+  const baseJD = currentTransitJD ?? computeJDNow();
+  if (baseJD && inp) {
+    const d = new Date((baseJD - 2440587.5) * 86400000);
+    inp.value = d.getUTCFullYear() + '-' +
+      String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getUTCDate()).padStart(2, '0');
+  }
   if (currentTransitJD === null) {
     txt.textContent = tr('today');
     lbl.classList.remove('v2-date-active');
@@ -5313,24 +5324,6 @@ function syncV2DateLabel() {
     lbl.classList.add('v2-date-active');
   }
 }
-
-document.getElementById('v2-nav-date-lbl').addEventListener('click', () => {
-  const baseJD = currentTransitJD ?? computeJDNow();
-  const inp = document.getElementById('nav-date-input');
-  if (baseJD) {
-    const d = new Date((baseJD - 2440587.5) * 86400000);
-    inp.value = d.getUTCFullYear() + '-' +
-      String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
-      String(d.getUTCDate()).padStart(2, '0');
-  }
-  // Позиционируем input рядом с кнопкой — браузеры требуют видимой области для showPicker
-  const r = document.getElementById('v2-nav-date-lbl').getBoundingClientRect();
-  Object.assign(inp.style, {
-    position: 'fixed', left: r.left + 'px', top: r.bottom + 'px',
-    width: '1px', height: '1px', opacity: '0', zIndex: '9999'
-  });
-  try { inp.showPicker(); } catch { inp.click(); }
-});
 
 document.getElementById('v2-control-panel').addEventListener('click', e => {
   const modeBtn = e.target.closest('.v2-mode-btn');

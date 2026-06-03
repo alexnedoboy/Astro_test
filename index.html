@@ -768,6 +768,151 @@
     overflow-y: auto;
   }
 
+  /* ── Sky Now Layout ────────────────────────────────────────────────────────── */
+  #sky-now-entry {
+    text-align: center;
+    padding: 4px 0 14px;
+  }
+  #skyNowBtn {
+    background: none;
+    border: 1px solid var(--bd);
+    color: var(--tx-5);
+    border-radius: 8px;
+    padding: 7px 22px;
+    font-size: 0.88em;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  #skyNowBtn:hover { background: var(--bg-hover); color: var(--tx-2); }
+  #skyNowBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  #sky-layout {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    flex-direction: column;
+    overflow: hidden;
+    background: #e4e3e3;
+    z-index: 100;
+  }
+  #sky-layout.sky-visible { display: flex; }
+  #sky-layout.sky-tl-hidden #sky-top { flex: 0 0 100vh; }
+  #sky-layout.sky-tl-hidden #sky-bottom { flex: 0 0 0; height: 0; overflow: hidden; }
+  #sky-layout.sky-tl-hidden #sky-tl-tab { display: none; }
+
+  #sky-top {
+    flex: 0 0 74vh;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  #sky-control-panel {
+    flex: 0 0 116px;
+    align-self: flex-start;
+    height: calc(74vh - 16px);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 6px 4px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  #sky-title-label {
+    text-align: center;
+    font-size: 0.68em;
+    font-weight: 600;
+    color: var(--tx-4);
+    padding: 2px 2px;
+    flex-shrink: 0;
+    line-height: 1.3;
+  }
+  #sky-nav-date-lbl {
+    width: 100%; background: none; border: none; outline: none;
+    color: var(--tx-6); font-size: 0.7em; padding: 2px 4px;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1.3; text-align: center; flex-shrink: 0;
+  }
+  .sky-navmode-row { display: flex; gap: 2px; flex-shrink: 0; }
+  .sky-navmode-btn {
+    flex: 1; height: 24px;
+    background: none; border: 1px solid var(--bd-light); border-radius: 4px;
+    cursor: pointer; font-size: 0.7em; color: var(--tx-5);
+  }
+  .sky-navmode-btn.active { background: var(--bg-active); color: var(--tx); font-weight: 600; border-color: var(--bd); }
+  .sky-navmode-btn:hover:not(.active) { background: var(--bg-hover); }
+
+  #sky-chart-area {
+    flex: 1; min-width: 0;
+    height: calc(74vh - 16px);
+    background: var(--bg);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #sky-chart-block { width: 100%; height: 100%; }
+  #sky-chart-block svg { width: 100%; height: 100%; display: block; }
+
+  #sky-aspect-panel {
+    flex: 0 0 220px;
+    height: calc(74vh - 16px);
+    background: var(--bg);
+    border-radius: 8px;
+    overflow: auto;
+    padding: 6px;
+    box-sizing: border-box;
+  }
+  #sky-aspect-grid { font-size: 0.68em; }
+  #sky-aspect-grid table { border-collapse: collapse; }
+  #sky-aspect-grid th.ag-hdr { font-family: 'HamburgSymbols', monospace; padding: 1px 2px; }
+  #sky-aspect-grid td { text-align: center; padding: 1px 2px; min-width: 24px; }
+  #sky-aspect-grid .ag-self { background: var(--bg-row-alt); }
+  #sky-aspect-grid .ag-empty { }
+
+  #sky-bottom {
+    flex: 1; min-height: 0;
+    overflow: hidden;
+    padding: 0 8px 8px;
+    box-sizing: border-box;
+    position: relative;
+  }
+  #sky-tl-tab {
+    position: absolute; top: 0; left: 8px;
+    z-index: 20; display: flex;
+    background: var(--bg); overflow: hidden;
+  }
+  #sky-tl-toggle {
+    width: 24px; height: 28px;
+    background: none; border: none;
+    font-size: 12px; cursor: pointer;
+    color: var(--tx-5); padding: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #sky-tl-toggle:hover { background: var(--bg-hover); }
+  #sky-timeline-wrap {
+    height: 100%;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    background: var(--bg); border-radius: 8px;
+  }
+  #sky-timeline-content {
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column;
+  }
+  #sky-timeline-wrap #tl-hdr-sticky {
+    flex-shrink: 0;
+    position: static !important;
+  }
+  #sky-timeline-wrap #tl-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
 
 </style>
 </head>
@@ -911,6 +1056,11 @@
   </div>
 </div>
 
+<!-- ── Sky Now entry button ─────────────────────────────────── -->
+<div id="sky-now-entry">
+  <button id="skyNowBtn" disabled>✦ Актуальные аспекты</button>
+</div>
+
 <!-- ── Recent charts on home page ──────────────────────────── -->
 <div id="home-charts">
   <div id="home-charts-title" data-i18n="recentCharts">Последние карты</div>
@@ -982,6 +1132,55 @@
     </div>
   </div>
 </div>
+<!-- ── Sky Now Layout ────────────────────────────────────────────────────────── -->
+<div id="sky-layout">
+  <div id="sky-top">
+    <div id="sky-control-panel">
+      <img src="Aspectus%20logo.png" id="sky-logo" alt="Aspectus" style="display:block;width:52px;height:52px;margin:2px auto 4px;object-fit:contain;flex-shrink:0;cursor:pointer">
+      <div id="sky-title-label">Актуальные<br>аспекты</div>
+      <div class="v2-ctrl-sep"></div>
+      <div id="sky-nav-date-lbl"><span id="sky-nav-date-text">—</span></div>
+      <div class="sky-navmode-row">
+        <button class="sky-navmode-btn active" data-skymode="date">Дата</button>
+        <button class="sky-navmode-btn" data-skymode="time">Время</button>
+      </div>
+      <div class="v2-ctrl-sep"></div>
+      <div class="v2-nav-row">
+        <button class="v2-nav-btn" data-skynav="prev-big">◀◀◀</button>
+        <button class="v2-nav-btn" data-skynav="next-big">▶▶▶</button>
+      </div>
+      <div class="v2-nav-row">
+        <button class="v2-nav-btn" data-skynav="prev-mid">◀◀</button>
+        <button class="v2-nav-btn" data-skynav="next-mid">▶▶</button>
+      </div>
+      <div class="v2-nav-row">
+        <button class="v2-nav-btn" data-skynav="prev-small">◀</button>
+        <button class="v2-nav-btn" data-skynav="next-small">▶</button>
+      </div>
+      <button class="v2-nav-btn v2-today-btn" data-skynav="today">↺</button>
+      <div class="v2-ctrl-spacer"></div>
+      <div style="display:flex;flex-shrink:0;border-top:1px solid var(--bd-light);margin:0 -4px -6px">
+        <button class="v2-icon-btn" id="sky-settings-btn" title="Настройки" style="flex:1;width:auto;height:34px;font-size:1.05em;color:var(--tx-5);border-radius:0 0 0 4px">⚙︎</button>
+        <button class="v2-icon-btn" id="sky-exit-btn" title="На главную" style="flex:1;width:auto;height:34px;font-size:1.15em;color:var(--tx-5);border-left:1px solid var(--bd-light);border-radius:0 0 4px 0">↩</button>
+      </div>
+    </div>
+    <div id="sky-chart-area">
+      <div id="sky-chart-block"></div>
+    </div>
+    <div id="sky-aspect-panel">
+      <div id="sky-aspect-grid"></div>
+    </div>
+  </div>
+  <div id="sky-bottom">
+    <div id="sky-tl-tab">
+      <button id="sky-tl-toggle">▲</button>
+    </div>
+    <div id="sky-timeline-wrap">
+      <div id="sky-timeline-content"></div>
+    </div>
+  </div>
+</div>
+
 <div id="tl-tooltip"></div>
 <div id="chart-tooltip"></div>
 
@@ -1789,6 +1988,7 @@ let _pendingChartLoad = null;  // chart row waiting for swe to initialize
     await swe.initSwissEph();
     setStatus(tr('ready'));
     document.getElementById('calcBtn').disabled = false;
+    document.getElementById('skyNowBtn').disabled = false;
     if (_pendingChartLoad) {
       const c = _pendingChartLoad;
       _pendingChartLoad = null;
@@ -3978,7 +4178,8 @@ function computeReturnPeriods(natalPlanets, jdStart, jdEnd) {
 // ── Timeline layout constants ─────────────────────────────────────────────────
 // Change these to adjust the timeline's geometry globally.
 const TL = {
-  PX_PER_DAY_MONTH: 3,           // pixels per day (month scale)
+  PX_PER_DAY_1M:    22,          // pixels per day (1-month scale)
+  PX_PER_DAY_MONTH: 3,           // pixels per day (year scale)
   PX_PER_DAY_YEAR:  70 / 365.25, // pixels per day (year scale — 70px per year)
   LABEL_W:          44,           // left panel width (planet label column)
   HDR_H:            28,           // sticky header row height
@@ -4114,8 +4315,32 @@ function computeTlLayout(periods, progEvents, dirEvents) {
   };
 }
 
-function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, jdCoreEnd = null, progEvents = [], dirEvents = [], jdCursor = null }) {
-  const tl = document.getElementById('right-timeline-content');
+function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, jdCoreEnd = null, progEvents = [], dirEvents = [], jdCursor = null, tlCtx = null }) {
+  const ctx = tlCtx ?? {
+    get container()       { return document.getElementById('right-timeline-content'); },
+    get filterContainer() { return document.getElementById('v2-timeline-wrap'); },
+    isYearScale:      () => tlYearScale,
+    is2YScale:        () => tl2Year,
+    isMonthScale:     () => false,
+    supportsMonthScale: false,
+    onNavigate:     jd  => applyNavigatedJD(jd),
+    onBarClick:     jd  => switchModeAndNavigate('transit', jd),
+    onProgBarClick: jd  => switchModeAndNavigate('progressed', jd),
+    onShift:        days => shiftTimelineBy(days),
+    onScale: (scale, center) => {
+      tlYearScale = scale === '10Y'; tl2Year = scale === '2Y';
+      cachedTimeline = null; fastCache = {};
+      computeAndRenderTimeline(natalData.planets, center);
+    },
+    onDrillYear: yr => drillDownToYear(yr),
+    onRerender:  () => renderTimeline(cachedTimeline),
+    onRowExpand: (plId, natalPl, jdS, jdE) => {
+      if (expandedRows.has(plId)) expandedRows.delete(plId);
+      else { expandedRows.add(plId); if (!fastCache[plId]) fastCache[plId] = computeFastTransits(natalPl, jdS, jdE); }
+      renderTimeline(cachedTimeline);
+    },
+  };
+  const tl = ctx.container;
   if (!periods.length) {
     tl.innerHTML = `<div class="tl-status">${tr('noTransits')}</div>`;
     return;
@@ -4124,11 +4349,13 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
   const { LABEL_W, HDR_H, BAR_H, SUB_H } = TL;
   const SPAN  = jdEnd - jdStart;
   let PX_PER_DAY;
-  if (layout2Active) {
+  if (layout2Active && !ctx.isMonthScale()) {
     const availW = Math.max((tl.clientWidth || tl.offsetWidth || 800) - LABEL_W - 18, 200);
     PX_PER_DAY = availW / SPAN;
+  } else if (ctx.isMonthScale()) {
+    PX_PER_DAY = TL.PX_PER_DAY_1M;
   } else {
-    PX_PER_DAY = tlYearScale ? TL.PX_PER_DAY_YEAR : TL.PX_PER_DAY_MONTH;
+    PX_PER_DAY = ctx.isYearScale() ? TL.PX_PER_DAY_YEAR : TL.PX_PER_DAY_MONTH;
   }
   const BARS_W = Math.ceil(SPAN * PX_PER_DAY);
 
@@ -4157,59 +4384,66 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
   const fmtDate = jd => new Date((jd - 2440587.5) * 86400000)
     .toLocaleDateString(currentLang, { day: 'numeric', month: 'short', year: 'numeric' });
   const nav = hel('div'); nav.id = 'tl-nav';
-  const shiftStep = tlYearScale ? 10 * 365 : 365;
+  const shiftStep = ctx.isYearScale() ? 10 * 365 : ctx.isMonthScale() ? 30 : 365;
   const prevShiftBtn = hel('button', 'tl-nav-btn'); prevShiftBtn.textContent = '◀';
-  prevShiftBtn.title = tlYearScale ? '−10 лет' : '−1 год';
-  prevShiftBtn.addEventListener('click', () => shiftTimelineBy(-shiftStep));
+  prevShiftBtn.title = ctx.isYearScale() ? '−10 лет' : ctx.isMonthScale() ? '−1 месяц' : '−1 год';
+  prevShiftBtn.addEventListener('click', () => ctx.onShift(-shiftStep));
   const navLbl = hel('span'); navLbl.id = 'tl-nav-lbl';
   const fmtYear = jd => new Date((jd - 2440587.5) * 86400000).getUTCFullYear();
   navLbl.textContent = !jdCoreStart
     ? `${fmtYear(jdStart)} — ${fmtYear(jdEnd - 1)}`
-    : tl2Year
-      ? `${fmtYear(jdCoreStart)} — ${fmtYear(jdCoreEnd - 1)}`
-      : String(fmtYear(jdCoreStart));
+    : ctx.isMonthScale()
+      ? fmtMon(jdCoreStart)
+      : ctx.is2YScale()
+        ? `${fmtYear(jdCoreStart)} — ${fmtYear(jdCoreEnd - 1)}`
+        : String(fmtYear(jdCoreStart));
   if (jdCoreStart) {
     navLbl.style.cssText += 'cursor:pointer; text-decoration:underline dotted;';
-    navLbl.title = 'Показать 10 лет';
+    navLbl.title = ctx.isMonthScale() ? 'Показать год' : 'Показать 10 лет';
     navLbl.addEventListener('click', () => {
-      tlYearScale = true; tl2Year = false;
-      const c = currentTransitJD ?? computeJDNow();
-      cachedTimeline = null; fastCache = {};
-      computeAndRenderTimeline(natalData.planets, c);
+      const c = currentTransitJD ?? skyJD ?? computeJDNow();
+      ctx.onScale(ctx.isMonthScale() ? '1Y' : '10Y', c);
     });
   }
   const nextShiftBtn = hel('button', 'tl-nav-btn'); nextShiftBtn.textContent = '▶';
-  nextShiftBtn.title = tlYearScale ? '+10 лет' : '+1 год';
-  nextShiftBtn.addEventListener('click', () => shiftTimelineBy(shiftStep));
+  nextShiftBtn.title = ctx.isYearScale() ? '+10 лет' : ctx.isMonthScale() ? '+1 месяц' : '+1 год';
+  nextShiftBtn.addEventListener('click', () => ctx.onShift(shiftStep));
   const scaleWrap = hel('div', 'tl-scale-btns');
-  const btn1Y = hel('button', 'tl-scale-btn' + (!tlYearScale && !tl2Year ? ' tl-scale-active' : ''));
+  const isBase1Y = !ctx.isYearScale() && !ctx.is2YScale() && !ctx.isMonthScale();
+  // 1M button — only show if context supports it (sky mode)
+  if (ctx.supportsMonthScale) {
+    const btn1M = hel('button', 'tl-scale-btn' + (ctx.isMonthScale() ? ' tl-scale-active' : ''));
+    btn1M.textContent = '1M';
+    btn1M.addEventListener('click', () => {
+      if (!ctx.isMonthScale()) {
+        const c = currentTransitJD ?? skyJD ?? computeJDNow();
+        ctx.onScale('1M', c);
+      }
+    });
+    scaleWrap.appendChild(btn1M);
+  }
+  const btn1Y = hel('button', 'tl-scale-btn' + (isBase1Y ? ' tl-scale-active' : ''));
   btn1Y.textContent = '1Y';
   btn1Y.addEventListener('click', () => {
-    if (tlYearScale || tl2Year) {
-      tlYearScale = false; tl2Year = false;
-      const c = currentTransitJD ?? computeJDNow();
-      cachedTimeline = null; fastCache = {};
-      computeAndRenderTimeline(natalData.planets, c);
+    if (ctx.isYearScale() || ctx.is2YScale() || ctx.isMonthScale()) {
+      const c = currentTransitJD ?? skyJD ?? computeJDNow();
+      ctx.onScale('1Y', c);
     }
   });
-  const btn2Y = hel('button', 'tl-scale-btn' + (tl2Year ? ' tl-scale-active' : ''));
+  const btn2Y = hel('button', 'tl-scale-btn' + (ctx.is2YScale() ? ' tl-scale-active' : ''));
   btn2Y.textContent = '2Y';
   btn2Y.addEventListener('click', () => {
-    if (!tl2Year) {
-      tlYearScale = false; tl2Year = true;
-      const c = currentTransitJD ?? computeJDNow();
-      cachedTimeline = null; fastCache = {};
-      computeAndRenderTimeline(natalData.planets, c);
+    if (!ctx.is2YScale()) {
+      const c = currentTransitJD ?? skyJD ?? computeJDNow();
+      ctx.onScale('2Y', c);
     }
   });
-  const btn10Y = hel('button', 'tl-scale-btn' + (tlYearScale ? ' tl-scale-active' : ''));
+  const btn10Y = hel('button', 'tl-scale-btn' + (ctx.isYearScale() ? ' tl-scale-active' : ''));
   btn10Y.textContent = '10Y';
   btn10Y.addEventListener('click', () => {
-    if (!tlYearScale) {
-      tlYearScale = true; tl2Year = false;
-      const c = currentTransitJD ?? computeJDNow();
-      cachedTimeline = null; fastCache = {};
-      computeAndRenderTimeline(natalData.planets, c);
+    if (!ctx.isYearScale()) {
+      const c = currentTransitJD ?? skyJD ?? computeJDNow();
+      ctx.onScale('10Y', c);
     }
   });
   scaleWrap.append(btn1Y, btn2Y, btn10Y);
@@ -4248,7 +4482,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
       });
       moonHit.addEventListener('click', () => {
         moonBandCollapsed = !moonBandCollapsed;
-        renderTimeline(cachedTimeline);
+        ctx.onRerender();
       });
       svgL.appendChild(moonHit);
     }
@@ -4294,17 +4528,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
       fill: 'transparent', style: 'cursor:pointer',
     });
     hit.addEventListener('click', () => {
-      const id = r.pl.id;
-      if (expandedRows.has(id)) {
-        expandedRows.delete(id);
-        renderTimeline(cachedTimeline);
-      } else {
-        expandedRows.add(id);
-        if (!fastCache[id]) {
-          fastCache[id] = computeFastTransits(r.natalPl, jdStart, jdEnd);
-        }
-        renderTimeline(cachedTimeline);
-      }
+      ctx.onRowExpand(r.pl.id, r.natalPl, jdStart, jdEnd);
     });
     svgL.appendChild(hit);
   });
@@ -4355,7 +4579,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
       const xE  = xOf(p.jd);
       const dotY = barY + BAR_H / 2;
       svgR.appendChild(circ(xE, dotY, 3, { fill: '#fff', stroke: p.color, 'stroke-width': 1.2 }));
-      svgR.appendChild(makeNavHit(circ(xE, dotY, 10, { fill: 'transparent', style: 'cursor:pointer' }), () => switchModeAndNavigate('progressed', p.jd)));
+      svgR.appendChild(makeNavHit(circ(xE, dotY, 10, { fill: 'transparent', style: 'cursor:pointer' }), () => ctx.onProgBarClick(p.jd)));
 
       // Label
       const lblX = barW >= 14 ? x1 + barW / 2 : xE;
@@ -4381,7 +4605,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
         const xE  = xOf(p.jd);
         const dotY = barY + BAR_H / 2;
         svgR.appendChild(circ(xE, dotY, 3, { fill: '#fff', stroke: p.color, 'stroke-width': 1.2 }));
-        svgR.appendChild(makeNavHit(circ(xE, dotY, 10, { fill: 'transparent', style: 'cursor:pointer' }), () => switchModeAndNavigate('progressed', p.jd)));
+        svgR.appendChild(makeNavHit(circ(xE, dotY, 10, { fill: 'transparent', style: 'cursor:pointer' }), () => ctx.onProgBarClick(p.jd)));
         const lblX = barW >= 14 ? x1 + barW / 2 : xE;
         svgR.appendChild(txt(lblX, barY - 3, p.label, {
           'font-size': 10, fill: p.color,
@@ -4407,7 +4631,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
           'text-anchor': 'middle', 'dominant-baseline': 'hanging',
         }));
         svgR.appendChild(circ(xE, dotY, 3, { fill: ev.color, opacity: '0.85' }));
-        const pHit = makeNavHit(circ(xE, dotY, 8, { fill: 'transparent', style: 'cursor:pointer' }), () => switchModeAndNavigate('progressed', ev.jd));
+        const pHit = makeNavHit(circ(xE, dotY, 8, { fill: 'transparent', style: 'cursor:pointer' }), () => ctx.onProgBarClick(ev.jd));
         addTip(pHit, `${tr('prPrefix')}${ev.label}  ·  ${fmtDate(ev.jd)}`);
         svgR.appendChild(pHit);
       }
@@ -4445,7 +4669,36 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
   const svgHdr = el('svg', { id: 'tl-svg-hdr', width: BARS_W, height: HDR_H, style: 'display:block' });
   svgHdr.appendChild(el('rect', { x:0, y:0, width:BARS_W, height:HDR_H, fill:'#fff' }));
 
-  if (tlYearScale) {
+  if (ctx.isMonthScale()) {
+    // Day ticks + numbers for 1M scale
+    const MS = STRINGS[currentLang].months;
+    let d = new Date((jdStart - 2440587.5) * 86400000);
+    d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    const jdEndDate = new Date((jdEnd - 2440587.5) * 86400000);
+    let curMonth = -1;
+    while (d.getTime() / 86400000 + 2440587.5 <= jdEnd + 1) {
+      const jdDay = d.getTime() / 86400000 + 2440587.5;
+      const x = xOf(jdDay);
+      const dayNum = d.getUTCDate();
+      const mon = d.getUTCMonth();
+      const isMonthBoundary = dayNum === 1;
+      const strokeColor = isMonthBoundary ? '#bbb' : '#e8e8e8';
+      svgHdr.appendChild(ln(x, 0, x, HDR_H, { stroke: strokeColor, 'stroke-width': isMonthBoundary ? 1 : 0.5 }));
+      svgR.appendChild(ln(x, 0, x, TL_H, { stroke: strokeColor, 'stroke-width': isMonthBoundary ? 0.7 : 0.3 }));
+      // Day number label
+      svgHdr.appendChild(txt(x + 2, 19, String(dayNum), {
+        'font-size': dayNum === 1 ? 10 : 9,
+        fill: dayNum === 1 ? '#777' : '#aaa',
+        'font-weight': dayNum === 1 ? 'bold' : 'normal',
+      }));
+      // Month label on first day
+      if (isMonthBoundary && mon !== curMonth) {
+        svgHdr.appendChild(txt(x + 2, 10, MS[mon], { 'font-size': 9, fill: '#666' }));
+        curMonth = mon;
+      }
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+  } else if (ctx.isYearScale()) {
     const startYear = new Date((jdStart - 2440587.5) * 86400000).getFullYear();
     const endYear   = new Date((jdEnd   - 2440587.5) * 86400000).getFullYear() + 1;
     for (let yr = startYear; yr <= endYear; yr++) {
@@ -4493,9 +4746,9 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
   hdrHit.addEventListener('touchend', e => {
     const dx = e.changedTouches[0].clientX - hdrTouchStartX;
     const dy = e.changedTouches[0].clientY - hdrTouchStartY;
-    if (dx * dx + dy * dy < 144) applyNavigatedJD(hdrXtoJD(e.changedTouches[0].clientX));
+    if (dx * dx + dy * dy < 144) ctx.onNavigate(hdrXtoJD(e.changedTouches[0].clientX));
   });
-  hdrHit.addEventListener('click', e => applyNavigatedJD(hdrXtoJD(e.clientX)));
+  hdrHit.addEventListener('click', e => ctx.onNavigate(hdrXtoJD(e.clientX)));
   svgHdr.appendChild(hdrHit);
 
   // Current date line (full height in svgR) + marker in svgHdr
@@ -4546,7 +4799,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
           }));
           svgR.appendChild(makeNavHit(
             circ(xE, dotY, 10, { fill: 'transparent', style: 'cursor:pointer' }),
-            () => switchModeAndNavigate('transit', ejd)
+            () => ctx.onBarClick(ejd)
           ));
         }
       }
@@ -4635,7 +4888,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
       if (cb.checked) hiddenTPlants.delete(fp.id);
       else            hiddenTPlants.add(fp.id);
       lbl.classList.toggle('tl-f-off', !cb.checked);
-      if (cachedTimeline) renderTimeline(cachedTimeline);
+      ctx.onRerender();
     });
     lbl.append(cb, document.createTextNode(' ' + fp.glyph));
     lbl.title = fp.name;
@@ -4661,8 +4914,8 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
   scrollWrap.addEventListener('scroll', () => { hdrScrollWrap.scrollLeft = scrollWrap.scrollLeft; });
   hdrScrollWrap.addEventListener('scroll', () => { scrollWrap.scrollLeft = hdrScrollWrap.scrollLeft; });
 
-  // filterBar → V2 timeline wrap (V1 transit-mode-content removed)
-  const modeContent = document.getElementById('v2-timeline-wrap');
+  // filterBar → timeline wrap (natal or sky)
+  const modeContent = ctx.filterContainer;
   modeContent.querySelector('#tl-filter')?.remove();
   modeContent.insertBefore(filterBar, modeContent.firstChild);
 
@@ -5435,6 +5688,432 @@ document.getElementById('v2-chart-expand-btn').addEventListener('click', () => {
       requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
     }
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SKY NOW MODE — Актуальные аспекты
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let skyJD = null;          // current JD in sky mode (null = now)
+let skyNavMode = 'date';   // 'date' | 'time'
+let skyScale = '1Y';       // '1M' | '1Y' | '2Y' | '10Y'
+let skyCachedTimeline = null;
+let skyLayoutActive = false;
+let skyTlHidden = false;
+
+// ── Enter / Exit ──────────────────────────────────────────────────────────────
+
+function enterSkyMode() {
+  if (!swe) return;
+  skyLayoutActive = true;
+  skyJD = computeJDNow();
+  document.getElementById('form-wrap').style.display = 'none';
+  document.getElementById('home-charts').style.display = 'none';
+  document.getElementById('sky-now-entry').style.display = 'none';
+  document.getElementById('sky-layout').classList.add('sky-visible');
+  document.getElementById('sky-layout').classList.remove('sky-tl-hidden');
+  skyTlHidden = false;
+  document.getElementById('sky-tl-toggle').textContent = '▲';
+  renderSkyAt(skyJD);
+  syncSkyDateLabel();
+  skyCachedTimeline = null;
+  computeAndRenderSkyTimeline(skyJD);
+}
+
+function exitSkyMode() {
+  skyLayoutActive = false;
+  document.getElementById('sky-layout').classList.remove('sky-visible', 'sky-tl-hidden');
+  document.getElementById('form-wrap').style.display = '';
+  document.getElementById('sky-now-entry').style.display = '';
+  if (currentUser) document.getElementById('home-charts').style.display = '';
+}
+
+// ── Render sky wheel ──────────────────────────────────────────────────────────
+
+function renderSkyAt(jd) {
+  if (!swe) return;
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const planets = PLANETS.map(p => {
+    const r = swe.calc_ut(jd, p.id, flags);
+    return { ...p, longitude: ((r[0] % 360) + 360) % 360, retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
+  });
+  skyJD = jd;
+  renderSkyWheel(planets);
+  buildSkyAspectGrid(planets);
+}
+
+function renderSkyWheel(planets) {
+  const svg = el('svg', { viewBox: VIEWBOX, width: '100%', style: 'display:block' });
+
+  const clipRect = el('rect', { width: W, height: H });
+  const clipPath = el('clipPath', { id: 'skyCanvasClip' });
+  clipPath.appendChild(clipRect);
+  const defs = el('defs');
+  defs.appendChild(clipPath);
+  svg.appendChild(defs);
+
+  const g = el('g', { 'clip-path': 'url(#skyCanvasClip)' });
+  svg.appendChild(g);
+
+  // 1. Background
+  g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
+
+  // 2. Zodiac ring
+  drawZodiacRing(g);
+
+  // 3. Sign dividers + glyphs
+  drawSignDividers(g, 0);
+  drawZodiacGlyphs(g, 0);
+
+  // 4. Inner circle
+  g.appendChild(circ(CX, CY, R_INNER, { fill: '#fff', stroke: COLORS.ringLine, 'stroke-width': 0.8 }));
+  drawDegreeRing(g, R_INNER, CHART.DEG_RING_W, CHART.DEG_SIGN_EXT);
+
+  // 5. Transit-transit aspect lines
+  drawSkyAspects(g, addSouthNode(planets));
+
+  // 6. Planets
+  drawPlanets(g, addSouthNode(planets), 0);
+
+  document.getElementById('sky-chart-block').replaceChildren(svg);
+}
+
+function drawSkyAspects(g, planets) {
+  for (let i = 0; i < planets.length; i++) {
+    for (let j = i + 1; j < planets.length; j++) {
+      const pi = planets[i], pj = planets[j];
+      const ids = [pi.id, pj.id];
+      if (ids.includes(10) && ids.includes(-10)) continue; // skip Node ↔ S.Node
+      const diff = angDiff(pi.longitude, pj.longitude);
+      const orb = Math.max(getTransitOrb(pi.id), getTransitOrb(pj.id));
+      for (const asp of T_ASPECTS) {
+        const actualOrb = Math.abs(diff - asp.angle);
+        if (actualOrb <= orb) {
+          const p1 = polar(lonToRad(pi.longitude, 0), R_INNER);
+          const p2 = polar(lonToRad(pj.longitude, 0), R_INNER);
+          if (asp.angle === 0) {
+            // Conjunction: ellipse
+            let l1 = pi.longitude, l2 = pj.longitude;
+            if (Math.abs(l1 - l2) > 180) { if (l1 < l2) l1 += 360; else l2 += 360; }
+            const midLon = ((l1 + l2) / 2) % 360;
+            const midA = lonToRad(midLon, 0);
+            const center = polar(midA, R_INNER);
+            const spanRad = diff * Math.PI / 180;
+            const rx = Math.max(10, spanRad * R_INNER / 2 + 8);
+            const rotDeg = midA * 180 / Math.PI + 90;
+            g.appendChild(el('ellipse', {
+              cx: center.x, cy: center.y, rx, ry: 3.5,
+              transform: `rotate(${rotDeg}, ${center.x}, ${center.y})`,
+              fill: 'none', stroke: asp.color, 'stroke-width': 1.5,
+            }));
+          } else {
+            g.appendChild(ln(p1.x, p1.y, p2.x, p2.y, {
+              stroke: asp.color, 'stroke-width': 0.9, opacity: '0.85',
+            }));
+            if (asp.angle !== 180) {
+              const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+              g.appendChild(el('circle', { cx: mid.x, cy: mid.y, r: 5, fill: 'white' }));
+              g.appendChild(txt(mid.x, mid.y, asp.hg ?? asp.symbol, {
+                'font-size': 9, fill: asp.color,
+                'text-anchor': 'middle', 'dominant-baseline': 'central',
+                ...(asp.hg ? { style: 'font-family:HamburgSymbols' } : {}),
+              }));
+            }
+          }
+          break;
+        }
+      }
+    }
+  }
+}
+
+// ── Sky aspect grid (transit-transit, square) ─────────────────────────────────
+
+function findSkyGridAspect(lon1, lon2, id1, id2) {
+  const diff = angDiff(lon1, lon2);
+  const orb = Math.max(getTransitOrb(id1), getTransitOrb(id2));
+  for (const asp of T_ASPECTS) {
+    const d = Math.abs(diff - asp.angle);
+    if (d <= orb) return { asp, orb: d };
+  }
+  return null;
+}
+
+function buildSkyAspectGrid(planets) {
+  const container = document.getElementById('sky-aspect-grid');
+  if (!container) return;
+  const n = planets.length;
+  // Lower-triangle table: rows[1..n-1], cols[0..n-2]
+  let html = '<table><thead><tr><th></th>';
+  for (let ci = 0; ci < n - 1; ci++) {
+    html += `<th class="ag-hdr">${planets[ci].hamburgGlyph}</th>`;
+  }
+  html += '</tr></thead><tbody>';
+  for (let ri = 1; ri < n; ri++) {
+    const rp = planets[ri];
+    html += `<tr><th class="ag-hdr">${rp.hamburgGlyph}</th>`;
+    for (let ci = 0; ci < n - 1; ci++) {
+      if (ci >= ri) {
+        html += `<td class="${ci === ri ? 'ag-self' : 'ag-empty'}"></td>`;
+      } else {
+        const cp = planets[ci];
+        const m = findSkyGridAspect(rp.longitude, cp.longitude, rp.id, cp.id);
+        if (m) {
+          html += `<td style="color:${m.asp.color}">` +
+            `<span class="ag-sym">${m.asp.symbol}</span>` +
+            `<span class="ag-orb">${m.orb.toFixed(1)}°</span></td>`;
+        } else {
+          html += `<td></td>`;
+        }
+      }
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+
+function syncSkyDateLabel() {
+  const jd = skyJD ?? computeJDNow();
+  const d = new Date((jd - 2440587.5) * 86400000);
+  const date = d.toISOString().slice(0, 10);
+  const time = d.toISOString().slice(11, 16);
+  document.getElementById('sky-nav-date-text').textContent = `${date} ${time}`;
+}
+
+function navigateSkyBy(unit, delta) {
+  const base = skyJD ?? computeJDNow();
+  let newJD;
+  if (unit === 'hour') {
+    newJD = base + delta / 24;
+  } else if (unit === 'minute') {
+    newJD = base + delta / (24 * 60);
+  } else if (unit === 'second') {
+    newJD = base + delta / (24 * 3600);
+  } else if (unit === 'day') {
+    newJD = base + delta;
+  } else if (unit === 'month') {
+    const d = new Date((base - 2440587.5) * 86400000);
+    d.setUTCMonth(d.getUTCMonth() + delta);
+    newJD = d.getTime() / 86400000 + 2440587.5;
+  } else {
+    const d = new Date((base - 2440587.5) * 86400000);
+    d.setUTCFullYear(d.getUTCFullYear() + delta);
+    newJD = d.getTime() / 86400000 + 2440587.5;
+  }
+  renderSkyAt(newJD);
+  syncSkyDateLabel();
+  syncSkyTimelineCursor();
+}
+
+// ── Timeline ──────────────────────────────────────────────────────────────────
+
+function computeSkyMutualAspects(jdStart, jdEnd) {
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const DAYS = Math.ceil(jdEnd - jdStart) + 2;
+
+  // Precompute all planet longitudes day by day
+  const allLons = {};
+  for (const p of PLANETS) {
+    allLons[p.id] = new Float64Array(DAYS);
+    for (let i = 0; i < DAYS; i++) {
+      const r = swe.calc_ut(jdStart + i, p.id, flags);
+      allLons[p.id][i] = ((r[0] % 360) + 360) % 360;
+    }
+  }
+
+  const periods = [];
+
+  for (let pi = 0; pi < PLANETS.length; pi++) {
+    for (let pj = pi + 1; pj < PLANETS.length; pj++) {
+      const p1 = PLANETS[pi], p2 = PLANETS[pj];
+      const lons1 = allLons[p1.id], lons2 = allLons[p2.id];
+      const orb = Math.max(getTransitOrb(p1.id), getTransitOrb(p2.id));
+
+      // Node/Lilith pairs: conjunctions only
+      const aspects = (p1.id === 10 || p1.id === 12 || p2.id === 10 || p2.id === 12)
+        ? T_ASPECTS.filter(a => a.angle === 0)
+        : T_ASPECTS;
+
+      for (const asp of aspects) {
+        let inPeriod = false, pStart = 0;
+        let curMinDay = -1, curMinDiff = Infinity;
+
+        const closePeriod = (endIdx) => {
+          periods.push({
+            tPlanet: p2, na: p1, asp,
+            startJD: jdStart + pStart,
+            endJD: jdStart + endIdx,
+            exactJDs: curMinDay >= 0 ? [jdStart + curMinDay] : [],
+            stations: [],
+          });
+          inPeriod = false; curMinDay = -1; curMinDiff = Infinity;
+        };
+
+        for (let i = 0; i < DAYS; i++) {
+          const diff = Math.abs(angDiff(lons1[i], lons2[i]) - asp.angle);
+          if (diff <= orb) {
+            if (!inPeriod) { inPeriod = true; pStart = i; }
+            if (diff < curMinDiff) { curMinDiff = diff; curMinDay = i; }
+          } else if (inPeriod) {
+            closePeriod(i - 1);
+          }
+        }
+        if (inPeriod) closePeriod(DAYS - 1);
+      }
+    }
+  }
+
+  return { periods, jdStart, jdEnd };
+}
+
+function computeAndRenderSkyTimeline(centerJD) {
+  const container = document.getElementById('sky-timeline-content');
+  container.innerHTML = `<div class="tl-status">Вычисление аспектов…</div>`;
+  setTimeout(() => {
+    try {
+      const now = new Date();
+      const jdToday = swe.julday(now.getUTCFullYear(), now.getUTCMonth() + 1,
+        now.getUTCDate(), now.getUTCHours() + now.getUTCMinutes() / 60);
+      const center = centerJD ?? jdToday;
+      const cd = new Date((center - 2440587.5) * 86400000);
+      let jdStart, jdEnd, jdCoreStart, jdCoreEnd;
+
+      if (skyScale === '1M') {
+        const y = cd.getUTCFullYear(), m = cd.getUTCMonth() + 1;
+        jdCoreStart = swe.julday(y, m, 1, 0);
+        const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
+        jdCoreEnd   = swe.julday(y, m, daysInMonth, 24);
+        jdStart = jdCoreStart - 4;
+        jdEnd   = jdCoreEnd   + 4;
+      } else if (skyScale === '10Y') {
+        const ds = Math.floor(cd.getUTCFullYear() / 10) * 10;
+        jdStart = swe.julday(ds, 1, 1, 0);
+        jdEnd   = swe.julday(ds + 11, 1, 1, 0);
+        jdCoreStart = null; jdCoreEnd = null;
+      } else {
+        const numYears = skyScale === '2Y' ? 2 : 1;
+        const cy = cd.getUTCFullYear();
+        jdCoreStart = swe.julday(cy, 1, 1, 0);
+        jdCoreEnd   = swe.julday(cy + numYears, 1, 1, 0);
+        jdStart = jdCoreStart - 30;
+        jdEnd   = jdCoreEnd   + 30;
+      }
+
+      const { periods } = computeSkyMutualAspects(jdStart, jdEnd);
+      skyCachedTimeline = { periods, jdStart, jdEnd, jdToday, jdCoreStart, jdCoreEnd, center };
+      renderTimeline({ ...skyCachedTimeline, jdCursor: center, tlCtx: skyTlCtx });
+    } catch (e) {
+      container.innerHTML = `<div class="tl-status">Ошибка: ${e.message}</div>`;
+    }
+  }, 30);
+}
+
+function syncSkyTimelineCursor() {
+  if (!skyCachedTimeline || !skyJD) return;
+  const { jdStart, jdEnd } = skyCachedTimeline;
+  if (skyJD >= jdStart && skyJD <= jdEnd) {
+    renderTimeline({ ...skyCachedTimeline, jdCursor: skyJD, tlCtx: skyTlCtx });
+  } else {
+    skyCachedTimeline = null;
+    computeAndRenderSkyTimeline(skyJD);
+  }
+}
+
+// Sky timeline context — passes all context-specific callbacks into the shared renderTimeline
+const skyTlCtx = {
+  get container()       { return document.getElementById('sky-timeline-content'); },
+  get filterContainer() { return document.getElementById('sky-timeline-wrap'); },
+  isYearScale:        () => skyScale === '10Y',
+  is2YScale:          () => skyScale === '2Y',
+  isMonthScale:       () => skyScale === '1M',
+  supportsMonthScale: true,
+  onNavigate:     jd  => { renderSkyAt(jd); syncSkyDateLabel(); },
+  onBarClick:     jd  => { renderSkyAt(jd); syncSkyDateLabel(); syncSkyTimelineCursor(); },
+  onProgBarClick: ()  => {},
+  onShift: days => {
+    const newCenter = (skyCachedTimeline?.center ?? computeJDNow()) + days;
+    skyCachedTimeline = null;
+    computeAndRenderSkyTimeline(newCenter);
+  },
+  onScale: (scale, center) => { skyScale = scale; skyCachedTimeline = null; computeAndRenderSkyTimeline(center); },
+  onDrillYear: yr => {
+    skyScale = '1Y';
+    skyCachedTimeline = null;
+    computeAndRenderSkyTimeline(swe.julday(yr, 7, 2, 0));
+  },
+  onRerender:  () => {
+    if (skyCachedTimeline) renderTimeline({ ...skyCachedTimeline, jdCursor: skyJD, tlCtx: skyTlCtx });
+  },
+  onRowExpand: () => {},
+};
+
+// ── Event listeners ───────────────────────────────────────────────────────────
+
+document.getElementById('skyNowBtn').addEventListener('click', enterSkyMode);
+
+document.getElementById('sky-exit-btn').addEventListener('click', exitSkyMode);
+document.getElementById('sky-logo').addEventListener('click', exitSkyMode);
+
+document.getElementById('sky-settings-btn').addEventListener('click', e => {
+  openSettingsDropdown(e.currentTarget, e);
+});
+
+document.getElementById('sky-tl-toggle').addEventListener('click', () => {
+  skyTlHidden = !skyTlHidden;
+  const layout = document.getElementById('sky-layout');
+  if (skyTlHidden) {
+    layout.classList.add('sky-tl-hidden');
+    document.getElementById('sky-tl-toggle').textContent = '▼';
+  } else {
+    layout.classList.remove('sky-tl-hidden');
+    document.getElementById('sky-tl-toggle').textContent = '▲';
+    if (skyCachedTimeline) {
+      requestAnimationFrame(() => requestAnimationFrame(() =>
+        renderSkyTimeline({ ...skyCachedTimeline, jdCursor: skyJD ?? computeJDNow() })
+      ));
+    }
+  }
+});
+
+// Nav mode toggle (Дата / Время)
+document.querySelectorAll('.sky-navmode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    skyNavMode = btn.dataset.skymode;
+    document.querySelectorAll('.sky-navmode-btn').forEach(b => b.classList.toggle('active', b === btn));
+  });
+});
+
+// Nav arrows
+document.querySelectorAll('[data-skynav]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const nav = btn.dataset.skynav;
+    if (nav === 'today') {
+      skyJD = computeJDNow();
+      renderSkyAt(skyJD);
+      syncSkyDateLabel();
+      skyCachedTimeline = null;
+      computeAndRenderSkyTimeline(skyJD);
+      return;
+    }
+    if (skyNavMode === 'date') {
+      if (nav === 'prev-big')   navigateSkyBy('year',  -1);
+      else if (nav === 'next-big')   navigateSkyBy('year',  +1);
+      else if (nav === 'prev-mid')   navigateSkyBy('month', -1);
+      else if (nav === 'next-mid')   navigateSkyBy('month', +1);
+      else if (nav === 'prev-small') navigateSkyBy('day',   -1);
+      else if (nav === 'next-small') navigateSkyBy('day',   +1);
+    } else {
+      if (nav === 'prev-big')   navigateSkyBy('hour',   -1);
+      else if (nav === 'next-big')   navigateSkyBy('hour',   +1);
+      else if (nav === 'prev-mid')   navigateSkyBy('minute', -1);
+      else if (nav === 'next-mid')   navigateSkyBy('minute', +1);
+      else if (nav === 'prev-small') navigateSkyBy('second', -1);
+      else if (nav === 'next-small') navigateSkyBy('second', +1);
+    }
+  });
 });
 
 // ── Apply saved language on startup ───────────────────────────────────────────

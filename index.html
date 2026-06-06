@@ -505,7 +505,39 @@
   .chart-item-meta { font-size: 0.75em; color: var(--tx-8); margin-top: 2px; }
   .chart-del { background: none; border: none; color: var(--bd); cursor: pointer; font-size: 0.9em; padding: 4px 6px; border-radius: 4px; flex-shrink: 0; }
   .chart-del:hover { color: var(--danger); background: var(--danger-bg); }
+  .chart-folder-btn { background: none; border: none; color: var(--bd); cursor: pointer; font-size: 0.85em; padding: 4px 5px; border-radius: 4px; flex-shrink: 0; }
+  .chart-folder-btn:hover { color: var(--accent); background: var(--bg-hover); }
   .charts-empty { text-align: center; color: var(--bd-input); font-size: 0.84em; padding: 36px 16px; line-height: 1.6; }
+  /* ── Charts panel toolbar ─────────────────────────────────── */
+  .charts-toolbar {
+    display: flex; gap: 6px; align-items: center;
+    padding: 8px 10px; border-bottom: 1px solid var(--bd-light);
+  }
+  .charts-search {
+    flex: 1; background: var(--bg-input); border: 1px solid var(--bd-input);
+    border-radius: 6px; padding: 5px 8px; font-size: 0.82em; color: var(--tx);
+    outline: none;
+  }
+  .charts-search:focus { border-color: var(--accent); }
+  .charts-sort {
+    background: var(--bg-input); border: 1px solid var(--bd-input);
+    border-radius: 6px; padding: 5px 4px; font-size: 0.78em; color: var(--tx);
+    cursor: pointer; outline: none; max-width: 90px;
+  }
+  .charts-sort:focus { border-color: var(--accent); }
+  /* ── Folder groups ────────────────────────────────────────── */
+  .folder-group { margin-bottom: 2px; }
+  .folder-hdr {
+    display: flex; align-items: center; gap: 5px;
+    padding: 5px 6px; cursor: pointer; border-radius: 6px;
+    font-size: 0.78em; font-weight: 600; color: var(--tx-8);
+    user-select: none;
+  }
+  .folder-hdr:hover { background: var(--bg-hover); }
+  .folder-arrow { font-size: 0.7em; color: var(--tx-9); transition: transform 0.15s; display: inline-block; }
+  .folder-group.collapsed .folder-arrow { transform: rotate(-90deg); }
+  .folder-group.collapsed .folder-items { display: none; }
+  .folder-count { margin-left: auto; color: var(--tx-9); font-weight: 400; }
 
   /* ── Home recent charts ───────────────────────────────────── */
   #home-charts {
@@ -970,6 +1002,15 @@
   <div class="panel-hdr">
     <span class="panel-title" data-i18n="myCharts">Мои карты</span>
     <button id="closePanelBtn">✕</button>
+  </div>
+  <div class="charts-toolbar">
+    <input id="charts-search" class="charts-search" type="search" placeholder="Поиск…">
+    <select id="charts-sort" class="charts-sort">
+      <option value="created">По дате</option>
+      <option value="name">А–Я</option>
+      <option value="birth">Дата рожд.</option>
+      <option value="sign">Знак ☉</option>
+    </select>
   </div>
   <div id="charts-list"></div>
 </div>
@@ -1674,6 +1715,80 @@ function closeChartsPanel() { chartsPanel.classList.remove('open'); }
 document.getElementById('chartsBtn').addEventListener('click', openChartsPanel);
 document.getElementById('closePanelBtn').addEventListener('click', closeChartsPanel);
 
+let _chartsSort = localStorage.getItem('chartsSort') || 'created';
+let _chartsSearch = '';
+let _collapsedFolders = new Set(JSON.parse(localStorage.getItem('collapsedFolders') || '[]'));
+
+document.getElementById('charts-sort').value = _chartsSort;
+document.getElementById('charts-search').addEventListener('input', e => {
+  _chartsSearch = e.target.value.toLowerCase();
+  loadChartsList();
+});
+document.getElementById('charts-sort').addEventListener('change', e => {
+  _chartsSort = e.target.value;
+  localStorage.setItem('chartsSort', _chartsSort);
+  loadChartsList();
+});
+
+function sunSignFromDate(dateStr) {
+  if (!dateStr) return 99;
+  const [, m, d] = dateStr.split('-').map(Number);
+  const md = m * 100 + d;
+  if (md >= 321 && md <= 419) return 0;
+  if (md >= 420 && md <= 520) return 1;
+  if (md >= 521 && md <= 620) return 2;
+  if (md >= 621 && md <= 722) return 3;
+  if (md >= 723 && md <= 822) return 4;
+  if (md >= 823 && md <= 922) return 5;
+  if (md >= 923 && md <= 1022) return 6;
+  if (md >= 1023 && md <= 1121) return 7;
+  if (md >= 1122 && md <= 1221) return 8;
+  if (md >= 1222 || md <= 119) return 9;
+  if (md >= 120 && md <= 218) return 10;
+  return 11;
+}
+
+function sortCharts(data) {
+  return [...data].sort((a, b) => {
+    if (_chartsSort === 'name') return (a.name ?? '').localeCompare(b.name ?? '', 'ru');
+    if (_chartsSort === 'birth') return (a.birth_date ?? '').localeCompare(b.birth_date ?? '');
+    if (_chartsSort === 'sign') return sunSignFromDate(a.birth_date) - sunSignFromDate(b.birth_date);
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+}
+
+function makeChartItem(c) {
+  const div = document.createElement('div');
+  div.className = 'chart-item';
+  div.innerHTML = `
+    <div class="chart-item-info">
+      <div class="chart-item-name">${c.name}</div>
+      <div class="chart-item-meta">${c.birth_date ?? ''} ${c.birth_time ?? ''}&nbsp;·&nbsp;${c.city ?? ''}</div>
+    </div>
+    <button class="chart-folder-btn" title="Папка">📁</button>
+    <button class="chart-del" title="${tr('deleteTitle')}">🗑</button>`;
+  div.querySelector('.chart-item-info').addEventListener('click', () => {
+    loadChartFromDB(c); closeChartsPanel();
+  });
+  div.querySelector('.chart-folder-btn').addEventListener('click', async e => {
+    e.stopPropagation();
+    const val = prompt('Папка (оставьте пустым, чтобы убрать):', c.folder ?? '');
+    if (val === null) return;
+    const folder = val.trim() || null;
+    await sb.from('charts').update({ folder }).eq('id', c.id);
+    loadChartsList();
+    loadHomeCharts();
+  });
+  div.querySelector('.chart-del').addEventListener('click', async e => {
+    e.stopPropagation();
+    if (!confirm(tr('deleteConfirm', {name: c.name}))) return;
+    await sb.from('charts').delete().eq('id', c.id);
+    loadChartsList();
+    loadHomeCharts();
+  });
+  return div;
+}
+
 async function loadChartsList() {
   const list = document.getElementById('charts-list');
   list.innerHTML = `<div class="charts-empty">${tr('chartsLoading')}</div>`;
@@ -1682,27 +1797,49 @@ async function loadChartsList() {
     list.innerHTML = `<div class="charts-empty">${tr('noSavedCharts')}</div>`;
     return;
   }
-  list.innerHTML = '';
-  for (const c of data) {
-    const div = document.createElement('div');
-    div.className = 'chart-item';
-    div.innerHTML = `
-      <div class="chart-item-info">
-        <div class="chart-item-name">${c.name}</div>
-        <div class="chart-item-meta">${c.birth_date ?? ''} ${c.birth_time ?? ''}&nbsp;·&nbsp;${c.city ?? ''}</div>
-      </div>
-      <button class="chart-del" title="${tr('deleteTitle')}">🗑</button>`;
-    div.querySelector('.chart-item-info').addEventListener('click', () => {
-      loadChartFromDB(c); closeChartsPanel();
-    });
-    div.querySelector('.chart-del').addEventListener('click', async e => {
-      e.stopPropagation();
-      if (!confirm(tr('deleteConfirm', {name: c.name}))) return;
-      await sb.from('charts').delete().eq('id', c.id);
-      loadChartsList();
-    });
-    list.appendChild(div);
+
+  const filtered = _chartsSearch
+    ? data.filter(c => (c.name ?? '').toLowerCase().includes(_chartsSearch) || (c.city ?? '').toLowerCase().includes(_chartsSearch))
+    : data;
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="charts-empty">Ничего не найдено</div>`;
+    return;
   }
+
+  const sorted = sortCharts(filtered);
+  list.innerHTML = '';
+
+  const folders = new Map();
+  const noFolder = [];
+  for (const c of sorted) {
+    if (c.folder) {
+      if (!folders.has(c.folder)) folders.set(c.folder, []);
+      folders.get(c.folder).push(c);
+    } else {
+      noFolder.push(c);
+    }
+  }
+
+  for (const [name, charts] of folders) {
+    const group = document.createElement('div');
+    group.className = 'folder-group' + (_collapsedFolders.has(name) ? ' collapsed' : '');
+    const hdr = document.createElement('div');
+    hdr.className = 'folder-hdr';
+    hdr.innerHTML = `<span class="folder-arrow">▼</span> 📁 ${name} <span class="folder-count">${charts.length}</span>`;
+    hdr.addEventListener('click', () => {
+      const collapsed = group.classList.toggle('collapsed');
+      if (collapsed) _collapsedFolders.add(name); else _collapsedFolders.delete(name);
+      localStorage.setItem('collapsedFolders', JSON.stringify([..._collapsedFolders]));
+    });
+    const items = document.createElement('div');
+    items.className = 'folder-items';
+    charts.forEach(c => items.appendChild(makeChartItem(c)));
+    group.append(hdr, items);
+    list.appendChild(group);
+  }
+
+  noFolder.forEach(c => list.appendChild(makeChartItem(c)));
 }
 
 function loadChartFromDB(c) {

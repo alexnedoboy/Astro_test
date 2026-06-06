@@ -507,6 +507,32 @@
   .chart-del:hover { color: var(--danger); background: var(--danger-bg); }
   .chart-folder-btn { background: none; border: none; color: var(--bd); cursor: pointer; font-size: 0.85em; padding: 4px 5px; border-radius: 4px; flex-shrink: 0; }
   .chart-folder-btn:hover { color: var(--accent); background: var(--bg-hover); }
+  /* ── Folder picker popover ────────────────────────────────── */
+  #folder-picker {
+    position: fixed; z-index: 1100;
+    background: var(--bg); border: 1px solid var(--bd-light);
+    border-radius: 9px; box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+    min-width: 170px; padding: 5px 0; display: none;
+  }
+  #folder-picker.open { display: block; }
+  .fp-item {
+    padding: 7px 13px; font-size: 0.84em; cursor: pointer;
+    color: var(--tx); white-space: nowrap;
+  }
+  .fp-item:hover { background: var(--bg-hover); }
+  .fp-item.fp-active { color: var(--accent); font-weight: 600; }
+  .fp-item.fp-remove { color: var(--tx-9); }
+  .fp-sep { border-top: 1px solid var(--bd-light); margin: 4px 0; }
+  .fp-new-row { display: flex; align-items: center; gap: 5px; padding: 5px 8px; }
+  .fp-new-input {
+    flex: 1; background: var(--bg-input); border: 1px solid var(--bd-input);
+    border-radius: 5px; padding: 4px 7px; font-size: 0.82em; color: var(--tx); outline: none;
+  }
+  .fp-new-input:focus { border-color: var(--accent); }
+  .fp-new-ok {
+    background: var(--accent); color: #fff; border: none; border-radius: 5px;
+    padding: 4px 8px; font-size: 0.8em; cursor: pointer; flex-shrink: 0;
+  }
   .charts-empty { text-align: center; color: var(--bd-input); font-size: 0.84em; padding: 36px 16px; line-height: 1.6; }
   /* ── Charts panel toolbar ─────────────────────────────────── */
   .charts-toolbar {
@@ -997,6 +1023,9 @@
   </div>
 </div>
 
+<!-- ── Folder picker popover ──────────────────────────────────── -->
+<div id="folder-picker"></div>
+
 <!-- ── Saved charts side panel ──────────────────────────────── -->
 <div id="charts-panel">
   <div class="panel-hdr">
@@ -1485,7 +1514,7 @@ async function loadHomeCharts() {
     div.innerHTML = `
       <div class="chart-item-info">
         <div class="chart-item-name">${c.name}</div>
-        <div class="chart-item-meta">${c.birth_date ?? ''} ${c.birth_time ?? ''}&nbsp;·&nbsp;${c.city ?? ''}</div>
+        <div class="chart-item-meta">${c.birth_date ?? ''} ${c.birth_time ?? ''}&nbsp;·&nbsp;${c.city ?? ''}${c.birth_date ? '&nbsp;·&nbsp;' + (SIGNS[sunSignFromDate(c.birth_date)] ?? '') : ''}</div>
       </div>
       <button class="chart-del" title="${tr('deleteTitle')}">🗑</button>`;
     div.querySelector('.chart-item-info').addEventListener('click', () => loadChartFromDB(c));
@@ -1718,6 +1747,64 @@ document.getElementById('closePanelBtn').addEventListener('click', closeChartsPa
 let _chartsSort = localStorage.getItem('chartsSort') || 'created';
 let _chartsSearch = '';
 let _collapsedFolders = new Set(JSON.parse(localStorage.getItem('collapsedFolders') || '[]'));
+let _allCharts = [];
+
+// ── Folder picker popover ─────────────────────────────────────────────────────
+const _fp = document.getElementById('folder-picker');
+let _fpClose = null;
+
+function openFolderPicker(anchorBtn, currentFolder, onPick) {
+  if (_fpClose) _fpClose();
+
+  const folders = [...new Set(_allCharts.map(c => c.folder).filter(Boolean))];
+
+  _fp.innerHTML = '';
+
+  // Existing folders
+  folders.forEach(name => {
+    const item = document.createElement('div');
+    item.className = 'fp-item' + (name === currentFolder ? ' fp-active' : '');
+    item.textContent = '📁 ' + name;
+    item.addEventListener('click', () => { onPick(name); close(); });
+    _fp.appendChild(item);
+  });
+
+  // Remove option
+  if (currentFolder) {
+    if (folders.length) {
+      const sep = document.createElement('div'); sep.className = 'fp-sep'; _fp.appendChild(sep);
+    }
+    const rem = document.createElement('div');
+    rem.className = 'fp-item fp-remove';
+    rem.textContent = '✕ Без папки';
+    rem.addEventListener('click', () => { onPick(null); close(); });
+    _fp.appendChild(rem);
+  }
+
+  // New folder input
+  const sep2 = document.createElement('div'); sep2.className = 'fp-sep'; _fp.appendChild(sep2);
+  const row = document.createElement('div'); row.className = 'fp-new-row';
+  const inp = document.createElement('input');
+  inp.className = 'fp-new-input'; inp.placeholder = 'Новая папка…'; inp.type = 'text';
+  const ok = document.createElement('button'); ok.className = 'fp-new-ok'; ok.textContent = 'OK';
+  const confirm = () => { const v = inp.value.trim(); if (v) { onPick(v); close(); } };
+  ok.addEventListener('click', confirm);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') confirm(); if (e.key === 'Escape') close(); });
+  row.append(inp, ok);
+  _fp.appendChild(row);
+
+  // Position
+  const rect = anchorBtn.getBoundingClientRect();
+  _fp.style.top = (rect.bottom + 4) + 'px';
+  _fp.style.left = Math.max(4, rect.right - 175) + 'px';
+  _fp.classList.add('open');
+  inp.focus();
+
+  function close() { _fp.classList.remove('open'); _fpClose = null; document.removeEventListener('mousedown', outside); }
+  function outside(e) { if (!_fp.contains(e.target) && e.target !== anchorBtn) close(); }
+  setTimeout(() => document.addEventListener('mousedown', outside), 0);
+  _fpClose = close;
+}
 
 document.getElementById('charts-sort').value = _chartsSort;
 document.getElementById('charts-search').addEventListener('input', e => {
@@ -1763,7 +1850,7 @@ function makeChartItem(c) {
   div.innerHTML = `
     <div class="chart-item-info">
       <div class="chart-item-name">${c.name}</div>
-      <div class="chart-item-meta">${c.birth_date ?? ''} ${c.birth_time ?? ''}&nbsp;·&nbsp;${c.city ?? ''}</div>
+      <div class="chart-item-meta">${c.birth_date ?? ''} ${c.birth_time ?? ''}&nbsp;·&nbsp;${c.city ?? ''}${c.birth_date ? '&nbsp;·&nbsp;' + (SIGNS[sunSignFromDate(c.birth_date)] ?? '') : ''}</div>
     </div>
     <button class="chart-folder-btn" title="Папка">📁</button>
     <button class="chart-del" title="${tr('deleteTitle')}">🗑</button>`;
@@ -1772,12 +1859,11 @@ function makeChartItem(c) {
   });
   div.querySelector('.chart-folder-btn').addEventListener('click', async e => {
     e.stopPropagation();
-    const val = prompt('Папка (оставьте пустым, чтобы убрать):', c.folder ?? '');
-    if (val === null) return;
-    const folder = val.trim() || null;
-    await sb.from('charts').update({ folder }).eq('id', c.id);
-    loadChartsList();
-    loadHomeCharts();
+    openFolderPicker(e.currentTarget, c.folder ?? null, async folder => {
+      await sb.from('charts').update({ folder }).eq('id', c.id);
+      loadChartsList();
+      loadHomeCharts();
+    });
   });
   div.querySelector('.chart-del').addEventListener('click', async e => {
     e.stopPropagation();
@@ -1798,6 +1884,7 @@ async function loadChartsList() {
     return;
   }
 
+  _allCharts = data;
   const filtered = _chartsSearch
     ? data.filter(c => (c.name ?? '').toLowerCase().includes(_chartsSearch) || (c.city ?? '').toLowerCase().includes(_chartsSearch))
     : data;

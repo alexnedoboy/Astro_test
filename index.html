@@ -129,6 +129,7 @@
   .col-second-house { display: none; }
   #info-table.mode-biwheel-houses .col-second-house { display: table-cell; }
   .col-divider { border-left: 1px solid var(--bd); }
+  .info-speed { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--tx-6); font-size: 0.82em; text-align: right; }
 
   /* ── Aspect grid ─────────────────────────────────────────────── */
   #aspect-grid { margin-top: 10px; overflow-x: auto; border-top: 1px solid var(--bd-light); padding-top: 8px; }
@@ -2531,21 +2532,37 @@ function fmtOrb(orbDeg) {
 // Sun/Moon/Mars: orbital period (geocentric ≈ heliocentric for these)
 // Mercury/Venus: traditional geocentric mean (Houlding)
 // Jupiter+: empirical geocentric absolute mean (Sotis-derived, accounts for Earth parallax)
+// Epoch means computed from SwissEph 2010–2030 (every 5 days, abs value avg)
 const AVG_SPEED = {
-  0:  360 / 365.256,   // Sun      0°59'08" (orbital, always direct)
-  1:  13.685,          // Moon     geocentric mean (Sotis)
-  2:  1.1047,          // Mercury  geocentric mean (Sotis)
-  3:  0.6376,          // Venus    geocentric mean (Sotis)
-  4:  0.4000,          // Mars     geocentric mean (Sotis)
-  5:  0.1223,          // Jupiter  geocentric absolute mean
-  6:  0.0653,          // Saturn   geocentric absolute mean
-  7:  0.0318,          // Uranus   geocentric absolute mean
-  8:  0.0191,          // Neptune  geocentric absolute mean
-  9:  0.0203,          // Pluto    geocentric absolute mean
-  10: 360 / 6793.5,    // North Node 0°03'11"
-  12: 360 / 3232.5,    // Lilith   0°06'41"
-  15: 0.0736,          // Chiron   geocentric absolute mean
+  0:  (59 + 8/60) / 60,    // Sun      0°59'08"
+  1:  13 + 10/60,           // Moon     13°10'
+  2:  1 + 12/60,            // Mercury  1°12'
+  3:  1 + 2/60,             // Venus    1°02'
+  4:  (34 + 8/60) / 60,    // Mars     0°34'08"
+  5:  (8 + 2/60) / 60,     // Jupiter  0°08'02"
+  6:  (4 + 4/60) / 60,     // Saturn   0°04'04"
+  7:  (1 + 58/60) / 60,    // Uranus   0°01'58"
+  8:  (1 + 17/60) / 60,    // Neptune  0°01'17"
+  9:  (1 + 7/60) / 60,     // Pluto    0°01'07"
+  10: 360 / 6793.5,         // North Node 0°03'11"
+  12: 360 / 3232.5,         // Lilith   0°06'41"
+  15: (2 + 8/60) / 60,     // Chiron   0°02'08"
 };
+
+function fmtSpeedDeg(degPerDay) {
+  if (degPerDay == null) return '';
+  const sign = degPerDay < 0 ? '−' : '';
+  const abs = Math.abs(degPerDay);
+  const totalSec = Math.round(abs * 3600);
+  const d = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (d >= 1) {
+    return `${sign}${d}°${String(m).padStart(2,'0')}′`;
+  } else {
+    return `${sign}${m}′${String(s).padStart(2,'0')}″`;
+  }
+}
 
 function fmtSpeed(degPerDay, planetId) {
   if (degPerDay == null) return '';
@@ -2908,7 +2925,7 @@ function drawPlanets(g, planets, asc) {
     const r   = p.level === 0 ? R_L0 : R_L1;
     const pos = polar(p.angle, r);
     const deg = Math.floor(p.longitude % 30);
-    const tipText = `${p.glyph} ${p.name}  ${fmtLon(p.longitude)}${p.house ? `  ${tr('houseWord')} ${ROMAN[p.house - 1]}` : ''}${p.retrograde ? '  R' : ''}${p.speed != null ? `  ${fmtSpeed(p.speed, p.id)}` : ''}`;
+    const tipText = `${p.glyph} ${p.name}  ${fmtLon(p.longitude)}${p.house ? `  ${tr('houseWord')} ${ROMAN[p.house - 1]}` : ''}${p.retrograde ? '  R' : ''}${p.speed != null ? `  ${fmtSpeedDeg(p.speed)} ${fmtSpeed(p.speed, p.id)}` : ''}`;
     const t = el('text', {
       x: pos.x, y: pos.y + 9,
       'font-size': 20, fill: '#111',
@@ -2991,6 +3008,8 @@ function buildInfoTable(planets, cusps) {
     tr.innerHTML =
       `<td class="info-glyph">${p.hamburgGlyph}</td>` +
       `<td class="info-pos">${fmtDeg(p.longitude)}${retro} ${SIGNS[si]}</td>` +
+      `<td class="info-speed">${p.speed != null ? fmtSpeedDeg(p.speed) : ''}</td>` +
+      `<td class="info-speed" style="color:var(--tx-8)">${p.speed != null ? fmtSpeed(p.speed, p.id) : ''}</td>` +
       `<td class="col-second col-divider info-glyph">${p.hamburgGlyph}</td>` +
       `<td class="col-second info-pos" id="info-sp-${p.id}"></td>`;
     tbody.appendChild(tr);
@@ -3676,7 +3695,7 @@ function drawBiwheelPlanets(g, planets, asc, rDot, rGlyphL0, rGlyphL1, dotColor 
     const r   = p.level === 0 ? rGlyphL0 : rGlyphL1;
     const pos = polar(p.angle, r);
     const deg = Math.floor(p.longitude % 30);
-    const tipText = `${p.glyph} ${p.name}  ${fmtLon(p.longitude)}${p.house ? `  ${tr('houseWord')} ${ROMAN[p.house - 1]}` : ''}${p.retrograde ? '  R' : ''}${p.speed != null ? `  ${fmtSpeed(p.speed, p.id)}` : ''}`;
+    const tipText = `${p.glyph} ${p.name}  ${fmtLon(p.longitude)}${p.house ? `  ${tr('houseWord')} ${ROMAN[p.house - 1]}` : ''}${p.retrograde ? '  R' : ''}${p.speed != null ? `  ${fmtSpeedDeg(p.speed)} ${fmtSpeed(p.speed, p.id)}` : ''}`;
     const t = el('text', {
       x: pos.x, y: pos.y + 9,
       'font-size': 20, fill: glyphColor,

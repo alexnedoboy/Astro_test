@@ -2273,7 +2273,7 @@ function dateInputToISO(val) {
 }
 
 // On touch devices: swap date/time inputs to plain text with auto-mask
-const _isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
+const _isTouchDevice = navigator.maxTouchPoints > 0;
 if (_isTouchDevice) {
   const bd = document.getElementById('birthDate');
   bd.type = 'text'; bd.inputMode = 'numeric'; bd.maxLength = 10; bd.placeholder = 'ДД.ММ.ГГГГ';

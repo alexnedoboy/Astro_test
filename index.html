@@ -1959,7 +1959,7 @@ function loadChartFromDB(c) {
     }
   }
   document.getElementById('chartName').value  = c.name        ?? '';
-  document.getElementById('birthDate').value  = c.birth_date ? (_isTouchDevice ? c.birth_date.split('-').reverse().join('.') : c.birth_date) : '';
+  document.getElementById('birthDate').value  = c.birth_date  ?? '';
   document.getElementById('birthTime').value  = c.birth_time  ?? '';
   document.getElementById('birthPlace').value = c.city        ?? '';
   document.getElementById('lat').value        = c.lat         ?? '';
@@ -2257,44 +2257,9 @@ function getUTCOffsetHours(tzName, date) {
   return Math.round((localAsUTC - date.getTime()) / 36000) / 100;
 }
 
-// Parse DD.MM.YYYY → [y, m, d] (also accepts YYYY-MM-DD for legacy)
-function parseDateInput(val) {
-  if (!val) return null;
-  const dmy = val.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  if (dmy) return [+dmy[3], +dmy[2], +dmy[1]];
-  const iso = val.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (iso) return [+iso[1], +iso[2], +iso[3]];
-  return null;
-}
-function dateInputToISO(val) {
-  const p = parseDateInput(val);
-  if (!p) return '';
-  return `${p[0]}-${String(p[1]).padStart(2,'0')}-${String(p[2]).padStart(2,'0')}`;
-}
-
-// On touch devices: swap date/time inputs to plain text with auto-mask
-const _isTouchDevice = navigator.maxTouchPoints > 0;
-if (_isTouchDevice) {
-  const bd = document.getElementById('birthDate');
-  bd.type = 'text'; bd.inputMode = 'numeric'; bd.maxLength = 10; bd.placeholder = 'ДД.ММ.ГГГГ';
-  bd.addEventListener('input', function() {
-    let v = this.value.replace(/\D/g, '').slice(0, 8);
-    if (v.length > 4) v = v.slice(0,2) + '.' + v.slice(2,4) + '.' + v.slice(4);
-    else if (v.length > 2) v = v.slice(0,2) + '.' + v.slice(2);
-    this.value = v;
-  });
-  const bt = document.getElementById('birthTime');
-  bt.type = 'text'; bt.inputMode = 'numeric'; bt.maxLength = 5; bt.placeholder = 'ЧЧ:ММ'; bt.value = '12:00';
-  bt.addEventListener('input', function() {
-    let v = this.value.replace(/\D/g, '').slice(0, 4);
-    if (v.length > 2) v = v.slice(0,2) + ':' + v.slice(2);
-    this.value = v;
-  });
-}
-
 function applyTimezoneOffset() {
   if (!detectedTimezone) return;
-  const dateStr = dateInputToISO(document.getElementById('birthDate').value);
+  const dateStr = document.getElementById('birthDate').value;
   const date = dateStr ? new Date(dateStr + 'T12:00:00Z') : new Date();
   try { document.getElementById('utcOff').value = getUTCOffsetHours(detectedTimezone, date); } catch {}
 }
@@ -2482,9 +2447,7 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     setStatus(tr('fillAllFields')); return;
   }
   try {
-    const parsed = parseDateInput(dateVal);
-    if (!parsed) { setStatus(tr('fillAllFields')); return; }
-    const [y, m, d] = parsed;
+    const [y, m, d] = dateVal.split('-').map(Number);
     const [hr, mn]  = timeVal.split(':').map(Number);
     const jd        = swe.julday(y, m, d, hr + mn / 60 - utcOff);
     const flags     = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
@@ -2512,8 +2475,7 @@ document.getElementById('calcBtn').addEventListener('click', () => {
                    || document.getElementById('birthPlace').value
                    || tr('chartFallback');
     const rawDate = document.getElementById('birthDate').value;
-    const _pd = parseDateInput(rawDate);
-    const fmtDate = _pd ? `${String(_pd[2]).padStart(2,'0')}.${String(_pd[1]).padStart(2,'0')}.${_pd[0]}` : '';
+    const fmtDate = rawDate ? rawDate.split('-').reverse().join('.') : '';
     const fmtTime = document.getElementById('birthTime').value || '';
 
     if (document.getElementById('form-wrap').classList.contains('editing')) {

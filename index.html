@@ -2448,7 +2448,7 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     planets.forEach(p => { p.house = findHouse(p.longitude, cusps); });
 
     // Save for transit tab; invalidate timeline cache and reset window
-    natalData = { planets, cusps, asc, mc, birthJD: jd, lat, lon };
+    natalData = { planets, cusps, asc, mc, birthJD: jd, lat, lon, originalBirthJD: jd, utcOff };
     cachedTimeline = null;
     tlPastYears = 0; tlFutureYears = 0;
     expandedRows = new Set(); fastCache = {}; hiddenTPlants = new Set(); moonBandCollapsed = false;
@@ -3118,6 +3118,35 @@ function computeJDNow() {
     now.getUTCDate(), now.getUTCHours() + now.getUTCMinutes() / 60);
 }
 
+function applyNatalJD(jd) {
+  if (!natalData || !swe) return;
+  const { lat, lon, originalBirthJD } = natalData;
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const planets = PLANETS.map(p => {
+    const r = swe.calc_ut(jd, p.id, flags);
+    return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
+  });
+  const hRes = swe.houses(jd, lat, lon, 'P');
+  const cusps = Array.from(hRes.cusps).slice(1, 13);
+  const ascmc = Array.from(hRes.ascmc);
+  const asc = ((ascmc[0] % 360) + 360) % 360;
+  const mc  = ((ascmc[1] % 360) + 360) % 360;
+  planets.forEach(p => { p.house = findHouse(p.longitude, cusps); });
+  natalData = { ...natalData, planets, cusps, asc, mc, birthJD: jd, lat, lon, originalBirthJD };
+  const localMs = (jd - 2440587.5) * 86400000 + (natalData.utcOff ?? 0) * 3600000;
+  const nd = new Date(localMs);
+  const fmtD = String(nd.getUTCDate()).padStart(2, '0') + '.' +
+               String(nd.getUTCMonth() + 1).padStart(2, '0') + '.' +
+               nd.getUTCFullYear();
+  const fmtT = String(nd.getUTCHours()).padStart(2, '0') + ':' +
+               String(nd.getUTCMinutes()).padStart(2, '0');
+  document.getElementById('v2-chart-date').textContent = fmtD + ' · ' + fmtT;
+  renderChart(planets, cusps, asc, mc);
+  buildInfoTable(planets, cusps);
+  buildAspectGrid(addSouthNode(planets, cusps));
+  syncV2DateLabel();
+}
+
 function applyNavigatedJD(jd, unit = null) {
   currentTransitJD = jd;
   if (currentMode === 'transit') renderBiwheelAt(currentTransitJD);
@@ -3149,6 +3178,21 @@ function syncTimelineCursor(unit = null) {
 }
 
 function navigateDateBy(unit, delta) {
+  if (currentMode === 'natal') {
+    if (!natalData) return;
+    const baseJD = natalData.birthJD;
+    let newJD;
+    if (unit === 'day') {
+      newJD = baseJD + delta;
+    } else {
+      const d = new Date((baseJD - 2440587.5) * 86400000);
+      if (unit === 'month') d.setUTCMonth(d.getUTCMonth() + delta);
+      else d.setUTCFullYear(d.getUTCFullYear() + delta);
+      newJD = d.getTime() / 86400000 + 2440587.5;
+    }
+    applyNatalJD(newJD);
+    return;
+  }
   const baseJD = currentTransitJD ?? computeJDNow();
   if (!baseJD) return;
   let newJD;
@@ -3167,7 +3211,9 @@ document.getElementById('nav-date-input').addEventListener('change', () => {
   const val = document.getElementById('nav-date-input').value;
   if (!val) return;
   const [y, m, d] = val.split('-').map(Number);
-  applyNavigatedJD(new Date(Date.UTC(y, m - 1, d)).getTime() / 86400000 + 2440587.5);
+  const jd = new Date(Date.UTC(y, m - 1, d)).getTime() / 86400000 + 2440587.5;
+  if (currentMode === 'natal') applyNatalJD(jd);
+  else applyNavigatedJD(jd);
 });
 
 function renderDirectionBiwheel(jd = null) {
@@ -5824,11 +5870,27 @@ function syncV2ModeButtons() {
 function syncV2DateLabel() {
   const lbl = document.getElementById('v2-nav-date-lbl');
   if (!lbl) return;
-  const show = currentMode !== 'natal';
-  lbl.style.display = show ? '' : 'none';
-  if (!show) return;
+  lbl.style.display = '';
   const txt = document.getElementById('v2-nav-date-text');
   const inp = document.getElementById('nav-date-input');
+
+  if (currentMode === 'natal') {
+    const baseJD = natalData?.birthJD;
+    if (baseJD && inp) {
+      const d = new Date((baseJD - 2440587.5) * 86400000);
+      inp.value = d.getUTCFullYear() + '-' +
+        String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getUTCDate()).padStart(2, '0');
+      txt.textContent =
+        String(d.getUTCDate()).padStart(2, '0') + '.' +
+        String(d.getUTCMonth() + 1).padStart(2, '0') + '.' +
+        d.getUTCFullYear();
+    }
+    const atOrigin = natalData?.originalBirthJD == null || Math.abs((natalData?.birthJD ?? 0) - (natalData?.originalBirthJD ?? 0)) < 0.001;
+    lbl.classList.toggle('v2-date-active', !atOrigin);
+    return;
+  }
+
   const baseJD = currentTransitJD ?? computeJDNow();
   if (baseJD && inp) {
     const d = new Date((baseJD - 2440587.5) * 86400000);
@@ -5859,12 +5921,16 @@ document.getElementById('v2-control-panel').addEventListener('click', e => {
   if (navBtn) {
     const nav = navBtn.dataset.nav;
     if (nav === 'today') {
+      if (currentMode === 'natal') {
+        if (natalData?.originalBirthJD != null) applyNatalJD(natalData.originalBirthJD);
+      } else {
       currentTransitJD = null;
       if (currentMode === 'transit') showTransitNow();
       else if (currentMode === 'direction') renderDirectionBiwheel(null);
       else renderProgressedBiwheel(null);
       syncTimelineCursor();
       syncV2DateLabel();
+      }
     } else {
       const unitMap = {
         'prev-day': ['day', -1], 'next-day': ['day', +1],

@@ -693,6 +693,7 @@
     padding: 2px 2px 4px;
     min-width: 0;
   }
+  body.privacy-mode #v2-chart-info { visibility: hidden; }
   #v2-chart-info-top {
     display: flex; align-items: center; gap: 1px; min-width: 0;
   }
@@ -1063,6 +1064,9 @@
   <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
     <input type="checkbox" id="progLunarPhasesToggle"> <span data-i18n="progLunarPhases">Фазы прогр. Луны</span>
   </label>
+  <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
+    <input type="checkbox" id="privacyModeToggle"> <span data-i18n="privacyMode">Скрыть имя и дату</span>
+  </label>
   <div id="lang-switcher">
     <button class="lang-btn lang-btn-active" data-lang="ru">RU</button>
     <button class="lang-btn" data-lang="en">EN</button>
@@ -1337,6 +1341,7 @@ const STRINGS = {
     chartFallback:'Карта',
     planetVisibility:'Планеты натала', resetAll:'Сбросить все',
     progLunarPhases:'Фазы прогр. Луны',
+    privacyMode:'Скрыть имя и дату',
     phaseName_0:'Новолуние', phaseName_45:'Серп',
     phaseName_90:'Первая четверть', phaseName_135:'Горб',
     phaseName_180:'Полнолуние', phaseName_225:'Рассеивающая',
@@ -1400,6 +1405,7 @@ const STRINGS = {
     chartFallback:'Chart',
     planetVisibility:'Natal planets', resetAll:'Reset all',
     progLunarPhases:'Prog. lunar phases',
+    privacyMode:'Hide name & date',
     phaseName_0:'New Moon', phaseName_45:'Crescent',
     phaseName_90:'First Quarter', phaseName_135:'Gibbous',
     phaseName_180:'Full Moon', phaseName_225:'Disseminating',
@@ -1616,6 +1622,14 @@ progLunarPhasesToggle.addEventListener('change', () => {
   showProgLunarPhases = progLunarPhasesToggle.checked;
   localStorage.setItem('showProgLunarPhases', showProgLunarPhases ? '1' : '0');
   if (natalData && currentMode === 'progressed') renderProgressedBiwheel(currentTransitJD);
+});
+
+const privacyModeToggle = document.getElementById('privacyModeToggle');
+privacyModeToggle.checked = localStorage.getItem('privacyMode') === '1';
+document.body.classList.toggle('privacy-mode', privacyModeToggle.checked);
+privacyModeToggle.addEventListener('change', () => {
+  document.body.classList.toggle('privacy-mode', privacyModeToggle.checked);
+  localStorage.setItem('privacyMode', privacyModeToggle.checked ? '1' : '0');
 });
 
 function reRenderCurrentChart() {

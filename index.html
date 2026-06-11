@@ -672,6 +672,95 @@
   #v2-aspect-panel #aspect-grid {
     overflow-x: hidden;
   }
+  /* ── Правая панель: табы Данные / Заметки ─────────────────────────────────── */
+  #v2-panel-tabs {
+    display: flex; gap: 4px;
+    padding: 8px 8px 6px;
+    position: sticky; top: 0; z-index: 2;
+    background: var(--bg);
+    border-radius: 8px 8px 0 0;
+  }
+  .v2-panel-tab {
+    flex: 1 1 0;
+    padding: 5px 8px; font-size: 0.8em;
+    background: none; border: 1px solid var(--bd-light); border-radius: 6px;
+    color: var(--tx-5); cursor: pointer;
+  }
+  .v2-panel-tab:hover { background: var(--bg-hover); color: var(--tx-2); }
+  .v2-panel-tab.active { background: var(--bg-active); color: var(--tx); border-color: var(--bd); }
+  #v2-aspect-panel.show-notes #right-info-content { display: none !important; }
+
+  /* ── Заметки ──────────────────────────────────────────────────────────────── */
+  #v2-notes-view { display: none; padding: 2px 8px 10px; }
+  #v2-aspect-panel.show-notes #v2-notes-view { display: block; }
+  #notes-msg { display: none; font-size: 0.82em; color: var(--tx-7); padding: 16px 4px; text-align: center; }
+  #v2-notes-view.msg-only #notes-msg { display: block; }
+  #v2-notes-view.msg-only #notes-list-screen,
+  #v2-notes-view.msg-only #notes-editor-screen { display: none; }
+  #notes-editor-screen { display: none; }
+  #v2-notes-view.editing #notes-editor-screen { display: block; }
+  #v2-notes-view.editing #notes-list-screen { display: none; }
+
+  .note-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 6px; border-radius: 4px;
+    border-bottom: 1px solid var(--bd-light);
+    cursor: pointer;
+  }
+  .note-item:hover { background: var(--bg-hover); }
+  .note-item-info { flex: 1; min-width: 0; }
+  .note-item-title {
+    font-size: 0.84em; font-weight: 600; color: var(--tx-2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .note-item-meta {
+    font-size: 0.72em; color: var(--tx-8);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .note-del {
+    flex: 0 0 auto; padding: 4px; border-radius: 4px;
+    background: none; border: none; cursor: pointer;
+    font-size: 0.85em; color: var(--tx-8);
+  }
+  .note-del:hover { background: var(--danger-bg); color: var(--danger); }
+  #notes-empty { font-size: 0.82em; color: var(--tx-7); padding: 14px 4px; text-align: center; }
+  #note-add-btn {
+    display: block; width: 100%; padding: 7px; margin: 8px 0 2px;
+    background: none; border: 1px dashed var(--bd); border-radius: 6px;
+    color: var(--tx-5); cursor: pointer; font-size: 0.82em;
+  }
+  #note-add-btn:hover { background: var(--bg-hover); color: var(--tx-2); }
+
+  #note-editor-bar { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+  #note-title {
+    flex: 1; min-width: 0;
+    border: none; border-bottom: 1px solid var(--bd-light); border-radius: 0;
+    background: none; outline: none;
+    font: inherit; font-size: 0.88em; font-weight: 600; color: var(--tx);
+    padding: 4px 2px;
+  }
+  #note-title:focus { border-bottom-color: var(--accent); }
+  #note-body {
+    width: 100%; box-sizing: border-box; min-height: 46vh;
+    border: 1px solid var(--bd-input); border-radius: 6px;
+    background: var(--bg-input);
+    font: inherit; font-size: 0.86em; line-height: 1.45; color: var(--tx);
+    padding: 8px; resize: vertical; outline: none;
+  }
+  #note-body:focus { border-color: var(--accent); }
+  .v2-icon-btn.active-toggle { background: var(--bg-active); color: var(--tx); }
+  #note-preview { display: none; font-size: 0.86em; line-height: 1.5; color: var(--tx-2); padding: 4px 2px; overflow-wrap: break-word; }
+  #v2-notes-view.previewing #note-preview { display: block; }
+  #v2-notes-view.previewing #note-body { display: none; }
+  #note-preview h1 { font-size: 1.25em; margin: 10px 0 6px; }
+  #note-preview h2 { font-size: 1.12em; margin: 10px 0 5px; }
+  #note-preview h3 { font-size: 1em;    margin: 8px 0 4px; }
+  #note-preview p  { margin: 6px 0; }
+  #note-preview ul, #note-preview ol { margin: 4px 0; padding-left: 20px; }
+  #note-preview blockquote { border-left: 3px solid var(--bd); margin: 6px 0; padding: 2px 10px; color: var(--tx-5); }
+  #note-preview code { background: var(--bg-row-alt); border-radius: 3px; padding: 0 3px; font-size: 0.92em; }
+  #note-preview hr { border: none; border-top: 1px solid var(--bd-light); margin: 10px 0; }
+  #note-preview a { color: var(--link); }
   #v2-control-panel {
     flex: 0 0 116px;
     align-self: flex-start;
@@ -1288,11 +1377,32 @@
       <div id="chart-block"></div>
     </div>
     <div id="v2-aspect-panel">
+      <div id="v2-panel-tabs">
+        <button class="v2-panel-tab active" data-ptab="data" data-i18n="panelTabData">Данные</button>
+        <button class="v2-panel-tab" data-ptab="notes" data-i18n="panelTabNotes">Заметки</button>
+      </div>
       <div id="right-info-content" style="display:none">
         <table id="info-table">
           <tbody id="tableBody"></tbody>
         </table>
         <div id="aspect-grid"></div>
+      </div>
+      <div id="v2-notes-view">
+        <div id="notes-msg"></div>
+        <div id="notes-list-screen">
+          <div id="notes-list"></div>
+          <button id="note-add-btn" data-i18n="noteNew">+ Новая заметка</button>
+        </div>
+        <div id="notes-editor-screen">
+          <div id="note-editor-bar">
+            <button id="note-back-btn" class="v2-icon-btn" data-i18n-title="noteBackTitle" title="К списку">←</button>
+            <input id="note-title" data-i18n-placeholder="noteTitlePlaceholder" placeholder="Название…" autocomplete="off">
+            <button id="note-preview-btn" class="v2-icon-btn" data-i18n-title="notePreviewTitle" title="Просмотр">👁&#xFE0E;</button>
+            <button id="note-export-btn" class="v2-icon-btn" data-i18n-title="noteExportTitle" title="Экспорт .md">⤓</button>
+          </div>
+          <textarea id="note-body" spellcheck="false"></textarea>
+          <div id="note-preview"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1440,6 +1550,15 @@ const STRINGS = {
     planetVisibility:'Планеты натала', resetAll:'Сбросить все',
     progLunarPhases:'Фазы прогр. Луны',
     privacyMode:'Скрыть имя и дату',
+    panelTabData:'Данные', panelTabNotes:'Заметки',
+    noteNew:'+ Новая заметка', noteUntitled:'Без названия',
+    notesEmpty:'Заметок пока нет',
+    notesLoginFirst:'Войдите, чтобы делать заметки',
+    notesSaveChartFirst:'Сохраните карту, чтобы делать заметки',
+    notesError:'Ошибка загрузки заметок',
+    noteTitlePlaceholder:'Название…',
+    noteDeleteConfirm:'Удалить заметку «{name}»?',
+    noteBackTitle:'К списку', notePreviewTitle:'Просмотр', noteExportTitle:'Экспорт .md',
     phaseName_0:'Новолуние', phaseName_45:'Серп',
     phaseName_90:'Первая четверть', phaseName_135:'Горб',
     phaseName_180:'Полнолуние', phaseName_225:'Рассеивающая',
@@ -1504,6 +1623,15 @@ const STRINGS = {
     planetVisibility:'Natal planets', resetAll:'Reset all',
     progLunarPhases:'Prog. lunar phases',
     privacyMode:'Hide name & date',
+    panelTabData:'Data', panelTabNotes:'Notes',
+    noteNew:'+ New note', noteUntitled:'Untitled',
+    notesEmpty:'No notes yet',
+    notesLoginFirst:'Sign in to add notes',
+    notesSaveChartFirst:'Save the chart to add notes',
+    notesError:'Failed to load notes',
+    noteTitlePlaceholder:'Title…',
+    noteDeleteConfirm:'Delete note "{name}"?',
+    noteBackTitle:'Back to list', notePreviewTitle:'Preview', noteExportTitle:'Export .md',
     phaseName_0:'New Moon', phaseName_45:'Crescent',
     phaseName_90:'First Quarter', phaseName_135:'Gibbous',
     phaseName_180:'Full Moon', phaseName_225:'Disseminating',
@@ -1557,6 +1685,8 @@ function applyLang() {
   document.querySelectorAll('.lang-btn').forEach(btn => {
     btn.classList.toggle('lang-btn-active', btn.dataset.lang === currentLang);
   });
+  // Re-render notes list (dates are locale-formatted)
+  if (notesCache) renderNotesList();
   // Re-render if chart is loaded
   if (natalData) {
     buildInfoTable(natalData.planets, natalData.cusps);
@@ -2085,7 +2215,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   const name = document.getElementById('chartName').value.trim()
              || document.getElementById('birthPlace').value
              || tr('chartFallback');
-  const { error } = await sb.from('charts').insert({
+  const { data, error } = await sb.from('charts').insert({
     user_id:    currentUser.id,
     name,
     birth_date: document.getElementById('birthDate').value  || null,
@@ -2095,10 +2225,267 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     lon:        parseFloat(document.getElementById('lonVal').value)  || null,
     utc_offset: parseFloat(document.getElementById('utcOff').value)  || null,
     timezone:   detectedTimezone ?? null,
-  });
-  if (error) showSaveConfirm(tr('saveError'), true);
-  else showSaveConfirm(tr('saved'));
+  }).select().single();
+  if (error) { showSaveConfirm(tr('saveError'), true); return; }
+  showSaveConfirm(tr('saved'));
+  // Сохранённая карта сразу становится «открытой» — заметки доступны без переоткрытия
+  currentChartId = data.id;
+  const newHash = `#chart/${data.id}`;
+  if (window.location.hash !== newHash) {
+    history.pushState({ chartId: data.id }, '', newHash);
+  }
+  // Если открыта вкладка «Заметки» с подсказкой «Сохраните карту» — обновить её
+  if (document.getElementById('v2-aspect-panel').classList.contains('show-notes')) openNotesTab();
 });
+
+// ── Notes ─────────────────────────────────────────────────────────────────────
+// Заметки к карте: таб «Заметки» в правой панели, список + markdown-редактор.
+// Хранение — таблица `notes` в Supabase (только для сохранённых карт).
+
+let notesCache    = null;   // массив заметок карты notesChartId (null = не загружены)
+let notesChartId  = null;   // chart id, которому принадлежит кэш
+let currentNoteId = null;   // заметка, открытая в редакторе
+let _noteSaveTimer = null;
+let _noteDirty     = false;
+
+const notesView = document.getElementById('v2-notes-view');
+
+function noteById(id) { return notesCache?.find(n => n.id === id); }
+
+function noteDisplayTitle(n) {
+  if (n.title?.trim()) return n.title.trim();
+  const firstLine = (n.body || '').split('\n').find(l => l.trim());
+  return firstLine?.trim().slice(0, 60) || tr('noteUntitled');
+}
+
+function noteDateStr(n) {
+  const d = new Date(n.updated_at ?? n.created_at);
+  return d.toLocaleDateString(currentLang, { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+document.querySelectorAll('.v2-panel-tab').forEach(btn => {
+  btn.addEventListener('click', () => switchPanelTab(btn.dataset.ptab));
+});
+
+function switchPanelTab(tab) {
+  flushNoteSave();
+  document.querySelectorAll('.v2-panel-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.ptab === tab));
+  document.getElementById('v2-aspect-panel').classList.toggle('show-notes', tab === 'notes');
+  if (tab === 'notes') openNotesTab();
+}
+
+function showNotesMsg(msg) {
+  notesView.classList.remove('editing', 'previewing');
+  notesView.classList.add('msg-only');
+  document.getElementById('notes-msg').textContent = msg;
+}
+
+async function openNotesTab() {
+  if (!currentUser)    { showNotesMsg(tr('notesLoginFirst')); return; }
+  if (!currentChartId) { showNotesMsg(tr('notesSaveChartFirst')); return; }
+  if (notesChartId === currentChartId && notesCache) { renderNotesList(); notesView.classList.remove('msg-only'); return; }
+  showNotesMsg(tr('chartsLoading'));
+  const chartId = currentChartId;
+  const { data, error } = await sb.from('notes').select('*')
+    .eq('chart_id', chartId).order('updated_at', { ascending: false });
+  if (error) { console.error('notes load:', error); showNotesMsg(tr('notesError')); return; }
+  if (chartId !== currentChartId) return; // карту сменили, пока грузились
+  notesCache = data;
+  notesChartId = chartId;
+  notesView.classList.remove('msg-only');
+  // Единственная заметка — сразу в редактор, иначе список
+  if (notesCache.length === 1) openNoteEditor(notesCache[0]);
+  else renderNotesList();
+}
+
+function renderNotesList() {
+  const list = document.getElementById('notes-list');
+  list.innerHTML = '';
+  if (!notesCache?.length) {
+    const empty = document.createElement('div');
+    empty.id = 'notes-empty';
+    empty.textContent = tr('notesEmpty');
+    list.appendChild(empty);
+    return;
+  }
+  for (const n of notesCache) {
+    const item = document.createElement('div');
+    item.className = 'note-item';
+    const info = document.createElement('div');
+    info.className = 'note-item-info';
+    const title = document.createElement('div');
+    title.className = 'note-item-title';
+    title.textContent = noteDisplayTitle(n);
+    const meta = document.createElement('div');
+    meta.className = 'note-item-meta';
+    meta.textContent = noteDateStr(n);
+    info.append(title, meta);
+    const del = document.createElement('button');
+    del.className = 'note-del';
+    del.title = tr('deleteTitle');
+    del.textContent = '🗑';
+    item.append(info, del);
+    item.addEventListener('click', () => openNoteEditor(n));
+    del.addEventListener('click', async e => {
+      e.stopPropagation();
+      if (!confirm(tr('noteDeleteConfirm', { name: noteDisplayTitle(n) }))) return;
+      const { error } = await sb.from('notes').delete().eq('id', n.id);
+      if (error) { console.error('note delete:', error); return; }
+      notesCache = notesCache.filter(x => x.id !== n.id);
+      if (currentNoteId === n.id) currentNoteId = null;
+      renderNotesList();
+    });
+    list.appendChild(item);
+  }
+}
+
+function openNoteEditor(n) {
+  flushNoteSave();
+  currentNoteId = n.id;
+  document.getElementById('note-title').value = n.title ?? '';
+  document.getElementById('note-body').value  = n.body ?? '';
+  notesView.classList.remove('msg-only', 'previewing');
+  document.getElementById('note-preview-btn').classList.remove('active-toggle');
+  notesView.classList.add('editing');
+}
+
+function backToNotesList() {
+  flushNoteSave();
+  currentNoteId = null;
+  notesView.classList.remove('editing', 'previewing');
+  document.getElementById('note-preview-btn').classList.remove('active-toggle');
+  renderNotesList();
+}
+
+document.getElementById('note-back-btn').addEventListener('click', backToNotesList);
+
+document.getElementById('note-add-btn').addEventListener('click', async () => {
+  if (!currentUser || !currentChartId) return;
+  const { data, error } = await sb.from('notes')
+    .insert({ user_id: currentUser.id, chart_id: currentChartId })
+    .select().single();
+  if (error) { console.error('note create:', error); showNotesMsg(tr('notesError')); return; }
+  notesCache.unshift(data);
+  openNoteEditor(data);
+  document.getElementById('note-body').focus();
+});
+
+// Автосохранение: debounce 1200 мс после последнего ввода
+function scheduleNoteSave() {
+  _noteDirty = true;
+  clearTimeout(_noteSaveTimer);
+  _noteSaveTimer = setTimeout(saveCurrentNote, 1200);
+}
+
+async function saveCurrentNote() {
+  clearTimeout(_noteSaveTimer);
+  if (!_noteDirty || !currentNoteId) return;
+  _noteDirty = false;
+  const id    = currentNoteId;
+  const title = document.getElementById('note-title').value.trim() || null;
+  const body  = document.getElementById('note-body').value;
+  const updated_at = new Date().toISOString();
+  const n = noteById(id);
+  if (n) Object.assign(n, { title, body, updated_at });
+  const { error } = await sb.from('notes').update({ title, body, updated_at }).eq('id', id);
+  if (error) { _noteDirty = true; console.error('note save:', error); }
+}
+
+function flushNoteSave() { if (_noteDirty) saveCurrentNote(); }
+
+document.getElementById('note-title').addEventListener('input', scheduleNoteSave);
+document.getElementById('note-body').addEventListener('input', scheduleNoteSave);
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushNoteSave(); });
+
+document.getElementById('note-preview-btn').addEventListener('click', () => {
+  const on = notesView.classList.toggle('previewing');
+  document.getElementById('note-preview-btn').classList.toggle('active-toggle', on);
+  if (on) document.getElementById('note-preview').innerHTML =
+    renderMarkdown(document.getElementById('note-body').value);
+});
+
+document.getElementById('note-export-btn').addEventListener('click', () => {
+  const n = noteById(currentNoteId);
+  if (!n) return;
+  const title = document.getElementById('note-title').value.trim();
+  const body  = document.getElementById('note-body').value;
+  const chartName = document.getElementById('v2-chart-name').textContent.trim();
+  const base  = [chartName, title || noteDateStr(n)].filter(Boolean).join(' — ');
+  const fname = (base.replace(/[\\/:*?"<>|]/g, '').slice(0, 80) || 'note') + '.md';
+  const text  = (title ? `# ${title}\n\n` : '') + body;
+  const blob  = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fname;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// Сброс при закрытии карты / открытии другой
+function resetNotesState() {
+  flushNoteSave();
+  notesCache = null;
+  notesChartId = null;
+  currentNoteId = null;
+  notesView.classList.remove('editing', 'previewing', 'msg-only');
+  document.getElementById('note-preview-btn').classList.remove('active-toggle');
+  document.querySelectorAll('.v2-panel-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.ptab === 'data'));
+  document.getElementById('v2-aspect-panel').classList.remove('show-notes');
+}
+
+// ── Мини-рендерер markdown ────────────────────────────────────────────────────
+// Заголовки #..###, **жирный**, *курсив*, `код`, списки -/1., > цитата, ---, [ссылки](http…)
+// Сначала экранируем HTML, потом подставляем теги — XSS невозможен.
+
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function mdInline(s) {
+  return s
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
+
+function renderMarkdown(src) {
+  const out = [];
+  let listTag = null, para = [];
+  const closeList = () => { if (listTag) { out.push(`</${listTag}>`); listTag = null; } };
+  const closePara = () => { if (para.length) { out.push('<p>' + para.join('<br>') + '</p>'); para = []; } };
+  for (const raw of (src || '').split('\n')) {
+    const line = raw.trimEnd();
+    let m;
+    if (!line.trim()) { closePara(); closeList(); continue; }
+    if (m = line.match(/^(#{1,3})\s+(.*)/)) {
+      closePara(); closeList();
+      const lvl = m[1].length;
+      out.push(`<h${lvl}>${mdInline(escapeHtml(m[2]))}</h${lvl}>`);
+    } else if (/^(-{3,}|\*{3,})$/.test(line)) {
+      closePara(); closeList();
+      out.push('<hr>');
+    } else if (m = line.match(/^>\s?(.*)/)) {
+      closePara(); closeList();
+      out.push(`<blockquote>${mdInline(escapeHtml(m[1]))}</blockquote>`);
+    } else if (m = line.match(/^[-*]\s+(.*)/)) {
+      closePara();
+      if (listTag !== 'ul') { closeList(); out.push('<ul>'); listTag = 'ul'; }
+      out.push(`<li>${mdInline(escapeHtml(m[1]))}</li>`);
+    } else if (m = line.match(/^\d+[.)]\s+(.*)/)) {
+      closePara();
+      if (listTag !== 'ol') { closeList(); out.push('<ol>'); listTag = 'ol'; }
+      out.push(`<li>${mdInline(escapeHtml(m[1]))}</li>`);
+    } else {
+      closeList();
+      para.push(mdInline(escapeHtml(line)));
+    }
+  }
+  closePara(); closeList();
+  return out.join('\n');
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -2456,6 +2843,7 @@ document.getElementById('birthPlace').addEventListener('keydown', async e => {
 // ── Page mode: home ↔ chart ───────────────────────────────────────────────────
 
 function enterChartMode(name, date, time) {
+  if (notesChartId !== currentChartId) resetNotesState();
   document.getElementById('form-wrap').style.display = 'none';
   document.getElementById('home-charts').style.display = 'none';
   const dateTime = [date, time].filter(Boolean).join(' · ');
@@ -2469,6 +2857,7 @@ function setV2ChartInfo(name, dateTime) {
 }
 
 function exitChartMode(updateHistory = true) {
+  resetNotesState();
   currentChartId = null;
   if (updateHistory) {
     history.pushState('', document.title, window.location.pathname + window.location.search);

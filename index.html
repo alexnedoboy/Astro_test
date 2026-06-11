@@ -679,6 +679,8 @@
     overflow-y: auto;
     overflow-x: hidden;
   }
+  /* группы панели: на десктопе боксов не создают, дети раскладываются как раньше */
+  #v2-panel-head, #v2-panel-modes, #v2-panel-nav { display: contents; }
   #v2-logo {
     display: block;
     width: 52px;
@@ -756,6 +758,7 @@
     display: flex; flex-shrink: 0;
     border-top: 1px solid var(--bd-light);
     margin: 0 -4px -6px;
+    order: 1; /* в DOM стоит в шапке, визуально остаётся внизу панели */
   }
   #v2-bottom-row .v2-icon-btn {
     flex: 1; width: auto; height: 34px;
@@ -826,6 +829,88 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+  }
+
+  /* ── Layout V2: мобильная версия (≤700px) ─────────────────────────────────── */
+  @media (max-width: 700px) {
+    /* #v2-top — вертикальная скроллируемая колонка */
+    #v2-top {
+      flex: 1 1 auto;
+      min-height: 0;
+      flex-direction: column;
+      align-items: stretch;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    /* распускаем боковую панель: группы становятся flex-детьми #v2-top */
+    #v2-control-panel { display: contents; }
+    #v2-control-panel > .v2-ctrl-sep,
+    #v2-control-panel > .v2-ctrl-spacer { display: none; }
+
+    /* вертикальный порядок: шапка(0), карта, режимы, навигация, аспекты */
+    #v2-chart-area   { order: 1; }
+    #v2-panel-modes  { order: 2; }
+    #v2-panel-nav    { order: 3; }
+    #v2-aspect-panel { order: 4; }
+
+    /* 1 — шапка: лого, имя/дата, ✎ 💾 ⚙ ↩ */
+    #v2-panel-head {
+      display: flex; align-items: center; gap: 6px;
+      flex: 0 0 auto;
+      background: var(--bg); border-radius: 8px; padding: 6px 8px;
+    }
+    #v2-logo { width: 36px; height: 36px; margin: 0; }
+    #v2-chart-info { flex: 1; min-width: 0; padding: 0; }
+    #v2-chart-info .v2-icon-btn { flex: 0 0 auto; width: 30px; height: 30px; }
+    #v2-bottom-row { border-top: none; margin: 0; flex: 0 0 auto; gap: 2px; }
+    #v2-bottom-row .v2-icon-btn,
+    #v2-bottom-row .v2-icon-btn:first-child,
+    #v2-bottom-row .v2-icon-btn:last-child {
+      flex: 0 0 auto; width: 38px; height: 38px;
+      border-left: none; border-radius: 6px;
+    }
+
+    /* 2 — карта на всю ширину, квадрат (aspect-ratio задан в базовом правиле) */
+    #v2-chart-area,
+    #layout-v2.tl-hidden #v2-chart-area { width: 100%; max-width: none; flex: 0 0 auto; }
+    #v2-chart-expand-btn { display: none; }
+
+    /* 3a — полоса режимов */
+    #v2-panel-modes {
+      display: flex; gap: 4px; flex: 0 0 auto;
+      background: var(--bg); border-radius: 8px; padding: 4px;
+    }
+    #v2-panel-modes .v2-mode-btn { flex: 1 1 0; width: auto; height: 42px; }
+
+    /* 3b — навигация: дата на всю ширину, 7 кнопок одним рядом ◀◀◀ ◀◀ ◀ ↺ ▶ ▶▶ ▶▶▶ */
+    #v2-panel-nav {
+      display: flex; flex-wrap: wrap; gap: 4px; flex: 0 0 auto;
+      background: var(--bg); border-radius: 8px; padding: 4px;
+    }
+    #v2-panel-nav .v2-nav-row { display: contents; }
+    #v2-nav-date-lbl { flex: 0 0 100%; width: auto; order: 0; }
+    #v2-panel-nav .v2-nav-btn { flex: 1 1 0; width: auto; height: 42px; font-size: 0.78em; }
+    #v2-panel-nav .v2-nav-btn[data-nav="prev-year"]  { order: 1; }
+    #v2-panel-nav .v2-nav-btn[data-nav="prev-month"] { order: 2; }
+    #v2-panel-nav .v2-nav-btn[data-nav="prev-day"]   { order: 3; }
+    #v2-panel-nav .v2-nav-btn[data-nav="today"]      { order: 4; margin-top: 0; }
+    #v2-panel-nav .v2-nav-btn[data-nav="next-day"]   { order: 5; }
+    #v2-panel-nav .v2-nav-btn[data-nav="next-month"] { order: 6; }
+    #v2-panel-nav .v2-nav-btn[data-nav="next-year"]  { order: 7; }
+
+    /* 4 — аспекты в общий скролл */
+    #v2-aspect-panel,
+    #layout-v2.tl-hidden #v2-aspect-panel {
+      flex: 0 0 auto; max-height: none; overflow: visible;
+    }
+    #v2-aspect-panel #aspect-grid { overflow-x: auto; }
+
+    /* 5 — таймлайн прижат к низу, toggle ▲/▼ как на десктопе */
+    #v2-bottom { flex: 0 0 30vh; flex-basis: 30dvh; }
+    #layout-v2.tl-expanded #v2-bottom { flex: 1 1 auto; }
+    #layout-v2.tl-hidden #v2-top { flex: 1 1 auto; }
+    #v2-tl-toggle { width: 36px; height: 32px; }
   }
 
   /* ── Sky Now Layout ────────────────────────────────────────────────────────── */
@@ -1146,44 +1231,50 @@
 <div id="layout-v2">
   <div id="v2-top">
     <div id="v2-control-panel">
-      <img src="Aspectus%20logo.png" id="v2-logo" alt="Aspectus">
-      <div id="v2-chart-info">
-        <div id="v2-chart-info-top">
-          <span id="v2-chart-name"></span>
-          <button class="v2-icon-btn" id="v2-edit-btn" title="Редактировать данные">✎</button>
-          <button class="v2-icon-btn" id="v2-save-btn" title="Сохранить карту">💾</button>
-          <span id="save-confirm"></span>
+      <div id="v2-panel-head">
+        <img src="Aspectus%20logo.png" id="v2-logo" alt="Aspectus">
+        <div id="v2-chart-info">
+          <div id="v2-chart-info-top">
+            <span id="v2-chart-name"></span>
+            <button class="v2-icon-btn" id="v2-edit-btn" title="Редактировать данные">✎</button>
+            <button class="v2-icon-btn" id="v2-save-btn" title="Сохранить карту">💾</button>
+            <span id="save-confirm"></span>
+          </div>
+          <span id="v2-chart-date"></span>
         </div>
-        <span id="v2-chart-date"></span>
+        <div id="v2-bottom-row">
+          <button class="v2-icon-btn" id="v2-settings-btn" title="Настройки">⚙︎</button>
+          <button class="v2-icon-btn" id="v2-exit-btn" title="Обычный вид">↩</button>
+        </div>
       </div>
       <div class="v2-ctrl-sep"></div>
-      <button class="v2-mode-btn" data-mode="natal" data-i18n="v2ModeNatal">Натал</button>
-      <button class="v2-mode-btn" data-mode="transit" data-i18n="v2ModeTransit">Транзит</button>
-      <button class="v2-mode-btn" data-mode="progressed" data-i18n="v2ModeProgressed">Прогр.</button>
-      <button class="v2-mode-btn" data-mode="direction" data-i18n="v2ModeDirection">Дирекц.</button>
+      <div id="v2-panel-modes">
+        <button class="v2-mode-btn" data-mode="natal" data-i18n="v2ModeNatal">Натал</button>
+        <button class="v2-mode-btn" data-mode="transit" data-i18n="v2ModeTransit">Транзит</button>
+        <button class="v2-mode-btn" data-mode="progressed" data-i18n="v2ModeProgressed">Прогр.</button>
+        <button class="v2-mode-btn" data-mode="direction" data-i18n="v2ModeDirection">Дирекц.</button>
+      </div>
       <div class="v2-ctrl-sep"></div>
-      <button id="v2-nav-date-lbl" style="display:none">
-        <span id="v2-nav-date-text"></span>
-        <input type="date" id="nav-date-input" tabindex="-1">
-      </button>
-      <div class="v2-nav-row">
-        <button class="v2-nav-btn" data-nav="prev-year">◀◀◀</button>
-        <button class="v2-nav-btn" data-nav="next-year">▶▶▶</button>
+      <div id="v2-panel-nav">
+        <button id="v2-nav-date-lbl" style="display:none">
+          <span id="v2-nav-date-text"></span>
+          <input type="date" id="nav-date-input" tabindex="-1">
+        </button>
+        <div class="v2-nav-row">
+          <button class="v2-nav-btn" data-nav="prev-year">◀◀◀</button>
+          <button class="v2-nav-btn" data-nav="next-year">▶▶▶</button>
+        </div>
+        <div class="v2-nav-row">
+          <button class="v2-nav-btn" data-nav="prev-month">◀◀</button>
+          <button class="v2-nav-btn" data-nav="next-month">▶▶</button>
+        </div>
+        <div class="v2-nav-row">
+          <button class="v2-nav-btn" data-nav="prev-day">◀</button>
+          <button class="v2-nav-btn" data-nav="next-day">▶</button>
+        </div>
+        <button class="v2-nav-btn v2-today-btn" data-nav="today">↺</button>
       </div>
-      <div class="v2-nav-row">
-        <button class="v2-nav-btn" data-nav="prev-month">◀◀</button>
-        <button class="v2-nav-btn" data-nav="next-month">▶▶</button>
-      </div>
-      <div class="v2-nav-row">
-        <button class="v2-nav-btn" data-nav="prev-day">◀</button>
-        <button class="v2-nav-btn" data-nav="next-day">▶</button>
-      </div>
-      <button class="v2-nav-btn v2-today-btn" data-nav="today">↺</button>
       <div class="v2-ctrl-spacer"></div>
-      <div id="v2-bottom-row">
-        <button class="v2-icon-btn" id="v2-settings-btn" title="Настройки">⚙︎</button>
-        <button class="v2-icon-btn" id="v2-exit-btn" title="Обычный вид">↩</button>
-      </div>
     </div>
     <div id="v2-chart-area">
       <button id="v2-chart-expand-btn" title="Развернуть карту">⤢</button>

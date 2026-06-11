@@ -339,7 +339,7 @@
   #tl-hdr-scroll { overflow: hidden; flex: 1; }
 
   #geo-place-wrap { position: relative; }
-  #geo-dropdown {
+  #geo-dropdown, #home-sky-geo-dd {
     position: absolute; top: 100%; left: 0; right: 0; z-index: 200;
     background: var(--bg); border: 1px solid var(--bd); border-top: none;
     border-radius: 0 0 6px 6px; box-shadow: 0 6px 16px rgba(0,0,0,0.12);
@@ -393,7 +393,7 @@
     background: rgba(0,0,0,0.35); z-index: 499;
   }
   #edit-backdrop.visible { display: block; }
-  #form-wrap.editing {
+  #form-wrap.editing, #form-wrap.modal {
     position: fixed; top: 0; left: 50%; transform: translateX(-50%);
     width: calc(100% - 32px); max-width: 480px;
     z-index: 500; border-radius: 0 0 12px 12px;
@@ -405,8 +405,13 @@
     background: var(--bg-hover); color: var(--tx-3); border: 1px solid var(--bd-input);
   }
   #cancelEditBtn:hover { background: var(--bg-active); }
-  #form-wrap.editing #cancelEditBtn { display: block; }
-  #form-wrap.editing #calcBtn { flex: 1; }
+  #form-wrap.editing #cancelEditBtn, #form-wrap.modal #cancelEditBtn { display: block; }
+  #form-wrap.editing #calcBtn, #form-wrap.modal #calcBtn { flex: 1; }
+  /* Видимость домашнего экрана: home-off — открыта карта или режим неба;
+     home-dash — залогинен, форма прячется за кнопку «+ Новая карта» */
+  body.home-off #home-main { display: none !important; }
+  body.home-off #form-wrap:not(.editing):not(.modal) { display: none !important; }
+  body.home-dash #form-wrap:not(.editing):not(.modal) { display: none; }
 
   /* ── Auth modal ─────────────────────────────────────────── */
   #modal-overlay {
@@ -573,19 +578,123 @@
   .folder-group.collapsed .folder-items { display: none; }
   .folder-count { margin-left: auto; color: var(--tx-9); font-weight: 400; }
 
-  /* ── Home recent charts ───────────────────────────────────── */
-  #home-charts {
-    width: 100%; max-width: 480px;
-    margin: 18px auto 0;
+  /* ── Home dashboard ───────────────────────────────────────── */
+  #home-main {
+    width: 100%; max-width: 920px;
+    padding: 10px 12px 0; box-sizing: border-box;
+    display: flex; gap: 14px; align-items: flex-start; justify-content: center;
+  }
+  #home-left {
+    flex: 0 0 264px; min-width: 0;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  #home-right {
+    flex: 1 1 auto; min-width: 0; max-width: 560px;
+    display: none; flex-direction: column; gap: 9px;
+  }
+  body.home-dash #home-right { display: flex; }
+  body.home-dash #app-header { max-width: 920px; }
+
+  /* Виджет «Небо сейчас» */
+  #home-sky {
+    background: var(--bg); border: 1px solid var(--bd);
+    border-radius: 12px; padding: 10px 12px 12px;
+  }
+  #home-sky-head { display: flex; align-items: center; gap: 6px; }
+  #home-sky-title {
+    flex: 1; font-size: 0.72em; color: var(--tx-9);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  #home-sky-place {
+    flex: 0 1 auto; max-width: 140px; min-width: 0;
+    background: none; border: none; cursor: pointer; padding: 2px 5px; border-radius: 4px;
+    font-size: 0.74em; font-weight: 400; color: var(--tx-7);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #home-sky-place:hover { background: var(--bg-hover); color: var(--tx-3); }
+  #home-sky-live {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 4px;
+    font-size: 0.68em; color: var(--ok);
+  }
+  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); animation: livePulse 2.4s ease-in-out infinite; }
+  @keyframes livePulse { 50% { opacity: 0.3; } }
+  #home-sky-geo { display: none; position: relative; margin-top: 7px; }
+  #home-sky-geo.open { display: block; }
+  #home-sky-chart { line-height: 0; margin-top: 5px; cursor: pointer; border-radius: 8px; overflow: hidden; }
+  #home-sky-chart:hover { outline: 1px solid var(--bd); }
+  #home-sky-info { font-size: 0.8em; color: var(--tx-3); line-height: 1.6; margin-top: 7px; }
+  #home-sky-info .sky-muted { color: var(--tx-7); }
+
+  /* Виджет «События» */
+  #home-events {
     display: none;
+    background: var(--bg); border: 1px solid var(--bd);
+    border-radius: 12px; padding: 10px 12px;
   }
+  body.home-dash #home-events.visible { display: block; }
+  .home-block-title {
+    font-size: 0.72em; color: var(--tx-9);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px;
+  }
+  .home-event {
+    display: flex; gap: 7px; align-items: baseline;
+    font-size: 0.8em; padding: 4px 5px; margin: 0 -5px;
+    border-radius: 6px; cursor: pointer; line-height: 1.45;
+  }
+  .home-event:hover { background: var(--bg-hover); }
+  .home-event-ico { flex: 0 0 16px; text-align: center; }
+  .home-event-name { font-weight: 600; color: var(--accent-hv); }
+
+  /* Тулбар базы: поиск + новая карта */
+  #home-toolbar { display: flex; gap: 8px; }
+  #home-search { flex: 1 1 auto; }
+  #newChartBtn {
+    flex: 0 0 auto; padding: 8px 14px;
+    background: var(--accent); color: var(--bg);
+    border: none; border-radius: 8px;
+    font-size: 0.85em; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  #newChartBtn:hover { background: var(--accent-hv); }
+
+  /* Чипы групп */
+  #home-groups { display: none; flex-wrap: wrap; gap: 5px; }
+  #home-groups.visible { display: flex; }
+  .hg-chip {
+    flex: 0 0 auto; padding: 4px 12px;
+    font-size: 0.76em; font-weight: 600;
+    border: 1px solid var(--bd-input); border-radius: 99px;
+    background: var(--bg-input); color: var(--tx-3); cursor: pointer;
+  }
+  .hg-chip:hover { background: var(--bg-hover); }
+  .hg-chip.active { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+
+  /* Список карт на главной */
+  #home-charts { width: 100%; display: none; }
   #home-charts.visible { display: block; }
-  #home-charts-title {
-    font-size: 0.72em; color: var(--tx-9); text-transform: uppercase; letter-spacing: 0.06em;
-    margin-bottom: 6px; padding: 0 2px;
-  }
   #home-charts-list .chart-item { border-radius: 9px; border-bottom: none; margin-bottom: 4px; background: var(--bg-chart-item); }
   #home-charts-list .chart-item:hover { background: var(--bg-hover); }
+  .chart-item-big3 {
+    flex: 0 0 auto; font-size: 0.84em; color: var(--tx-5); white-space: nowrap;
+    font-family: 'Apple Symbols', 'Segoe UI Symbol', 'Noto Sans Symbols', serif;
+  }
+  .chart-pin-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 0.95em; color: var(--bd); padding: 4px 5px; border-radius: 4px; flex-shrink: 0;
+  }
+  .chart-pin-btn:hover { color: var(--accent); background: var(--bg-hover); }
+  .chart-pin-btn.pinned { color: var(--accent); }
+
+  /* Мобильная раскладка главной */
+  @media (max-width: 700px) {
+    #home-main { flex-direction: column; align-items: stretch; gap: 10px; }
+    #home-left { flex: none; order: 2; }
+    body.home-dash #home-right { order: 1; max-width: none; }
+    #home-sky-chart { max-width: 320px; margin: 5px auto 0; }
+    /* строка карты: компактнее, папка — только на десктопе */
+    #home-charts-list .chart-item { gap: 4px; padding: 8px 6px; }
+    #home-charts-list .chart-folder-btn { display: none; }
+    .chart-item-big3 { font-size: 0.78em; }
+  }
   svg text { font-family: 'Apple Symbols', 'Segoe UI Symbol', 'Noto Sans Symbols', serif; }
 
 
@@ -1010,23 +1119,6 @@
   }
 
   /* ── Sky Now Layout ────────────────────────────────────────────────────────── */
-  #sky-now-entry {
-    text-align: center;
-    padding: 4px 0 14px;
-  }
-  #skyNowBtn {
-    background: none;
-    border: 1px solid var(--bd);
-    color: var(--tx-5);
-    border-radius: 8px;
-    padding: 7px 22px;
-    font-size: 0.88em;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-  }
-  #skyNowBtn:hover { background: var(--bg-hover); color: var(--tx-2); }
-  #skyNowBtn:disabled { opacity: 0.4; cursor: not-allowed; }
-
   #sky-layout {
     display: none;
     position: fixed;
@@ -1312,15 +1404,37 @@
   </div>
 </div>
 
-<!-- ── Sky Now entry button ─────────────────────────────────── -->
-<div id="sky-now-entry">
-  <button id="skyNowBtn" disabled>✦ Актуальные аспекты</button>
-</div>
-
-<!-- ── Recent charts on home page ──────────────────────────── -->
-<div id="home-charts">
-  <div id="home-charts-title" data-i18n="recentCharts">Последние карты</div>
-  <div id="home-charts-list"></div>
+<!-- ── Home dashboard ──────────────────────────────────────── -->
+<div id="home-main">
+  <div id="home-left">
+    <div id="home-sky">
+      <div id="home-sky-head">
+        <span id="home-sky-title" data-i18n="skyNowTitle">Небо сейчас</span>
+        <button id="home-sky-place" type="button">📍</button>
+        <span id="home-sky-live"><span class="live-dot"></span>live</span>
+      </div>
+      <div id="home-sky-geo">
+        <input type="text" id="homeSkyPlaceInput" data-i18n-placeholder="cityPlaceholder" placeholder="Начните вводить город…" autocomplete="off">
+        <div id="home-sky-geo-dd"></div>
+      </div>
+      <div id="home-sky-chart"></div>
+      <div id="home-sky-info">…</div>
+    </div>
+    <div id="home-events">
+      <div class="home-block-title" data-i18n="homeEvents">События</div>
+      <div id="home-events-list"></div>
+    </div>
+  </div>
+  <div id="home-right">
+    <div id="home-toolbar">
+      <input type="text" id="home-search" data-i18n-placeholder="homeSearchPlaceholder" placeholder="Поиск по имени или городу…" autocomplete="off">
+      <button id="newChartBtn" type="button" data-i18n="newChart">+ Новая карта</button>
+    </div>
+    <div id="home-groups"></div>
+    <div id="home-charts">
+      <div id="home-charts-list"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ── Layout V2 ──────────────────────────────────────────────────────── -->
@@ -1550,6 +1664,13 @@ const STRINGS = {
     planetVisibility:'Планеты натала', resetAll:'Сбросить все',
     progLunarPhases:'Фазы прогр. Луны',
     privacyMode:'Скрыть имя и дату',
+    skyNowTitle:'Небо сейчас', skySetPlace:'указать место',
+    vocFromTo:'☽︎ без курса {from}–{to}', vocUntil:'☽︎ без курса до {to}',
+    homeEvents:'События', homeAll:'Все', homePinned:'Закреплённые',
+    homeSearchPlaceholder:'Поиск по имени или городу…', newChart:'+ Новая карта',
+    homeNothingFound:'Ничего не найдено',
+    pinTitle:'Закрепить', unpinTitle:'Открепить', groupTitle:'Группа',
+    exactOn:'точный', turnsYears:'исполняется {n}',
     panelTabData:'Данные', panelTabNotes:'Заметки',
     noteNew:'+ Новая заметка', noteUntitled:'Без названия',
     notesEmpty:'Заметок пока нет',
@@ -1623,6 +1744,13 @@ const STRINGS = {
     planetVisibility:'Natal planets', resetAll:'Reset all',
     progLunarPhases:'Prog. lunar phases',
     privacyMode:'Hide name & date',
+    skyNowTitle:'Sky now', skySetPlace:'set location',
+    vocFromTo:'☽︎ void of course {from}–{to}', vocUntil:'☽︎ void of course until {to}',
+    homeEvents:'Events', homeAll:'All', homePinned:'Pinned',
+    homeSearchPlaceholder:'Search by name or city…', newChart:'+ New chart',
+    homeNothingFound:'Nothing found',
+    pinTitle:'Pin', unpinTitle:'Unpin', groupTitle:'Group',
+    exactOn:'exact', turnsYears:'turns {n}',
     panelTabData:'Data', panelTabNotes:'Notes',
     noteNew:'+ New note', noteUntitled:'Untitled',
     notesEmpty:'No notes yet',
@@ -1701,6 +1829,10 @@ function applyLang() {
   const fw = document.getElementById('form-wrap');
   document.getElementById('calcBtn').textContent =
     fw?.classList.contains('editing') ? tr('saving') : tr('buildChart');
+  // Re-render home dashboard (тексты виджетов зависят от языка)
+  syncSkyPlaceBtn();
+  if (swe && !document.body.classList.contains('home-off')) renderHomeSky();
+  if (currentUser) { renderHomeGroups(); renderHomeList(); renderHomeEvents(); }
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -1714,6 +1846,7 @@ sb.auth.onAuthStateChange((_evt, session) => updateAuthUI(session?.user ?? null)
 
 function updateAuthUI(user) {
   currentUser = user;
+  document.body.classList.toggle('home-dash', !!user);
   const loginBtn   = document.getElementById('loginBtn');
   const userInfo   = document.getElementById('user-info');
   const emailEl    = document.getElementById('user-email-short');
@@ -1732,37 +1865,159 @@ function updateAuthUI(user) {
   } else {
     loginBtn.style.display = '';
     userInfo.style.display = 'none';
-    document.getElementById('home-charts').classList.remove('visible');
+    _homeCharts = [];
+    renderHomeList(); renderHomeGroups(); renderHomeEvents();
   }
 }
 
+// ── Home dashboard: база карт ─────────────────────────────────────────────────
+
+let _homeCharts = [];
+let _homeSearch = '';
+let _homeGroup  = localStorage.getItem('homeGroup') ?? '';  // '' = все, '★' = закреплённые, иначе имя группы
+const _big3Cache = new Map();
+
 async function loadHomeCharts() {
-  const wrap = document.getElementById('home-charts');
-  const list = document.getElementById('home-charts-list');
-  list.innerHTML = '';
-  const { data, error } = await sb.from('charts').select('*').order('created_at', { ascending: false });
-  if (error || !data?.length) { wrap.classList.remove('visible'); return; }
+  if (!currentUser) return;
+  const { data, error } = await sb.from('charts').select('*');
+  _homeCharts = (error || !data) ? [] : data;
+  renderHomeGroups();
+  renderHomeList();
+  renderHomeEvents();
+}
+
+function homeChartTs(c) {
+  return new Date(c.last_opened_at ?? c.created_at ?? 0).getTime();
+}
+
+function renderHomeGroups() {
+  const wrap = document.getElementById('home-groups');
+  const folders = [...new Set(_homeCharts.map(c => c.folder).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ru'));
+  const hasPinned = _homeCharts.some(c => c.pinned);
+  if (_homeGroup === '★' && !hasPinned) _homeGroup = '';
+  if (_homeGroup && _homeGroup !== '★' && !folders.includes(_homeGroup)) _homeGroup = '';
+  wrap.innerHTML = '';
+  const chips = [['', tr('homeAll')]];
+  if (hasPinned) chips.push(['★', '★ ' + tr('homePinned')]);
+  folders.forEach(f => chips.push([f, f]));
+  if (chips.length <= 1) { wrap.classList.remove('visible'); return; }
   wrap.classList.add('visible');
-  for (const c of data) {
-    const div = document.createElement('div');
-    div.className = 'chart-item';
-    div.innerHTML = `
-      <div class="chart-item-info">
-        <div class="chart-item-name">${c.name}</div>
-        <div class="chart-item-meta">${c.birth_date ?? ''} ${c.birth_time ?? ''}&nbsp;·&nbsp;${c.city ?? ''}${c.birth_date ? '&nbsp;·&nbsp;' + (SIGNS[sunSignFromDate(c.birth_date)] ?? '') : ''}</div>
-      </div>
-      <button class="chart-del" title="${tr('deleteTitle')}">🗑</button>`;
-    div.querySelector('.chart-item-info').addEventListener('click', () => loadChartFromDB(c));
-    div.querySelector('.chart-del').addEventListener('click', async e => {
-      e.stopPropagation();
-      if (!confirm(tr('deleteConfirm', {name: c.name}))) return;
-      await sb.from('charts').delete().eq('id', c.id);
+  for (const [val, label] of chips) {
+    const b = document.createElement('button');
+    b.className = 'hg-chip' + (val === _homeGroup ? ' active' : '');
+    b.textContent = label;
+    b.addEventListener('click', () => {
+      _homeGroup = val;
+      localStorage.setItem('homeGroup', val);
+      renderHomeGroups();
+      renderHomeList();
+    });
+    wrap.appendChild(b);
+  }
+}
+
+// «Большая тройка» — Солнце / Луна / ASC глифами; Луна и ASC только при известном времени
+function computeBigThree(c) {
+  if (!swe || !c.birth_date) return null;
+  const key = `${c.id}|${c.birth_date}|${c.birth_time}|${c.lat}|${c.lon}|${c.utc_offset}`;
+  if (_big3Cache.has(key)) return _big3Cache.get(key);
+  let out = null;
+  try {
+    const [y, m, d] = c.birth_date.split('-').map(Number);
+    const hasTime = !!c.birth_time;
+    const [hr, mn] = (c.birth_time ?? '12:00').split(':').map(Number);
+    const jd = swe.julday(y, m, d, hr + mn / 60 - (c.utc_offset ?? 0));
+    const flags = swe.SEFLG_SWIEPH ?? 2;
+    const signOf = lon => SIGNS[Math.floor((((lon % 360) + 360) % 360) / 30)];
+    const parts = ['☉︎' + signOf(swe.calc_ut(jd, 0, flags)[0])];
+    if (hasTime) {
+      parts.push('☽︎' + signOf(swe.calc_ut(jd, 1, flags)[0]));
+      if (isFinite(c.lat) && isFinite(c.lon) && c.lat !== null && c.lon !== null) {
+        const asc = Array.from(swe.houses(jd, c.lat, c.lon, 'P').ascmc)[0];
+        parts.push('As' + signOf(asc));
+      }
+    }
+    out = parts.join(' ');
+  } catch { out = null; }
+  _big3Cache.set(key, out);
+  return out;
+}
+
+function makeHomeChartItem(c) {
+  const div = document.createElement('div');
+  div.className = 'chart-item';
+  const fmtD = c.birth_date ? c.birth_date.split('-').reverse().join('.') : '';
+  const meta = [
+    [fmtD, c.birth_time].filter(Boolean).join(' '),
+    c.city ?? '',
+  ].filter(Boolean).join('&nbsp;·&nbsp;');
+  const big3 = computeBigThree(c);
+  div.innerHTML = `
+    <div class="chart-item-info">
+      <div class="chart-item-name">${escapeHtml(c.name ?? '')}</div>
+      <div class="chart-item-meta">${meta}</div>
+    </div>
+    ${big3 ? `<span class="chart-item-big3">${big3}</span>` : ''}
+    <button class="chart-pin-btn${c.pinned ? ' pinned' : ''}" title="${tr(c.pinned ? 'unpinTitle' : 'pinTitle')}">${c.pinned ? '★' : '☆'}</button>
+    <button class="chart-folder-btn" title="${tr('groupTitle')}">📁</button>
+    <button class="chart-del" title="${tr('deleteTitle')}">🗑</button>`;
+  div.querySelector('.chart-item-info').addEventListener('click', () => loadChartFromDB(c));
+  div.querySelector('.chart-pin-btn').addEventListener('click', async e => {
+    e.stopPropagation();
+    const next = !c.pinned;
+    c.pinned = next;
+    renderHomeGroups(); renderHomeList();
+    const { error } = await sb.from('charts').update({ pinned: next }).eq('id', c.id);
+    if (error) {  // колонки pinned ещё нет — откат
+      c.pinned = !next;
+      renderHomeGroups(); renderHomeList();
+      console.warn('pin failed:', error.message);
+    }
+  });
+  div.querySelector('.chart-folder-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    openFolderPicker(e.currentTarget, c.folder ?? null, async folder => {
+      await sb.from('charts').update({ folder }).eq('id', c.id);
       loadHomeCharts();
       loadChartsList();
     });
-    list.appendChild(div);
-  }
+  });
+  div.querySelector('.chart-del').addEventListener('click', async e => {
+    e.stopPropagation();
+    if (!confirm(tr('deleteConfirm', { name: c.name }))) return;
+    await sb.from('charts').delete().eq('id', c.id);
+    loadHomeCharts();
+    loadChartsList();
+  });
+  return div;
 }
+
+function renderHomeList() {
+  const wrap = document.getElementById('home-charts');
+  const list = document.getElementById('home-charts-list');
+  list.innerHTML = '';
+  if (!currentUser || !_homeCharts.length) { wrap.classList.remove('visible'); return; }
+  wrap.classList.add('visible');
+  let arr = _homeCharts;
+  if (_homeGroup === '★') arr = arr.filter(c => c.pinned);
+  else if (_homeGroup)    arr = arr.filter(c => c.folder === _homeGroup);
+  const q = _homeSearch.trim().toLowerCase();
+  if (q) arr = arr.filter(c =>
+    (c.name ?? '').toLowerCase().includes(q) || (c.city ?? '').toLowerCase().includes(q));
+  arr = [...arr].sort((a, b) =>
+    ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || (homeChartTs(b) - homeChartTs(a)));
+  if (!arr.length) {
+    list.innerHTML = `<div class="charts-empty">${tr('homeNothingFound')}</div>`;
+    return;
+  }
+  for (const c of arr) list.appendChild(makeHomeChartItem(c));
+}
+
+document.getElementById('home-search').addEventListener('input', e => {
+  _homeSearch = e.target.value;
+  renderHomeList();
+});
 
 // Modal
 const modalOverlay = document.getElementById('modal-overlay');
@@ -2178,6 +2433,15 @@ async function loadChartsList() {
 
 function loadChartFromDB(c) {
   currentChartId = c.id ?? null;
+  // Отметка «последнего открытия» для сортировки базы (ошибки игнорируем —
+  // до миграции колонки last_opened_at может не быть)
+  if (c.id && currentUser) {
+    const ts = new Date().toISOString();
+    const row = _homeCharts.find(x => x.id === c.id);
+    if (row) row.last_opened_at = ts;
+    sb.from('charts').update({ last_opened_at: ts }).eq('id', c.id)
+      .then(({ error }) => { if (error) console.warn('last_opened_at:', error.message); });
+  }
   if (currentChartId) {
     const newHash = `#chart/${currentChartId}`;
     if (window.location.hash === newHash) {
@@ -2716,7 +2980,9 @@ let _pendingChartLoad = null;  // chart row waiting for swe to initialize
     await swe.initSwissEph();
     setStatus(tr('ready'));
     document.getElementById('calcBtn').disabled = false;
-    document.getElementById('skyNowBtn').disabled = false;
+    // Главный экран: теперь можно считать небо, большую тройку и транзиты
+    startHomeSky();
+    if (_homeCharts.length) { renderHomeList(); renderHomeEvents(); }
     if (_pendingChartLoad) {
       const c = _pendingChartLoad;
       _pendingChartLoad = null;
@@ -2842,10 +3108,22 @@ document.getElementById('birthPlace').addEventListener('keydown', async e => {
 
 // ── Page mode: home ↔ chart ───────────────────────────────────────────────────
 
+// Видимость главного экрана управляется классом home-off на body (см. CSS).
+function hideHome() {
+  document.body.classList.add('home-off');
+  stopHomeSky();
+}
+
+function showHome() {
+  document.body.classList.remove('home-off');
+  startHomeSky();
+  if (currentUser) loadHomeCharts();   // база могла измениться, пока была открыта карта
+}
+
 function enterChartMode(name, date, time) {
   if (notesChartId !== currentChartId) resetNotesState();
-  document.getElementById('form-wrap').style.display = 'none';
-  document.getElementById('home-charts').style.display = 'none';
+  closeNewChartModal();
+  hideHome();
   const dateTime = [date, time].filter(Boolean).join(' · ');
   setV2ChartInfo(name, dateTime);
   activateLayout2();
@@ -2863,8 +3141,7 @@ function exitChartMode(updateHistory = true) {
     history.pushState('', document.title, window.location.pathname + window.location.search);
   }
   document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', ...V2_TL_STATES);
-  document.getElementById('form-wrap').style.display = 'block';
-  if (currentUser) document.getElementById('home-charts').style.display = '';
+  showHome();
   natalData = null;
   cachedTimeline = null;
   layout2Active = false;
@@ -2901,11 +3178,14 @@ window.addEventListener('popstate', () => {
   }
 });
 
-document.getElementById('cancelEditBtn').addEventListener('click', exitEditMode);
+document.getElementById('cancelEditBtn').addEventListener('click', () => {
+  const fw = document.getElementById('form-wrap');
+  if (fw.classList.contains('modal')) closeNewChartModal();
+  else exitEditMode();
+});
 
 function enterEditMode() {
   const fw = document.getElementById('form-wrap');
-  fw.style.display = 'block';
   fw.classList.add('editing');
   document.getElementById('edit-backdrop').classList.add('visible');
   document.getElementById('calcBtn').textContent = tr('saving');
@@ -2915,10 +3195,30 @@ function enterEditMode() {
 function exitEditMode() {
   const fw = document.getElementById('form-wrap');
   fw.classList.remove('editing');
-  fw.style.display = 'none';
   document.getElementById('edit-backdrop').classList.remove('visible');
   document.getElementById('calcBtn').textContent = tr('buildChart');
 }
+
+// ── New chart modal (кнопка «+ Новая карта» на главной) ───────────────────────
+
+function openNewChartModal() {
+  const fw = document.getElementById('form-wrap');
+  fw.classList.add('modal');
+  document.getElementById('edit-backdrop').classList.add('visible');
+  document.getElementById('chartName').value = '';
+  setStatus('');
+  document.getElementById('chartName').focus();
+}
+
+function closeNewChartModal() {
+  const fw = document.getElementById('form-wrap');
+  if (!fw.classList.contains('modal')) return;
+  fw.classList.remove('modal');
+  document.getElementById('edit-backdrop').classList.remove('visible');
+}
+
+document.getElementById('newChartBtn').addEventListener('click', openNewChartModal);
+document.getElementById('edit-backdrop').addEventListener('click', closeNewChartModal);
 
 // ── Calculate ─────────────────────────────────────────────────────────────────
 
@@ -6549,9 +6849,7 @@ function enterSkyMode() {
   if (!swe) return;
   skyLayoutActive = true;
   skyJD = computeJDNow();
-  document.getElementById('form-wrap').style.display = 'none';
-  document.getElementById('home-charts').style.display = 'none';
-  document.getElementById('sky-now-entry').style.display = 'none';
+  hideHome();
   document.getElementById('sky-layout').classList.add('sky-visible');
   document.getElementById('sky-layout').classList.remove('sky-tl-hidden');
   skyTlHidden = false;
@@ -6565,9 +6863,7 @@ function enterSkyMode() {
 function exitSkyMode() {
   skyLayoutActive = false;
   document.getElementById('sky-layout').classList.remove('sky-visible', 'sky-tl-hidden');
-  document.getElementById('form-wrap').style.display = '';
-  document.getElementById('sky-now-entry').style.display = '';
-  if (currentUser) document.getElementById('home-charts').style.display = '';
+  showHome();
 }
 
 // ── Render sky wheel ──────────────────────────────────────────────────────────
@@ -6892,9 +7188,318 @@ const skyTlCtx = {
   onRowExpand: () => {},
 };
 
-// ── Event listeners ───────────────────────────────────────────────────────────
+// ══ Home sky widget — живая карта неба на главной ═════════════════════════════
 
-document.getElementById('skyNowBtn').addEventListener('click', enterSkyMode);
+let _homeSkyTimer = null;
+let _vocCache = null;   // кэш VoC, пересчёт раз в 10 минут
+
+function getSkyPlace() {
+  try {
+    const p = JSON.parse(localStorage.getItem('skyPlace'));
+    return (p && isFinite(p.lat) && isFinite(p.lon)) ? p : null;
+  } catch { return null; }
+}
+
+function syncSkyPlaceBtn() {
+  const p = getSkyPlace();
+  document.getElementById('home-sky-place').textContent = p ? `📍 ${p.name}` : `📍 ${tr('skySetPlace')}`;
+}
+
+function startHomeSky() {
+  if (!swe || document.body.classList.contains('home-off')) return;
+  syncSkyPlaceBtn();
+  renderHomeSky();
+  if (!_homeSkyTimer) {
+    _homeSkyTimer = setInterval(() => { if (!document.hidden) renderHomeSky(); }, 60000);
+  }
+}
+
+function stopHomeSky() {
+  clearInterval(_homeSkyTimer);
+  _homeSkyTimer = null;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && _homeSkyTimer) renderHomeSky();
+});
+
+function renderHomeSky() {
+  if (!swe) return;
+  const jd = computeJDNow();
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const planets = PLANETS.map(p => {
+    const r = swe.calc_ut(jd, p.id, flags);
+    return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
+  });
+  let cusps = null;
+  const place = getSkyPlace();
+  if (place) {
+    try {
+      const hRes = swe.houses(jd, place.lat, place.lon, 'P');
+      cusps = Array.from(hRes.cusps).slice(1, 13);
+    } catch { cusps = null; }
+  }
+
+  const svg = el('svg', { viewBox: VIEWBOX, width: '100%', style: 'display:block' });
+  const g = el('g');
+  svg.appendChild(g);
+  g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
+  if (cusps) drawHouseAxes(g, cusps, 0);
+  drawZodiacRing(g);
+  drawSignDividers(g, 0);
+  drawZodiacGlyphs(g, 0);
+  g.appendChild(circ(CX, CY, R_INNER, { fill: '#fff', stroke: COLORS.ringLine, 'stroke-width': 0.8 }));
+  drawDegreeRing(g, R_INNER, CHART.DEG_RING_W, CHART.DEG_SIGN_EXT);
+  drawSkyAspects(g, addSouthNode(planets));
+  drawPlanets(g, addSouthNode(planets), 0);
+  if (cusps) drawHouseLabels(g, cusps, 0);
+  document.getElementById('home-sky-chart').replaceChildren(svg);
+  renderHomeSkyInfo(planets, jd);
+}
+
+function jdToDate(jd) { return new Date((jd - 2440587.5) * 86400000); }
+
+function fmtJDTime(jd) {
+  const d = jdToDate(jd);
+  const now = new Date();
+  const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const sameDay = d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  return sameDay ? hm : `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')} ${hm}`;
+}
+
+function renderHomeSkyInfo(planets, jd) {
+  const box = document.getElementById('home-sky-info');
+  const sun  = planets.find(p => p.id === 0);
+  const moon = planets.find(p => p.id === 1);
+  const lines = [];
+  const phase = (Math.round((((moon.longitude - sun.longitude) + 360) % 360) / 45) % 8) * 45;
+  lines.push(`<div>☽︎ ${fmtLon(moon.longitude)} · ${tr('phaseName_' + phase)}</div>`);
+  try {
+    const voc = computeMoonVoC(jd);
+    if (voc.hasUpcoming && voc.lastExact !== null) {
+      lines.push(`<div class="sky-muted">${tr('vocFromTo', { from: fmtJDTime(voc.lastExact), to: fmtJDTime(voc.exitJD) })}</div>`);
+    } else if (!voc.hasUpcoming) {
+      lines.push(`<div>${tr('vocUntil', { to: fmtJDTime(voc.exitJD) })}</div>`);
+    }
+  } catch (e) { console.warn('VoC:', e); }
+  const retro = planets.filter(p => p.retrograde).map(p => p.glyph).join(' ');
+  if (retro) lines.push(`<div class="sky-muted">R: ${retro}</div>`);
+  box.innerHTML = lines.join('');
+}
+
+// ── Холостая Луна (void of course) ────────────────────────────────────────────
+// Ищем точные мажорные аспекты Луны к Солнцу–Плутону до её выхода из знака.
+// Последний точный аспект = начало VoC, выход из знака = конец.
+// Планеты моделируются линейно (на отрезке ≤2.5 суток погрешность минуты).
+
+function computeMoonVoC(jdNow) {
+  if (_vocCache && (jdNow - _vocCache.computedJD) * 1440 < 10) return _vocCache;
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const mLon = jd => ((swe.calc_ut(jd, 1, flags)[0] % 360) + 360) % 360;
+  const norm180 = x => ((x % 360) + 360) % 360 - 180;
+
+  // момент выхода Луны из текущего знака (Ньютон)
+  const lon0 = mLon(jdNow);
+  const exitTarget = ((Math.floor(lon0 / 30) + 1) * 30) % 360;
+  let jdExit = jdNow;
+  for (let i = 0; i < 6; i++) {
+    const fwd = (((exitTarget - mLon(jdExit)) % 360) + 360) % 360; // 0…360 вперёд до границы
+    const dd  = fwd > 180 ? fwd - 360 : fwd;                       // после перелёта — назад
+    const spd = swe.calc_ut(jdExit, 1, flags)[3] || 13.2;
+    jdExit += dd / spd;
+    if (Math.abs(dd) < 0.001) break;
+  }
+
+  // линейные модели планет-целей
+  const models = [0, 2, 3, 4, 5, 6, 7, 8, 9].map(id => {
+    const r = swe.calc_ut(jdNow, id, flags);
+    return { lon: ((r[0] % 360) + 360) % 360, spd: r[3] };
+  });
+  const signedTargets = [0, 60, 90, 120, 180, -60, -90, -120];
+
+  // сэмплы Луны каждые 2 часа
+  const step = 2 / 24;
+  const ts = [], ml = [];
+  for (let t = jdNow; t < jdExit; t += step) { ts.push(t); ml.push(mLon(t)); }
+  ts.push(jdExit); ml.push(mLon(jdExit));
+
+  let lastExact = null, hasUpcoming = false;
+  for (const pm of models) {
+    for (const target of signedTargets) {
+      const u = (t, moonL) => norm180(moonL - (pm.lon + pm.spd * (t - jdNow)) - target);
+      let prev = u(ts[0], ml[0]);
+      for (let i = 1; i < ts.length; i++) {
+        const cur = u(ts[i], ml[i]);
+        if ((prev < 0) !== (cur < 0) && Math.abs(prev - cur) < 180) {
+          let a = ts[i - 1], b = ts[i], ua = prev;
+          for (let k = 0; k < 22; k++) {
+            const mid = (a + b) / 2;
+            const um = u(mid, mLon(mid));
+            if ((ua < 0) !== (um < 0)) b = mid; else { a = mid; ua = um; }
+          }
+          const root = (a + b) / 2;
+          hasUpcoming = true;
+          if (lastExact === null || root > lastExact) lastExact = root;
+        }
+        prev = cur;
+      }
+    }
+  }
+  _vocCache = { computedJD: jdNow, exitJD: jdExit, lastExact, hasUpcoming };
+  return _vocCache;
+}
+
+// ── Место астролога для сетки домов ───────────────────────────────────────────
+
+document.getElementById('home-sky-place').addEventListener('click', e => {
+  e.stopPropagation();
+  const row = document.getElementById('home-sky-geo');
+  row.classList.toggle('open');
+  if (row.classList.contains('open')) document.getElementById('homeSkyPlaceInput').focus();
+});
+
+function applySkyPlace(item) {
+  const name = item.display_name.split(',')[0].trim();
+  localStorage.setItem('skyPlace', JSON.stringify({ name, lat: parseFloat(item.lat), lon: parseFloat(item.lon) }));
+  document.getElementById('home-sky-geo').classList.remove('open');
+  document.getElementById('home-sky-geo-dd').style.display = 'none';
+  document.getElementById('homeSkyPlaceInput').value = '';
+  syncSkyPlaceBtn();
+  renderHomeSky();
+}
+
+let _skyGeoTimer = null;
+document.getElementById('homeSkyPlaceInput').addEventListener('input', () => {
+  clearTimeout(_skyGeoTimer);
+  const q = document.getElementById('homeSkyPlaceInput').value.trim();
+  const dd = document.getElementById('home-sky-geo-dd');
+  if (q.length < 2) { dd.style.display = 'none'; return; }
+  _skyGeoTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`,
+        { headers: { 'Accept-Language': `${currentLang},en` } }
+      );
+      const items = await r.json();
+      dd.innerHTML = '';
+      if (!items.length) { dd.style.display = 'none'; return; }
+      for (const item of items) {
+        const parts = item.display_name.split(',');
+        const div = document.createElement('div');
+        div.className = 'geo-item';
+        div.innerHTML = `<div class="geo-main">${escapeHtml(parts[0].trim())}</div><div class="geo-sub">${escapeHtml(parts.slice(1, 3).join(',').trim())}</div>`;
+        div.addEventListener('mousedown', ev => { ev.preventDefault(); applySkyPlace(item); });
+        dd.appendChild(div);
+      }
+      dd.style.display = 'block';
+    } catch { dd.style.display = 'none'; }
+  }, 380);
+});
+
+document.getElementById('homeSkyPlaceInput').addEventListener('blur', () => {
+  setTimeout(() => { document.getElementById('home-sky-geo-dd').style.display = 'none'; }, 180);
+});
+
+// Клик по мини-карте → полноэкранный режим актуальных аспектов
+document.getElementById('home-sky-chart').addEventListener('click', () => { if (swe) enterSkyMode(); });
+
+// ══ Home events — дни рождения и горячие транзиты ═════════════════════════════
+
+const _natalLonsCache = new Map();
+
+function natalLonsFor(c) {
+  if (!swe || !c.birth_date) return null;
+  const key = `${c.id}|${c.birth_date}|${c.birth_time}|${c.utc_offset}`;
+  if (_natalLonsCache.has(key)) return _natalLonsCache.get(key);
+  let out = null;
+  try {
+    const [y, m, d] = c.birth_date.split('-').map(Number);
+    const [hr, mn] = (c.birth_time ?? '12:00').split(':').map(Number);
+    const jd = swe.julday(y, m, d, hr + mn / 60 - (c.utc_offset ?? 0));
+    const flags = swe.SEFLG_SWIEPH ?? 2;
+    out = PLANETS
+      .filter(p => c.birth_time || p.id !== 1)  // без точного времени Луну не берём
+      .map(p => ({ id: p.id, glyph: p.glyph, lon: ((swe.calc_ut(jd, p.id, flags)[0] % 360) + 360) % 360 }));
+  } catch { out = null; }
+  _natalLonsCache.set(key, out);
+  return out;
+}
+
+// Транзиты медленных планет (♃–♇) к наталам закреплённых (или недавних) карт,
+// орбис ≤1°, только сходящиеся — с оценкой даты точного аспекта
+function homeTransitEvents() {
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const jd = computeJDNow();
+  const trans = [5, 6, 7, 8, 9].map(id => {
+    const r = swe.calc_ut(jd, id, flags);
+    return { glyph: PLANETS.find(p => p.id === id).glyph, lon: ((r[0] % 360) + 360) % 360, spd: r[3] };
+  });
+  let pool = _homeCharts.filter(c => c.pinned);
+  if (!pool.length) pool = [..._homeCharts].sort((a, b) => homeChartTs(b) - homeChartTs(a));
+  pool = pool.slice(0, 12);
+  const out = [];
+  for (const c of pool) {
+    const natal = natalLonsFor(c);
+    if (!natal) continue;
+    for (const t of trans) {
+      for (const n of natal) {
+        for (const asp of ASPECTS) {
+          const orb = Math.abs(angDiff(t.lon, n.lon) - asp.angle);
+          if (orb > 1) continue;
+          const orbNext = Math.abs(angDiff(((t.lon + t.spd) % 360 + 360) % 360, n.lon) - asp.angle);
+          const applying = orbNext < orb;
+          if (!applying && orb > 0.25) continue;   // расходящиеся показываем только почти точные
+          const days = applying ? Math.round(orb / Math.max(1e-4, orb - orbNext)) : 0;
+          if (days > 45) continue;
+          const d = new Date(); d.setDate(d.getDate() + days);
+          const when = days === 0 ? tr('today') : `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+          out.push({ ord: days, chart: c, ico: '⚡',
+            html: `<span class="home-event-name">${escapeHtml(c.name ?? '')}</span> — ${t.glyph} ${asp.symbol} ${n.glyph} · ${tr('exactOn')} ${when}` });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+function renderHomeEvents() {
+  const wrap = document.getElementById('home-events');
+  const list = document.getElementById('home-events-list');
+  if (!currentUser || !_homeCharts.length) { wrap.classList.remove('visible'); return; }
+  const items = [];
+  // 🎂 дни рождения в ближайшие 14 дней
+  const now = new Date();
+  const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  for (const c of _homeCharts) {
+    if (!c.birth_date) continue;
+    const [by, bm, bd] = c.birth_date.split('-').map(Number);
+    let next = new Date(now.getFullYear(), bm - 1, bd);
+    if (next < today0) next = new Date(now.getFullYear() + 1, bm - 1, bd);
+    const days = Math.round((next - today0) / 86400000);
+    if (days > 14) continue;
+    const when = days === 0 ? tr('today') : `${String(bd).padStart(2, '0')}.${String(bm).padStart(2, '0')}`;
+    items.push({ ord: days, chart: c, ico: '🎂',
+      html: `<span class="home-event-name">${escapeHtml(c.name ?? '')}</span> — ${when} · ${tr('turnsYears', { n: next.getFullYear() - by })}` });
+  }
+  // ⚡ транзиты
+  if (swe) {
+    try { items.push(...homeTransitEvents()); } catch (e) { console.warn('events:', e); }
+  }
+  items.sort((a, b) => a.ord - b.ord);
+  const top = items.slice(0, 8);
+  if (!top.length) { wrap.classList.remove('visible'); return; }
+  list.innerHTML = '';
+  for (const it of top) {
+    const div = document.createElement('div');
+    div.className = 'home-event';
+    div.innerHTML = `<span class="home-event-ico">${it.ico}</span><span>${it.html}</span>`;
+    div.addEventListener('click', () => loadChartFromDB(it.chart));
+    list.appendChild(div);
+  }
+  wrap.classList.add('visible');
+}
+
+// ── Event listeners ───────────────────────────────────────────────────────────
 
 document.getElementById('sky-exit-btn').addEventListener('click', exitSkyMode);
 document.getElementById('sky-logo').addEventListener('click', exitSkyMode);

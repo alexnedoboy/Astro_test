@@ -6860,6 +6860,7 @@ let skyLayoutActive = false;
 let skyTlHidden = false;
 let skyMoonOn = false;          // Moon band visible in sky timeline (off by default)
 let skyHighlightPlanet = null;  // planet id whose aspects are emphasised (null = none)
+let skyTlVariant = 'A';         // 'A' — строки по медленной планете; 'B' — по первой/быстрой
 
 // ── Enter / Exit ──────────────────────────────────────────────────────────────
 
@@ -7191,14 +7192,19 @@ function computeSkyMoonAspects(jdStart, jdEnd) {
 }
 
 // ── Layout таймлайна неба ─────────────────────────────────────────────────────
+// Версия A: строки = более медленная планета пары (якорь), у ☉ строки нет.
+// Версия B: строки = более быстрая (первая в списке) планета — ☉ сначала, затем
+//           ☿, ♀… На полосах подписаны обе планеты, левой панели нет.
 function computeSkyTlLayout(periods, moonPeriods, density) {
   const { HDR_H, SUB_H } = TL;
   const gap = (skyScale === '10Y' || skyScale === '2Y') ? 7 : 1;
+  const variantB = skyTlVariant === 'B';
+  const variantC = skyTlVariant === 'C';
 
-  const packSeries = ps => {
+  const packSeries = (ps, keyFn) => {
     const seriesMap = new Map();
     for (const p of ps) {
-      const key = `${p.mover.id}-${p.asp.angle}`;
+      const key = keyFn(p);
       (seriesMap.get(key) ?? seriesMap.set(key, []).get(key)).push(p);
     }
     const seriesList = [...seriesMap.values()]
@@ -7218,27 +7224,47 @@ function computeSkyTlLayout(periods, moonPeriods, density) {
     return Math.max(lanes.length, 1);
   };
 
-  // Группировка по планете-якорю, строки в порядке Zet
-  const byAnchor = {};
-  for (const p of periods) {
-    if (!p.exactJDs?.length) continue;
-    (byAnchor[p.anchorId] ??= []).push(p);
+  let rows;
+  if (variantC) {
+    // «По очереди»: без строк-планет, всё компактно упаковано в минимум дорожек.
+    // Быстрые планеты сверху — сортируем по рангу более быстрой (mover) планеты пары.
+    const all = periods.filter(p => p.exactJDs?.length);
+    all.sort((a, b) => (ZET_RANK[a.mover.id] - ZET_RANK[b.mover.id]) || (a.startJD - b.startJD));
+    const lanes = [];
+    for (const p of all) {
+      let lane = lanes.findIndex(iv => !iv.some(s => p.startJD <= s.end + gap && p.endJD >= s.start - gap));
+      if (lane < 0) { lane = lanes.length; lanes.push([]); }
+      p.sub = lane; lanes[lane].push({ start: p.startJD, end: p.endJD });
+    }
+    const nSubs = Math.max(lanes.length, 1);
+    rows = all.length ? [{ groupId: null, pl: null, ps: all, nSubs, h: nSubs * SUB_H + 16 }] : [];
+  } else {
+    // Группировка: A — по якорю (медленной); B — по первой/быстрой планете (mover).
+    const groupOf  = p => variantB ? p.mover.id : p.anchorId;
+    const seriesOf = p => variantB ? `${p.anchorId}-${p.asp.angle}` : `${p.mover.id}-${p.asp.angle}`;
+    const order    = variantB ? [0, ...ZET_ORDER] : ZET_ORDER; // B: ☉ сначала
+
+    const byGroup = {};
+    for (const p of periods) {
+      if (!p.exactJDs?.length) continue;
+      (byGroup[groupOf(p)] ??= []).push(p);
+    }
+    rows = order.filter(id => byGroup[id]?.length).map(id => {
+      const ps = byGroup[id];
+      const nSubs = packSeries(ps, seriesOf);
+      return { groupId: id, pl: PLANETS.find(p => p.id === id), ps, nSubs, h: nSubs * SUB_H + 16 };
+    });
   }
-  const rows = ZET_ORDER.filter(id => byAnchor[id]?.length).map(id => {
-    const ps = byAnchor[id];
-    const nSubs = packSeries(ps);
-    return { anchorId: id, pl: PLANETS.find(p => p.id === id), ps, nSubs, h: nSubs * SUB_H + 16 };
-  });
 
   // Полоса плотности
   const DENSITY_H = density && density.length ? 30 : 0;
 
-  // Лунная секция
+  // Лунная секция (в B — без полоски-тумблера слева, тумблер в шапке)
   const hasMoon = moonPeriods && moonPeriods.length > 0;
   let moonNSubs = 0, moonH = 0;
   if (hasMoon) {
-    if (skyMoonOn) { moonNSubs = packSeries(moonPeriods); moonH = moonNSubs * SUB_H + 16; }
-    else moonH = 16; // только полоска-тумблер
+    if (skyMoonOn) { moonNSubs = packSeries(moonPeriods, p => `${p.mover.id}-${p.asp.angle}`); moonH = moonNSubs * SUB_H + 16; }
+    else moonH = (variantB || variantC) ? 0 : 16;
   }
 
   const densityY = HDR_H;
@@ -7247,7 +7273,7 @@ function computeSkyTlLayout(periods, moonPeriods, density) {
   for (const r of rows) { r.y = y; y += r.h; }
   const TL_H = y + 4;
 
-  return { rows, DENSITY_H, densityY, hasMoon, moonY, moonH, moonNSubs, moonPeriods, density, TL_H };
+  return { rows, DENSITY_H, densityY, hasMoon, moonY, moonH, moonNSubs, moonPeriods, density, TL_H, variantB, variantC };
 }
 
 // ── Рендер таймлайна неба ─────────────────────────────────────────────────────
@@ -7256,14 +7282,17 @@ function renderSkyTimeline({ periods, moonPeriods = [], density = null, jdStart,
   const ctx = skyTlCtx;
   const tl = document.getElementById('sky-timeline-content');
   const layout = computeSkyTlLayout(periods, moonPeriods, density);
-  const { rows, DENSITY_H, densityY, hasMoon, moonY, moonH, moonPeriods: moonPs, TL_H } = layout;
+  const { rows, DENSITY_H, densityY, hasMoon, moonY, moonH, moonPeriods: moonPs, TL_H, variantB, variantC } = layout;
 
   if (!rows.length && !hasMoon) {
     tl.innerHTML = `<div class="tl-status">${tr('noTransits')}</div>`;
     return;
   }
 
-  const { LABEL_W, HDR_H, BAR_H, SUB_H } = TL;
+  const { HDR_H, BAR_H, SUB_H } = TL;
+  const noLeftPanel = variantB || variantC;          // B и C — без левой панели
+  const bothGlyphs  = variantB || variantC;          // обе планеты на полосе
+  const LABEL_W = noLeftPanel ? 0 : TL.LABEL_W;
   const SPAN = jdEnd - jdStart;
   // Как в натальном таймлайне: всегда вписываем окно по ширине панели —
   // горизонтального скролла нет, красная линия свободно ездит по фиксированной сетке.
@@ -7329,56 +7358,82 @@ function renderSkyTimeline({ periods, moonPeriods = [], density = null, jdStart,
   );
   nav.append(prevBtn, navLbl, nextBtn, scaleWrap);
 
+  // Переключатель версии таймлайна A/B
+  const verWrap = hel('div', 'tl-scale-btns');
+  verWrap.style.marginLeft = '8px';
+  const mkVer = v => {
+    const b = hel('button', 'tl-scale-btn' + (skyTlVariant === v ? ' tl-scale-active' : ''));
+    b.textContent = v;
+    b.title = { A: 'Версия A: строки по медленной планете',
+                B: 'Версия B: группы по первой планете, без левой панели',
+                C: 'Версия C: по очереди, быстрые планеты сверху' }[v];
+    b.addEventListener('click', () => { if (skyTlVariant !== v) { skyTlVariant = v; ctx.onRerender(); } });
+    return b;
+  };
+  verWrap.append(mkVer('A'), mkVer('B'), mkVer('C'));
+  nav.append(verWrap);
+  // В версиях без левой панели тумблер Луны — в шапке
+  if (noLeftPanel && hasMoon) {
+    const moonBtn = hel('button', 'tl-scale-btn' + (skyMoonOn ? ' tl-scale-active' : ''));
+    moonBtn.textContent = moonGlyph;
+    moonBtn.title = 'Луна';
+    moonBtn.style.marginLeft = '4px';
+    moonBtn.addEventListener('click', () => { skyMoonOn = !skyMoonOn; ctx.onRerender(); });
+    nav.append(moonBtn);
+  }
+
   // ── Левая панель (sticky подписи) ───────────────────────────────────────────
   const svgL = el('svg', { id: 'tl-svg-left', width: LABEL_W, height: TL_H });
   svgL.appendChild(el('rect', { x: 0, y: 0, width: LABEL_W, height: TL_H, fill: '#fff' }));
 
-  // density label
-  if (DENSITY_H > 0) {
-    svgL.appendChild(el('rect', { x: 0, y: densityY, width: LABEL_W, height: DENSITY_H, fill: COLORS.tlRowAlt }));
-    svgL.appendChild(txt(LABEL_W / 2, densityY + DENSITY_H / 2, '∿', {
-      'font-size': 13, fill: '#aaa', 'text-anchor': 'middle', 'dominant-baseline': 'central',
-    }));
-    svgL.appendChild(ln(0, densityY + DENSITY_H, LABEL_W, densityY + DENSITY_H, { stroke: '#ddd', 'stroke-width': 0.6 }));
+  if (!noLeftPanel) {
+    // density label
+    if (DENSITY_H > 0) {
+      svgL.appendChild(el('rect', { x: 0, y: densityY, width: LABEL_W, height: DENSITY_H, fill: COLORS.tlRowAlt }));
+      svgL.appendChild(txt(LABEL_W / 2, densityY + DENSITY_H / 2, '∿', {
+        'font-size': 13, fill: '#aaa', 'text-anchor': 'middle', 'dominant-baseline': 'central',
+      }));
+      svgL.appendChild(ln(0, densityY + DENSITY_H, LABEL_W, densityY + DENSITY_H, { stroke: '#ddd', 'stroke-width': 0.6 }));
+    }
+    // moon strip + toggle
+    if (hasMoon) {
+      svgL.appendChild(el('rect', { x: 0, y: moonY, width: LABEL_W, height: moonH, fill: COLORS.tlMoon }));
+      svgL.appendChild(txt(LABEL_W / 2, moonY + Math.min(moonH, 16) / 2, moonGlyph, {
+        'font-size': 13, fill: COLORS.tlMoonGlyph, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+      }));
+      svgL.appendChild(txt(LABEL_W - 6, moonY + Math.min(moonH, 16) / 2, skyMoonOn ? '▾' : '▸', {
+        'font-size': 9, fill: COLORS.tlMoonGlyph, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+      }));
+      const moonHit = el('rect', { x: 0, y: moonY, width: LABEL_W, height: Math.min(moonH, 16), fill: 'transparent', style: 'cursor:pointer' });
+      moonHit.addEventListener('click', () => { skyMoonOn = !skyMoonOn; ctx.onRerender(); });
+      svgL.appendChild(moonHit);
+      svgL.appendChild(ln(0, moonY + moonH, LABEL_W, moonY + moonH, { stroke: COLORS.tlMoonLine, 'stroke-width': 0.8 }));
+    }
+    // planet rows
+    rows.forEach((r, i) => {
+      if (i % 2 === 0) svgL.appendChild(el('rect', { x: 0, y: r.y, width: LABEL_W, height: r.h, fill: COLORS.tlRowAlt }));
+      const isHl = skyHighlightPlanet === r.groupId;
+      if (isHl) svgL.appendChild(el('rect', { x: 0, y: r.y, width: LABEL_W, height: r.h, fill: COLORS.conj, opacity: '0.10' }));
+      svgL.appendChild(ln(0, r.y, LABEL_W, r.y, { stroke: '#e8e8e4', 'stroke-width': 0.5 }));
+      svgL.appendChild(txt(LABEL_W / 2, r.y + r.h / 2, r.pl.glyph, {
+        'font-size': 17, fill: isHl ? COLORS.conj : '#333',
+        'font-weight': isHl ? 'bold' : 'normal',
+        'text-anchor': 'middle', 'dominant-baseline': 'central',
+      }));
+      const hit = el('rect', { x: 0, y: r.y, width: LABEL_W, height: r.h, fill: 'transparent', style: 'cursor:pointer' });
+      hit.addEventListener('click', () => { skyHighlightPlanet = isHl ? null : r.groupId; ctx.onRerender(); });
+      svgL.appendChild(hit);
+    });
+    svgL.appendChild(ln(0, HDR_H, LABEL_W, HDR_H, { stroke: '#ccc', 'stroke-width': 0.8 }));
+    svgL.appendChild(ln(LABEL_W - 0.5, 0, LABEL_W - 0.5, TL_H, { stroke: '#ccc', 'stroke-width': 1 }));
   }
-  // moon strip + toggle
-  if (hasMoon) {
-    svgL.appendChild(el('rect', { x: 0, y: moonY, width: LABEL_W, height: moonH, fill: COLORS.tlMoon }));
-    svgL.appendChild(txt(LABEL_W / 2, moonY + Math.min(moonH, 16) / 2, moonGlyph, {
-      'font-size': 13, fill: COLORS.tlMoonGlyph, 'text-anchor': 'middle', 'dominant-baseline': 'central',
-    }));
-    svgL.appendChild(txt(LABEL_W - 6, moonY + Math.min(moonH, 16) / 2, skyMoonOn ? '▾' : '▸', {
-      'font-size': 9, fill: COLORS.tlMoonGlyph, 'text-anchor': 'middle', 'dominant-baseline': 'central',
-    }));
-    const moonHit = el('rect', { x: 0, y: moonY, width: LABEL_W, height: Math.min(moonH, 16), fill: 'transparent', style: 'cursor:pointer' });
-    moonHit.addEventListener('click', () => { skyMoonOn = !skyMoonOn; ctx.onRerender(); });
-    svgL.appendChild(moonHit);
-    svgL.appendChild(ln(0, moonY + moonH, LABEL_W, moonY + moonH, { stroke: COLORS.tlMoonLine, 'stroke-width': 0.8 }));
-  }
-  // planet rows
-  rows.forEach((r, i) => {
-    if (i % 2 === 0) svgL.appendChild(el('rect', { x: 0, y: r.y, width: LABEL_W, height: r.h, fill: COLORS.tlRowAlt }));
-    const isHl = skyHighlightPlanet === r.anchorId;
-    if (isHl) svgL.appendChild(el('rect', { x: 0, y: r.y, width: LABEL_W, height: r.h, fill: COLORS.conj, opacity: '0.10' }));
-    svgL.appendChild(ln(0, r.y, LABEL_W, r.y, { stroke: '#e8e8e4', 'stroke-width': 0.5 }));
-    svgL.appendChild(txt(LABEL_W / 2, r.y + r.h / 2, r.pl.glyph, {
-      'font-size': 17, fill: isHl ? COLORS.conj : '#333',
-      'font-weight': isHl ? 'bold' : 'normal',
-      'text-anchor': 'middle', 'dominant-baseline': 'central',
-    }));
-    const hit = el('rect', { x: 0, y: r.y, width: LABEL_W, height: r.h, fill: 'transparent', style: 'cursor:pointer' });
-    hit.addEventListener('click', () => { skyHighlightPlanet = isHl ? null : r.anchorId; ctx.onRerender(); });
-    svgL.appendChild(hit);
-  });
-  svgL.appendChild(ln(0, HDR_H, LABEL_W, HDR_H, { stroke: '#ccc', 'stroke-width': 0.8 }));
-  svgL.appendChild(ln(LABEL_W - 0.5, 0, LABEL_W - 0.5, TL_H, { stroke: '#ccc', 'stroke-width': 1 }));
 
   // ── Правая SVG (полосы) ─────────────────────────────────────────────────────
   const svgR = el('svg', { id: 'tl-svg-right', width: BARS_W, height: TL_H, style: 'display:block' });
   svgR.appendChild(el('rect', { x: 0, y: 0, width: BARS_W, height: TL_H, fill: '#fff' }));
   rows.forEach((r, i) => {
     if (i % 2 === 0) svgR.appendChild(el('rect', { x: 0, y: r.y, width: BARS_W, height: r.h, fill: COLORS.tlRowAlt }));
-    if (skyHighlightPlanet === r.anchorId)
+    if (skyHighlightPlanet !== null && skyHighlightPlanet === r.groupId)
       svgR.appendChild(el('rect', { x: 0, y: r.y, width: BARS_W, height: r.h, fill: COLORS.conj, opacity: '0.06' }));
   });
 
@@ -7419,7 +7474,9 @@ function renderSkyTimeline({ periods, moonPeriods = [], density = null, jdStart,
       }
       if (barW >= 10 && emph(p)) {
         const lblX = x1 + barW / 2;
-        svgR.appendChild(txt(lblX, barY - 3, p.mover.glyph + p.asp.symbol, {
+        // B/C — подписываем обе планеты (левой панели нет); A — только вторую.
+        const label = bothGlyphs ? (p.mover.glyph + p.asp.symbol + anchorGlyph) : (p.mover.glyph + p.asp.symbol);
+        svgR.appendChild(txt(lblX, barY - 3, label, {
           'font-size': 10, fill: p.asp.color, 'text-anchor': 'middle', 'dominant-baseline': 'auto',
         }));
       }
@@ -7435,7 +7492,14 @@ function renderSkyTimeline({ periods, moonPeriods = [], density = null, jdStart,
 
   // planet row bars
   for (const r of rows) {
-    svgR.appendChild(ln(0, r.y, BARS_W, r.y, { stroke: '#e8e8e4', 'stroke-width': 0.5 }));
+    // В B группы разделяем чуть заметнее и ставим глиф группы у левого края (панели нет)
+    svgR.appendChild(ln(0, r.y, BARS_W, r.y, { stroke: variantB ? '#d8d8d4' : '#e8e8e4', 'stroke-width': variantB ? 0.8 : 0.5 }));
+    if (variantB) {
+      svgR.appendChild(el('rect', { x: 0, y: r.y, width: 18, height: r.h, fill: '#fff', opacity: '0.75', style: 'pointer-events:none' }));
+      svgR.appendChild(txt(9, r.y + r.h / 2, r.pl.glyph, {
+        'font-size': 14, fill: '#999', 'text-anchor': 'middle', 'dominant-baseline': 'central', style: 'pointer-events:none',
+      }));
+    }
     drawBars(r.ps, r.y);
   }
 

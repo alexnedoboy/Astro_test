@@ -339,7 +339,7 @@
   #tl-hdr-scroll { overflow: hidden; flex: 1; }
 
   #geo-place-wrap { position: relative; }
-  #geo-dropdown, #home-sky-geo-dd {
+  #geo-dropdown, #home-sky-geo-dd, #sky-geo-dd {
     position: absolute; top: 100%; left: 0; right: 0; z-index: 200;
     background: var(--bg); border: 1px solid var(--bd); border-top: none;
     border-radius: 0 0 6px 6px; box-shadow: 0 6px 16px rgba(0,0,0,0.12);
@@ -1165,6 +1165,17 @@
     flex-shrink: 0;
     line-height: 1.3;
   }
+  #sky-place {
+    flex-shrink: 0; max-width: 100%; box-sizing: border-box;
+    background: none; border: 1px solid var(--bd-light); border-radius: 4px;
+    cursor: pointer; padding: 3px 5px; font-size: 0.68em; color: var(--tx-6);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center;
+  }
+  #sky-place:hover { background: var(--bg-hover); color: var(--tx-3); }
+  #sky-geo { display: none; position: relative; flex-shrink: 0; }
+  #sky-geo.open { display: block; }
+  #sky-geo input { padding: 5px 7px; font-size: 0.78em; border-radius: 6px; }
+  #sky-geo-dd .geo-item { padding: 6px 8px; font-size: 0.78em; }
   #sky-nav-date-lbl {
     width: 100%; background: none; border: none; outline: none;
     color: var(--tx-6); font-size: 0.7em; padding: 2px 4px;
@@ -1535,6 +1546,11 @@
     <div id="sky-control-panel">
       <img src="Aspectus%20logo.png" id="sky-logo" alt="Aspectus" style="display:block;width:52px;height:52px;margin:2px auto 4px;object-fit:contain;flex-shrink:0;cursor:pointer">
       <div id="sky-title-label">Актуальные<br>аспекты</div>
+      <button id="sky-place" type="button">📍</button>
+      <div id="sky-geo">
+        <input type="text" id="skyPlaceInput" data-i18n-placeholder="cityPlaceholder" placeholder="Начните вводить город…" autocomplete="off">
+        <div id="sky-geo-dd"></div>
+      </div>
       <div class="v2-ctrl-sep"></div>
       <div id="sky-nav-date-lbl"><span id="sky-nav-date-text">—</span></div>
       <div class="sky-navmode-row">
@@ -6842,6 +6858,8 @@ let skyScale = '1Y';       // '1M' | '1Y' | '2Y' | '10Y'
 let skyCachedTimeline = null;
 let skyLayoutActive = false;
 let skyTlHidden = false;
+let skyMoonOn = false;          // Moon band visible in sky timeline (off by default)
+let skyHighlightPlanet = null;  // planet id whose aspects are emphasised (null = none)
 
 // ── Enter / Exit ──────────────────────────────────────────────────────────────
 
@@ -6854,6 +6872,7 @@ function enterSkyMode() {
   document.getElementById('sky-layout').classList.remove('sky-tl-hidden');
   skyTlHidden = false;
   document.getElementById('sky-tl-toggle').textContent = '▲';
+  syncSkyModePlaceBtn();
   renderSkyAt(skyJD);
   syncSkyDateLabel();
   skyCachedTimeline = null;
@@ -6893,8 +6912,19 @@ function renderSkyWheel(planets) {
   const g = el('g', { 'clip-path': 'url(#skyCanvasClip)' });
   svg.appendChild(g);
 
+  // House cusps for the astrologer's place (if chosen)
+  let cusps = null;
+  const place = getSkyPlace();
+  if (place) {
+    try { cusps = Array.from(swe.houses(skyJD, place.lat, place.lon, 'P').cusps).slice(1, 13); }
+    catch { cusps = null; }
+  }
+
   // 1. Background
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
+
+  // 1.5 House axes (behind the ring)
+  if (cusps) drawHouseAxes(g, cusps, 0);
 
   // 2. Zodiac ring
   drawZodiacRing(g);
@@ -6912,6 +6942,9 @@ function renderSkyWheel(planets) {
 
   // 6. Planets
   drawPlanets(g, addSouthNode(planets), 0);
+
+  // 7. House labels (on top)
+  if (cusps) drawHouseLabels(g, cusps, 0);
 
   document.getElementById('sky-chart-block').replaceChildren(svg);
 }
@@ -7046,65 +7079,451 @@ function navigateSkyBy(unit, delta) {
   syncSkyTimelineCursor();
 }
 
-// ── Timeline ──────────────────────────────────────────────────────────────────
+// ── Timeline (sky / mundane — собственные принципы, не натальные) ──────────────
 
-function computeSkyMutualAspects(jdStart, jdEnd) {
+// Иерархия Zet: аспект якорится на планете, что НИЖЕ по списку (бOльший ранг).
+// У ☉ (ранг 0) своей строки нет — он всегда «в гостях». Луна (id 1) — вне списка,
+// идёт отдельной полосой.
+const ZET_RANK = { 0:0, 2:1, 3:2, 4:3, 5:4, 6:5, 7:6, 8:7, 9:8, 10:9, 15:10, 12:11 };
+const ZET_ORDER = [2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 12]; // строки сверху вниз (без ☉ и ☽)
+
+// Генерик-скан: ищет периоды аспекта по выборкам долгот lons1/lons2 с шагом step (в днях).
+// idxToJD(i) → JD выборки i. Возвращает массив периодов {asp, startJD, endJD, exactJDs}.
+function scanAspectPeriods(lons1, lons2, N, idxToJD, aspects, orb) {
+  const out = [];
+  for (const asp of aspects) {
+    let inP = false, startJD = 0, curMinJD = -1, curMin = Infinity, lastJD = 0;
+    const close = () => {
+      out.push({ asp, startJD, endJD: lastJD, exactJDs: curMinJD >= 0 ? [curMinJD] : [] });
+      inP = false; curMinJD = -1; curMin = Infinity;
+    };
+    for (let i = 0; i < N; i++) {
+      const jd = idxToJD(i);
+      const diff = Math.abs(angDiff(lons1[i], lons2[i]) - asp.angle);
+      if (diff <= orb) {
+        if (!inP) { inP = true; startJD = jd; }
+        if (diff < curMin) { curMin = diff; curMinJD = jd; }
+        lastJD = jd;
+      } else if (inP) { close(); }
+    }
+    if (inP) close();
+  }
+  return out;
+}
+
+// Какие пары считать на данном масштабе (Луна обрабатывается отдельно).
+function skyPairIncluded(id1, id2, scale) {
+  if (id1 === 1 || id2 === 1) return false;
+  if (scale === '10Y') return SLOW_IDS.includes(id1) && SLOW_IDS.includes(id2);
+  if (scale === '1Y' || scale === '2Y') return !(FAST_IDS.includes(id1) && FAST_IDS.includes(id2));
+  return true; // 1M — всё
+}
+
+function computeSkyMutualAspects(jdStart, jdEnd, scale) {
   const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
   const DAYS = Math.ceil(jdEnd - jdStart) + 2;
 
-  // Precompute all planet longitudes day by day
+  // Долготы планет (без Луны) по дням
   const allLons = {};
   for (const p of PLANETS) {
+    if (p.id === 1) continue;
     allLons[p.id] = new Float64Array(DAYS);
     for (let i = 0; i < DAYS; i++) {
-      const r = swe.calc_ut(jdStart + i, p.id, flags);
-      allLons[p.id][i] = ((r[0] % 360) + 360) % 360;
+      allLons[p.id][i] = ((swe.calc_ut(jdStart + i, p.id, flags)[0] % 360) + 360) % 360;
     }
   }
 
   const periods = [];
+  const density = new Float64Array(DAYS); // число активных пар в день (без Луны)
+  const idxToJD = i => jdStart + i;
 
   for (let pi = 0; pi < PLANETS.length; pi++) {
     for (let pj = pi + 1; pj < PLANETS.length; pj++) {
       const p1 = PLANETS[pi], p2 = PLANETS[pj];
+      if (!skyPairIncluded(p1.id, p2.id, scale)) continue;
       const lons1 = allLons[p1.id], lons2 = allLons[p2.id];
       const orb = Math.max(getTransitOrb(p1.id), getTransitOrb(p2.id));
-
-      // Node/Lilith pairs: conjunctions only
       const aspects = (p1.id === 10 || p1.id === 12 || p2.id === 10 || p2.id === 12)
         ? T_ASPECTS.filter(a => a.angle === 0)
         : T_ASPECTS;
 
-      for (const asp of aspects) {
-        let inPeriod = false, pStart = 0;
-        let curMinDay = -1, curMinDiff = Infinity;
+      // anchor = бOльший ранг (ниже по списку), mover = меньший ранг
+      const anchor = ZET_RANK[p1.id] >= ZET_RANK[p2.id] ? p1 : p2;
+      const mover  = anchor === p1 ? p2 : p1;
 
-        const closePeriod = (endIdx) => {
-          periods.push({
-            tPlanet: p2, na: p1, asp,
-            startJD: jdStart + pStart,
-            endJD: jdStart + endIdx,
-            exactJDs: curMinDay >= 0 ? [jdStart + curMinDay] : [],
-            stations: [],
-          });
-          inPeriod = false; curMinDay = -1; curMinDiff = Infinity;
-        };
-
-        for (let i = 0; i < DAYS; i++) {
-          const diff = Math.abs(angDiff(lons1[i], lons2[i]) - asp.angle);
-          if (diff <= orb) {
-            if (!inPeriod) { inPeriod = true; pStart = i; }
-            if (diff < curMinDiff) { curMinDiff = diff; curMinDay = i; }
-          } else if (inPeriod) {
-            closePeriod(i - 1);
-          }
-        }
-        if (inPeriod) closePeriod(DAYS - 1);
+      for (const per of scanAspectPeriods(lons1, lons2, DAYS, idxToJD, aspects, orb)) {
+        periods.push({ anchorId: anchor.id, mover, asp: per.asp,
+                       startJD: per.startJD, endJD: per.endJD, exactJDs: per.exactJDs });
+        // плотность: отметить дни внутри периода
+        const a = Math.max(0, Math.floor(per.startJD - jdStart));
+        const b = Math.min(DAYS - 1, Math.ceil(per.endJD - jdStart));
+        for (let d = a; d <= b; d++) density[d] += 1;
       }
     }
   }
 
-  return { periods, jdStart, jdEnd };
+  return { periods, density, jdStart, jdEnd, DAYS };
+}
+
+// Лунные аспекты — отдельный проход с мелким шагом (Луна ~13°/день, окно орбиса < суток).
+function computeSkyMoonAspects(jdStart, jdEnd) {
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const STEP = 2 / 24; // 2 часа
+  const N = Math.ceil((jdEnd - jdStart) / STEP) + 2;
+  const idxToJD = i => jdStart + i * STEP;
+  const moonLon = new Float64Array(N);
+  for (let i = 0; i < N; i++) moonLon[i] = ((swe.calc_ut(idxToJD(i), 1, flags)[0] % 360) + 360) % 360;
+
+  const partners = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 12];
+  const MOON_ORB = 3;
+  const periods = [];
+  for (const pid of partners) {
+    const pObj = PLANETS.find(p => p.id === pid);
+    const lon2 = new Float64Array(N);
+    for (let i = 0; i < N; i++) lon2[i] = ((swe.calc_ut(idxToJD(i), pid, flags)[0] % 360) + 360) % 360;
+    const aspects = (pid === 10 || pid === 12) ? T_ASPECTS.filter(a => a.angle === 0) : T_ASPECTS;
+    for (const per of scanAspectPeriods(moonLon, lon2, N, idxToJD, aspects, MOON_ORB)) {
+      periods.push({ anchorId: 1, mover: pObj, asp: per.asp,
+                     startJD: per.startJD, endJD: per.endJD, exactJDs: per.exactJDs });
+    }
+  }
+  return periods;
+}
+
+// ── Layout таймлайна неба ─────────────────────────────────────────────────────
+function computeSkyTlLayout(periods, moonPeriods, density) {
+  const { HDR_H, SUB_H } = TL;
+  const gap = (skyScale === '10Y' || skyScale === '2Y') ? 7 : 1;
+
+  const packSeries = ps => {
+    const seriesMap = new Map();
+    for (const p of ps) {
+      const key = `${p.mover.id}-${p.asp.angle}`;
+      (seriesMap.get(key) ?? seriesMap.set(key, []).get(key)).push(p);
+    }
+    const seriesList = [...seriesMap.values()]
+      .sort((a, b) => Math.min(...a.map(p => p.startJD)) - Math.min(...b.map(p => p.startJD)));
+    const lanes = [];
+    for (const sps of seriesList) {
+      let placed = false;
+      for (let lane = 0; lane < lanes.length; lane++) {
+        const conflict = sps.some(p => lanes[lane].some(iv => p.startJD <= iv.end + gap && p.endJD >= iv.start - gap));
+        if (!conflict) {
+          for (const p of sps) { p.sub = lane; lanes[lane].push({ start: p.startJD, end: p.endJD }); }
+          placed = true; break;
+        }
+      }
+      if (!placed) { const lane = lanes.length; lanes.push(sps.map(p => ({ start: p.startJD, end: p.endJD }))); for (const p of sps) p.sub = lane; }
+    }
+    return Math.max(lanes.length, 1);
+  };
+
+  // Группировка по планете-якорю, строки в порядке Zet
+  const byAnchor = {};
+  for (const p of periods) {
+    if (!p.exactJDs?.length) continue;
+    (byAnchor[p.anchorId] ??= []).push(p);
+  }
+  const rows = ZET_ORDER.filter(id => byAnchor[id]?.length).map(id => {
+    const ps = byAnchor[id];
+    const nSubs = packSeries(ps);
+    return { anchorId: id, pl: PLANETS.find(p => p.id === id), ps, nSubs, h: nSubs * SUB_H + 16 };
+  });
+
+  // Полоса плотности
+  const DENSITY_H = density && density.length ? 30 : 0;
+
+  // Лунная секция
+  const hasMoon = moonPeriods && moonPeriods.length > 0;
+  let moonNSubs = 0, moonH = 0;
+  if (hasMoon) {
+    if (skyMoonOn) { moonNSubs = packSeries(moonPeriods); moonH = moonNSubs * SUB_H + 16; }
+    else moonH = 16; // только полоска-тумблер
+  }
+
+  const densityY = HDR_H;
+  const moonY    = HDR_H + DENSITY_H;
+  let y = moonY + moonH;
+  for (const r of rows) { r.y = y; y += r.h; }
+  const TL_H = y + 4;
+
+  return { rows, DENSITY_H, densityY, hasMoon, moonY, moonH, moonNSubs, moonPeriods, density, TL_H };
+}
+
+// ── Рендер таймлайна неба ─────────────────────────────────────────────────────
+function renderSkyTimeline({ periods, moonPeriods = [], density = null, jdStart, jdEnd, jdToday,
+                             jdCoreStart = null, jdCoreEnd = null, jdCursor = null }) {
+  const ctx = skyTlCtx;
+  const tl = document.getElementById('sky-timeline-content');
+  const layout = computeSkyTlLayout(periods, moonPeriods, density);
+  const { rows, DENSITY_H, densityY, hasMoon, moonY, moonH, moonPeriods: moonPs, TL_H } = layout;
+
+  if (!rows.length && !hasMoon) {
+    tl.innerHTML = `<div class="tl-status">${tr('noTransits')}</div>`;
+    return;
+  }
+
+  const { LABEL_W, HDR_H, BAR_H, SUB_H } = TL;
+  const SPAN = jdEnd - jdStart;
+  // Как в натальном таймлайне: всегда вписываем окно по ширине панели —
+  // горизонтального скролла нет, красная линия свободно ездит по фиксированной сетке.
+  const PX_PER_DAY = Math.max(((tl.clientWidth || 800) - LABEL_W - 18), 200) / SPAN;
+  const BARS_W = Math.ceil(SPAN * PX_PER_DAY);
+  const xOf = jd => Math.min(Math.max((jd - jdStart) * PX_PER_DAY, 0), BARS_W);
+
+  const hel = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
+  const fmtDate = jd => new Date((jd - 2440587.5) * 86400000)
+    .toLocaleDateString(currentLang, { day: 'numeric', month: 'short', year: 'numeric' });
+  const tooltip = document.getElementById('tl-tooltip');
+  const showTip = (elem, text) => {
+    elem.addEventListener('mouseover', () => { tooltip.textContent = text; tooltip.style.display = 'block'; });
+    elem.addEventListener('mousemove', e => { tooltip.style.left = (e.clientX + 14) + 'px'; tooltip.style.top = (e.clientY - 30) + 'px'; });
+    elem.addEventListener('mouseout', () => { tooltip.style.display = 'none'; });
+    return elem;
+  };
+  const makeNavHit = (elem, cb) => {
+    let sx = 0, sy = 0;
+    elem.addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+    elem.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+      if (dx * dx + dy * dy < 144) cb();
+    });
+    elem.addEventListener('click', () => cb());
+    return elem;
+  };
+  const moonGlyph = PLANETS.find(p => p.id === 1).glyph;
+  const emph = p => skyHighlightPlanet === null || p.anchorId === skyHighlightPlanet || p.mover.id === skyHighlightPlanet;
+
+  // ── Навигация / масштабы ────────────────────────────────────────────────────
+  const fmtYear = jd => new Date((jd - 2440587.5) * 86400000).getUTCFullYear();
+  const fmtMon  = jd => new Date((jd - 2440587.5) * 86400000).toLocaleDateString(currentLang, { month: 'short', year: 'numeric' });
+  const nav = hel('div'); nav.id = 'tl-nav';
+  const shiftStep = ctx.isYearScale() ? 10 * 365 : ctx.isMonthScale() ? 30 : 365;
+  const prevBtn = hel('button', 'tl-nav-btn'); prevBtn.textContent = '◀';
+  prevBtn.addEventListener('click', () => ctx.onShift(-shiftStep));
+  const navLbl = hel('span'); navLbl.id = 'tl-nav-lbl';
+  navLbl.textContent = !jdCoreStart
+    ? `${fmtYear(jdStart)} — ${fmtYear(jdEnd - 1)}`
+    : ctx.isMonthScale() ? fmtMon(jdCoreStart)
+    : ctx.is2YScale() ? `${fmtYear(jdCoreStart)} — ${fmtYear(jdCoreEnd - 1)}`
+    : String(fmtYear(jdCoreStart));
+  if (jdCoreStart) {
+    navLbl.style.cssText += 'cursor:pointer; text-decoration:underline dotted;';
+    navLbl.addEventListener('click', () => ctx.onScale(ctx.isMonthScale() ? '1Y' : '10Y', skyJD ?? computeJDNow()));
+  }
+  const nextBtn = hel('button', 'tl-nav-btn'); nextBtn.textContent = '▶';
+  nextBtn.addEventListener('click', () => ctx.onShift(shiftStep));
+  const scaleWrap = hel('div', 'tl-scale-btns');
+  const isBase1Y = !ctx.isYearScale() && !ctx.is2YScale() && !ctx.isMonthScale();
+  const mkScale = (label, active, scale) => {
+    const b = hel('button', 'tl-scale-btn' + (active ? ' tl-scale-active' : ''));
+    b.textContent = label;
+    b.addEventListener('click', () => { if (!active) ctx.onScale(scale, skyJD ?? computeJDNow()); });
+    return b;
+  };
+  scaleWrap.append(
+    mkScale('1M', ctx.isMonthScale(), '1M'),
+    mkScale('1Y', isBase1Y, '1Y'),
+    mkScale('2Y', ctx.is2YScale(), '2Y'),
+    mkScale('10Y', ctx.isYearScale(), '10Y'),
+  );
+  nav.append(prevBtn, navLbl, nextBtn, scaleWrap);
+
+  // ── Левая панель (sticky подписи) ───────────────────────────────────────────
+  const svgL = el('svg', { id: 'tl-svg-left', width: LABEL_W, height: TL_H });
+  svgL.appendChild(el('rect', { x: 0, y: 0, width: LABEL_W, height: TL_H, fill: '#fff' }));
+
+  // density label
+  if (DENSITY_H > 0) {
+    svgL.appendChild(el('rect', { x: 0, y: densityY, width: LABEL_W, height: DENSITY_H, fill: COLORS.tlRowAlt }));
+    svgL.appendChild(txt(LABEL_W / 2, densityY + DENSITY_H / 2, '∿', {
+      'font-size': 13, fill: '#aaa', 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    }));
+    svgL.appendChild(ln(0, densityY + DENSITY_H, LABEL_W, densityY + DENSITY_H, { stroke: '#ddd', 'stroke-width': 0.6 }));
+  }
+  // moon strip + toggle
+  if (hasMoon) {
+    svgL.appendChild(el('rect', { x: 0, y: moonY, width: LABEL_W, height: moonH, fill: COLORS.tlMoon }));
+    svgL.appendChild(txt(LABEL_W / 2, moonY + Math.min(moonH, 16) / 2, moonGlyph, {
+      'font-size': 13, fill: COLORS.tlMoonGlyph, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    }));
+    svgL.appendChild(txt(LABEL_W - 6, moonY + Math.min(moonH, 16) / 2, skyMoonOn ? '▾' : '▸', {
+      'font-size': 9, fill: COLORS.tlMoonGlyph, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+    }));
+    const moonHit = el('rect', { x: 0, y: moonY, width: LABEL_W, height: Math.min(moonH, 16), fill: 'transparent', style: 'cursor:pointer' });
+    moonHit.addEventListener('click', () => { skyMoonOn = !skyMoonOn; ctx.onRerender(); });
+    svgL.appendChild(moonHit);
+    svgL.appendChild(ln(0, moonY + moonH, LABEL_W, moonY + moonH, { stroke: COLORS.tlMoonLine, 'stroke-width': 0.8 }));
+  }
+  // planet rows
+  rows.forEach((r, i) => {
+    if (i % 2 === 0) svgL.appendChild(el('rect', { x: 0, y: r.y, width: LABEL_W, height: r.h, fill: COLORS.tlRowAlt }));
+    const isHl = skyHighlightPlanet === r.anchorId;
+    if (isHl) svgL.appendChild(el('rect', { x: 0, y: r.y, width: LABEL_W, height: r.h, fill: COLORS.conj, opacity: '0.10' }));
+    svgL.appendChild(ln(0, r.y, LABEL_W, r.y, { stroke: '#e8e8e4', 'stroke-width': 0.5 }));
+    svgL.appendChild(txt(LABEL_W / 2, r.y + r.h / 2, r.pl.glyph, {
+      'font-size': 17, fill: isHl ? COLORS.conj : '#333',
+      'font-weight': isHl ? 'bold' : 'normal',
+      'text-anchor': 'middle', 'dominant-baseline': 'central',
+    }));
+    const hit = el('rect', { x: 0, y: r.y, width: LABEL_W, height: r.h, fill: 'transparent', style: 'cursor:pointer' });
+    hit.addEventListener('click', () => { skyHighlightPlanet = isHl ? null : r.anchorId; ctx.onRerender(); });
+    svgL.appendChild(hit);
+  });
+  svgL.appendChild(ln(0, HDR_H, LABEL_W, HDR_H, { stroke: '#ccc', 'stroke-width': 0.8 }));
+  svgL.appendChild(ln(LABEL_W - 0.5, 0, LABEL_W - 0.5, TL_H, { stroke: '#ccc', 'stroke-width': 1 }));
+
+  // ── Правая SVG (полосы) ─────────────────────────────────────────────────────
+  const svgR = el('svg', { id: 'tl-svg-right', width: BARS_W, height: TL_H, style: 'display:block' });
+  svgR.appendChild(el('rect', { x: 0, y: 0, width: BARS_W, height: TL_H, fill: '#fff' }));
+  rows.forEach((r, i) => {
+    if (i % 2 === 0) svgR.appendChild(el('rect', { x: 0, y: r.y, width: BARS_W, height: r.h, fill: COLORS.tlRowAlt }));
+    if (skyHighlightPlanet === r.anchorId)
+      svgR.appendChild(el('rect', { x: 0, y: r.y, width: BARS_W, height: r.h, fill: COLORS.conj, opacity: '0.06' }));
+  });
+
+  // density ribbon
+  if (DENSITY_H > 0) {
+    const maxD = Math.max(1, ...density);
+    const baseY = densityY + DENSITY_H - 2;
+    const usableH = DENSITY_H - 6;
+    const dayW = Math.max(PX_PER_DAY, 1);
+    for (let i = 0; i < density.length; i++) {
+      if (!density[i]) continue;
+      const x = xOf(jdStart + i);
+      const h = (density[i] / maxD) * usableH;
+      svgR.appendChild(el('rect', { x, y: baseY - h, width: dayW + 0.5, height: h, fill: COLORS.tlMuted ?? '#b7c4d4', opacity: '0.65' }));
+    }
+    svgR.appendChild(ln(0, densityY + DENSITY_H, BARS_W, densityY + DENSITY_H, { stroke: '#ddd', 'stroke-width': 0.6 }));
+  }
+
+  // helper для рисования полос аспектов
+  const drawBars = (ps, baseY) => {
+    for (const p of ps) {
+      const op = emph(p) ? 0.85 : 0.12;
+      const x1 = xOf(p.startJD), x2 = xOf(p.endJD);
+      const barW = Math.max(x2 - x1, 3);
+      const barY = baseY + 10 + p.sub * SUB_H + (SUB_H - BAR_H) / 2;
+      const bar = el('rect', { x: x1, y: barY, width: barW, height: BAR_H, fill: p.asp.color, rx: 1, opacity: String(op) });
+      const anchorGlyph = p.anchorId === 1 ? moonGlyph : PLANETS.find(q => q.id === p.anchorId).glyph;
+      const nearest = p.exactJDs?.length
+        ? p.exactJDs.reduce((b, j) => Math.abs(j - jdToday) < Math.abs(b - jdToday) ? j : b) : null;
+      showTip(bar, `${p.mover.glyph} ${p.asp.symbol} ${anchorGlyph}` + (nearest ? `  ·  ${fmtDate(nearest)}` : ''));
+      svgR.appendChild(bar);
+      for (const ejd of (p.exactJDs ?? [])) {
+        const xE = xOf(ejd);
+        if (xE < x1 - 1 || xE > x2 + 1) continue;
+        const dotY = barY + BAR_H / 2;
+        svgR.appendChild(circ(xE, dotY, 3, { fill: '#fff', stroke: p.asp.color, 'stroke-width': 1.2, opacity: String(op) }));
+        svgR.appendChild(makeNavHit(circ(xE, dotY, 10, { fill: 'transparent', style: 'cursor:pointer' }), () => ctx.onBarClick(ejd)));
+      }
+      if (barW >= 10 && emph(p)) {
+        const lblX = x1 + barW / 2;
+        svgR.appendChild(txt(lblX, barY - 3, p.mover.glyph + p.asp.symbol, {
+          'font-size': 10, fill: p.asp.color, 'text-anchor': 'middle', 'dominant-baseline': 'auto',
+        }));
+      }
+    }
+  };
+
+  // moon band bars
+  if (hasMoon && skyMoonOn) {
+    svgR.appendChild(el('rect', { x: 0, y: moonY, width: BARS_W, height: moonH, fill: COLORS.tlMoon, opacity: '0.5' }));
+    svgR.appendChild(ln(0, moonY + moonH, BARS_W, moonY + moonH, { stroke: COLORS.tlMoonLine, 'stroke-width': 0.8 }));
+    drawBars(moonPs, moonY);
+  }
+
+  // planet row bars
+  for (const r of rows) {
+    svgR.appendChild(ln(0, r.y, BARS_W, r.y, { stroke: '#e8e8e4', 'stroke-width': 0.5 }));
+    drawBars(r.ps, r.y);
+  }
+
+  // ── Заголовок (месяцы/дни/годы) ─────────────────────────────────────────────
+  const svgHdr = el('svg', { id: 'tl-svg-hdr', width: BARS_W, height: HDR_H, style: 'display:block' });
+  svgHdr.appendChild(el('rect', { x: 0, y: 0, width: BARS_W, height: HDR_H, fill: '#fff' }));
+  const MS = STRINGS[currentLang].months;
+  if (ctx.isMonthScale()) {
+    let d = new Date((jdStart - 2440587.5) * 86400000);
+    d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    let curMonth = -1;
+    while (d.getTime() / 86400000 + 2440587.5 <= jdEnd + 1) {
+      const jdDay = d.getTime() / 86400000 + 2440587.5;
+      const x = xOf(jdDay), dayNum = d.getUTCDate(), mon = d.getUTCMonth();
+      const boundary = dayNum === 1;
+      const sc = boundary ? '#bbb' : '#e8e8e8';
+      svgHdr.appendChild(ln(x, 0, x, HDR_H, { stroke: sc, 'stroke-width': boundary ? 1 : 0.5 }));
+      svgR.appendChild(ln(x, 0, x, TL_H, { stroke: sc, 'stroke-width': boundary ? 0.7 : 0.3 }));
+      svgHdr.appendChild(txt(x + 2, 19, String(dayNum), { 'font-size': boundary ? 10 : 9, fill: boundary ? '#777' : '#aaa', 'font-weight': boundary ? 'bold' : 'normal' }));
+      if (boundary && mon !== curMonth) { svgHdr.appendChild(txt(x + 2, 10, MS[mon], { 'font-size': 9, fill: '#666' })); curMonth = mon; }
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+  } else if (ctx.isYearScale()) {
+    const sy = new Date((jdStart - 2440587.5) * 86400000).getFullYear();
+    const ey = new Date((jdEnd - 2440587.5) * 86400000).getFullYear() + 1;
+    for (let yr = sy; yr <= ey; yr++) {
+      const xYr = xOf(swe.julday(yr, 1, 1, 0));
+      svgHdr.appendChild(ln(xYr, 0, xYr, HDR_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
+      svgHdr.appendChild(txt(xYr + 3, 16, String(yr), { 'font-size': 11, fill: '#999' }));
+      svgR.appendChild(ln(xYr, 0, xYr, TL_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
+    }
+  } else {
+    const sd = new Date((jdStart - 2440587.5) * 86400000);
+    sd.setDate(1); sd.setHours(0, 0, 0, 0);
+    const numMonths = Math.ceil(SPAN / 28) + 3;
+    for (let m = 0; m <= numMonths; m++) {
+      const md = new Date(sd); md.setMonth(sd.getMonth() + m);
+      const mJD = swe.julday(md.getFullYear(), md.getMonth() + 1, 1, 0);
+      if (mJD < jdStart - 1 || mJD > jdEnd + 1) continue;
+      const x = xOf(mJD);
+      svgHdr.appendChild(ln(x, 0, x, HDR_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
+      svgHdr.appendChild(txt(x + 3, 16, MS[md.getMonth()], { 'font-size': 11, fill: '#999' }));
+      svgR.appendChild(ln(x, 0, x, TL_H, { stroke: '#ddd', 'stroke-width': 0.7 }));
+    }
+  }
+  svgHdr.appendChild(ln(0, HDR_H - 1, BARS_W, HDR_H - 1, { stroke: '#ccc', 'stroke-width': 0.8 }));
+  const hdrHit = el('rect', { x: 0, y: 0, width: BARS_W, height: HDR_H, fill: 'transparent', style: 'cursor:pointer' });
+  const hdrXtoJD = clientX => jdStart + (clientX - svgHdr.getBoundingClientRect().left) / PX_PER_DAY;
+  hdrHit.addEventListener('click', e => ctx.onNavigate(hdrXtoJD(e.clientX)));
+  svgHdr.appendChild(hdrHit);
+
+  // курсор
+  const xT = xOf(jdCursor ?? jdToday);
+  svgR.appendChild(ln(xT, 0, xT, TL_H, { stroke: '#e44', 'stroke-width': 1.2, 'stroke-dasharray': '4,2', opacity: '0.8' }));
+  svgHdr.appendChild(ln(xT, 0, xT, HDR_H, { stroke: '#e44', 'stroke-width': 1.2, 'stroke-dasharray': '4,2', opacity: '0.8' }));
+  svgHdr.appendChild(txt(xT + 2, 11, '▼', { 'font-size': 8, fill: '#e44' }));
+
+  // dim вне основного окна
+  if (jdCoreStart && jdCoreEnd) {
+    const xC1 = xOf(jdCoreStart), xC2 = xOf(jdCoreEnd);
+    const dim = { y: 0, height: TL_H, fill: 'rgba(0,0,0,0.07)', style: 'pointer-events:none' };
+    if (xC1 > 0) svgR.appendChild(el('rect', { x: 0, width: xC1, ...dim }));
+    if (xC2 < BARS_W) svgR.appendChild(el('rect', { x: xC2, width: BARS_W - xC2, ...dim }));
+    const hdim = { y: 0, height: HDR_H, fill: 'rgba(0,0,0,0.07)', style: 'pointer-events:none' };
+    if (xC1 > 0) svgHdr.appendChild(el('rect', { x: 0, width: xC1, ...hdim }));
+    if (xC2 < BARS_W) svgHdr.appendChild(el('rect', { x: xC2, width: BARS_W - xC2, ...hdim }));
+  }
+
+  // ── Сборка ──────────────────────────────────────────────────────────────────
+  const scrollWrap = hel('div'); scrollWrap.id = 'tl-scroll';
+  scrollWrap.appendChild(svgR);
+  const body = hel('div'); body.id = 'tl-body';
+  body.append(svgL, scrollWrap);
+  const hdrScrollWrap = hel('div'); hdrScrollWrap.id = 'tl-hdr-scroll';
+  hdrScrollWrap.appendChild(svgHdr);
+  const hdrLeft = hel('div'); hdrLeft.style.cssText = `width:${LABEL_W}px; flex-shrink:0; background:#fff`;
+  const hdrSticky = hel('div'); hdrSticky.id = 'tl-hdr-sticky';
+  hdrSticky.append(hdrLeft, hdrScrollWrap);
+  scrollWrap.addEventListener('scroll', () => { hdrScrollWrap.scrollLeft = scrollWrap.scrollLeft; });
+  hdrScrollWrap.addEventListener('scroll', () => { scrollWrap.scrollLeft = hdrScrollWrap.scrollLeft; });
+
+  const prevBodyScrollTop = document.getElementById('tl-body')?.scrollTop ?? 0;
+  tl.replaceChildren(nav, hdrSticky, body);
+  requestAnimationFrame(() => {
+    scrollWrap.scrollLeft = xT - scrollWrap.clientWidth * 0.3;
+    hdrScrollWrap.scrollLeft = scrollWrap.scrollLeft;
+    if (prevBodyScrollTop > 0) body.scrollTop = prevBodyScrollTop;
+  });
 }
 
 function computeAndRenderSkyTimeline(centerJD) {
@@ -7140,9 +7559,10 @@ function computeAndRenderSkyTimeline(centerJD) {
         jdEnd   = jdCoreEnd   + 30;
       }
 
-      const { periods } = computeSkyMutualAspects(jdStart, jdEnd);
-      skyCachedTimeline = { periods, jdStart, jdEnd, jdToday, jdCoreStart, jdCoreEnd, center };
-      renderTimeline({ ...skyCachedTimeline, jdCursor: center, tlCtx: skyTlCtx });
+      const { periods, density } = computeSkyMutualAspects(jdStart, jdEnd, skyScale);
+      const moonPeriods = skyScale === '1M' ? computeSkyMoonAspects(jdStart, jdEnd) : [];
+      skyCachedTimeline = { periods, moonPeriods, density, jdStart, jdEnd, jdToday, jdCoreStart, jdCoreEnd, center };
+      renderSkyTimeline({ ...skyCachedTimeline, jdCursor: center });
     } catch (e) {
       container.innerHTML = `<div class="tl-status">Ошибка: ${e.message}</div>`;
     }
@@ -7153,24 +7573,20 @@ function syncSkyTimelineCursor() {
   if (!skyCachedTimeline || !skyJD) return;
   const { jdStart, jdEnd } = skyCachedTimeline;
   if (skyJD >= jdStart && skyJD <= jdEnd) {
-    renderTimeline({ ...skyCachedTimeline, jdCursor: skyJD, tlCtx: skyTlCtx });
+    renderSkyTimeline({ ...skyCachedTimeline, jdCursor: skyJD });
   } else {
     skyCachedTimeline = null;
     computeAndRenderSkyTimeline(skyJD);
   }
 }
 
-// Sky timeline context — passes all context-specific callbacks into the shared renderTimeline
+// Контекст масштабов/навигации таймлайна неба (callbacks переиспользуются в renderSkyTimeline).
 const skyTlCtx = {
-  get container()       { return document.getElementById('sky-timeline-content'); },
-  get filterContainer() { return document.getElementById('sky-timeline-wrap'); },
-  isYearScale:        () => skyScale === '10Y',
-  is2YScale:          () => skyScale === '2Y',
-  isMonthScale:       () => skyScale === '1M',
-  supportsMonthScale: true,
-  onNavigate:     jd  => { renderSkyAt(jd); syncSkyDateLabel(); },
-  onBarClick:     jd  => { renderSkyAt(jd); syncSkyDateLabel(); syncSkyTimelineCursor(); },
-  onProgBarClick: ()  => {},
+  isYearScale:  () => skyScale === '10Y',
+  is2YScale:    () => skyScale === '2Y',
+  isMonthScale: () => skyScale === '1M',
+  onNavigate:   jd => { renderSkyAt(jd); syncSkyDateLabel(); syncSkyTimelineCursor(); },
+  onBarClick:   jd => { renderSkyAt(jd); syncSkyDateLabel(); syncSkyTimelineCursor(); },
   onShift: days => {
     const newCenter = (skyCachedTimeline?.center ?? computeJDNow()) + days;
     skyCachedTimeline = null;
@@ -7182,10 +7598,7 @@ const skyTlCtx = {
     skyCachedTimeline = null;
     computeAndRenderSkyTimeline(swe.julday(yr, 7, 2, 0));
   },
-  onRerender:  () => {
-    if (skyCachedTimeline) renderTimeline({ ...skyCachedTimeline, jdCursor: skyJD, tlCtx: skyTlCtx });
-  },
-  onRowExpand: () => {},
+  onRerender: () => { if (skyCachedTimeline) renderSkyTimeline({ ...skyCachedTimeline, jdCursor: skyJD }); },
 };
 
 // ══ Home sky widget — живая карта неба на главной ═════════════════════════════
@@ -7351,53 +7764,85 @@ function computeMoonVoC(jdNow) {
 
 // ── Место астролога для сетки домов ───────────────────────────────────────────
 
-document.getElementById('home-sky-place').addEventListener('click', e => {
-  e.stopPropagation();
-  const row = document.getElementById('home-sky-geo');
-  row.classList.toggle('open');
-  if (row.classList.contains('open')) document.getElementById('homeSkyPlaceInput').focus();
-});
-
-function applySkyPlace(item) {
-  const name = item.display_name.split(',')[0].trim();
-  localStorage.setItem('skyPlace', JSON.stringify({ name, lat: parseFloat(item.lat), lon: parseFloat(item.lon) }));
-  document.getElementById('home-sky-geo').classList.remove('open');
-  document.getElementById('home-sky-geo-dd').style.display = 'none';
-  document.getElementById('homeSkyPlaceInput').value = '';
-  syncSkyPlaceBtn();
-  renderHomeSky();
+async function geoSearch(query) {
+  const r = await fetch(
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`,
+    { headers: { 'Accept-Language': `${currentLang},en` } }
+  );
+  return r.json();
 }
 
-let _skyGeoTimer = null;
-document.getElementById('homeSkyPlaceInput').addEventListener('input', () => {
-  clearTimeout(_skyGeoTimer);
-  const q = document.getElementById('homeSkyPlaceInput').value.trim();
-  const dd = document.getElementById('home-sky-geo-dd');
-  if (q.length < 2) { dd.style.display = 'none'; return; }
-  _skyGeoTimer = setTimeout(async () => {
-    try {
-      const r = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`,
-        { headers: { 'Accept-Language': `${currentLang},en` } }
-      );
-      const items = await r.json();
-      dd.innerHTML = '';
-      if (!items.length) { dd.style.display = 'none'; return; }
-      for (const item of items) {
-        const parts = item.display_name.split(',');
-        const div = document.createElement('div');
-        div.className = 'geo-item';
-        div.innerHTML = `<div class="geo-main">${escapeHtml(parts[0].trim())}</div><div class="geo-sub">${escapeHtml(parts.slice(1, 3).join(',').trim())}</div>`;
-        div.addEventListener('mousedown', ev => { ev.preventDefault(); applySkyPlace(item); });
-        dd.appendChild(div);
-      }
-      dd.style.display = 'block';
-    } catch { dd.style.display = 'none'; }
-  }, 380);
+// Текст плашки города в панели полноэкранного режима неба
+function syncSkyModePlaceBtn() {
+  const btn = document.getElementById('sky-place');
+  if (!btn) return;
+  const p = getSkyPlace();
+  btn.textContent = p ? `📍 ${p.name}` : `📍 ${tr('skySetPlace')}`;
+}
+
+// Общий пикер города: кнопка + input + дропдаун, пишет в localStorage.skyPlace
+function wirePlacePicker({ btnId, geoId, inputId, ddId, onApply }) {
+  const btn = document.getElementById(btnId);
+  const geo = document.getElementById(geoId);
+  const input = document.getElementById(inputId);
+  const dd = document.getElementById(ddId);
+  if (!btn || !geo || !input || !dd) return;
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    geo.classList.toggle('open');
+    if (geo.classList.contains('open')) input.focus();
+  });
+
+  const apply = item => {
+    const name = item.display_name.split(',')[0].trim();
+    localStorage.setItem('skyPlace', JSON.stringify({ name, lat: parseFloat(item.lat), lon: parseFloat(item.lon) }));
+    geo.classList.remove('open');
+    dd.style.display = 'none';
+    input.value = '';
+    onApply();
+  };
+
+  let timer = null;
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) { dd.style.display = 'none'; return; }
+    timer = setTimeout(async () => {
+      try {
+        const items = await geoSearch(q);
+        dd.innerHTML = '';
+        if (!items.length) { dd.style.display = 'none'; return; }
+        for (const item of items) {
+          const parts = item.display_name.split(',');
+          const div = document.createElement('div');
+          div.className = 'geo-item';
+          div.innerHTML = `<div class="geo-main">${escapeHtml(parts[0].trim())}</div><div class="geo-sub">${escapeHtml(parts.slice(1, 3).join(',').trim())}</div>`;
+          div.addEventListener('mousedown', ev => { ev.preventDefault(); apply(item); });
+          dd.appendChild(div);
+        }
+        dd.style.display = 'block';
+      } catch { dd.style.display = 'none'; }
+    }, 380);
+  });
+
+  input.addEventListener('blur', () => {
+    setTimeout(() => { dd.style.display = 'none'; }, 180);
+  });
+}
+
+wirePlacePicker({
+  btnId: 'home-sky-place', geoId: 'home-sky-geo', inputId: 'homeSkyPlaceInput', ddId: 'home-sky-geo-dd',
+  onApply: () => { syncSkyPlaceBtn(); syncSkyModePlaceBtn(); renderHomeSky(); },
 });
 
-document.getElementById('homeSkyPlaceInput').addEventListener('blur', () => {
-  setTimeout(() => { document.getElementById('home-sky-geo-dd').style.display = 'none'; }, 180);
+wirePlacePicker({
+  btnId: 'sky-place', geoId: 'sky-geo', inputId: 'skyPlaceInput', ddId: 'sky-geo-dd',
+  onApply: () => {
+    syncSkyModePlaceBtn(); syncSkyPlaceBtn();
+    if (skyLayoutActive && skyJD) renderSkyAt(skyJD);
+    renderHomeSky();
+  },
 });
 
 // Клик по мини-карте → полноэкранный режим актуальных аспектов

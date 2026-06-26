@@ -5158,9 +5158,14 @@ function computeTransits(natalPlanets, jdWindowStart, jdWindowEnd) {
 // Returns array of Julian Dates where the aspect truly perfects (diff < EXACT_THRESH).
 function refineExactAspects(localMinima, planetId, natalLon, aspAngle, jdStart, flags) {
   const EXACT_THRESH = 0.1;  // 6 arc-minutes — aspect must reach within this to be "exact"
+  // Pre-filter: daily step is 1 day; Jupiter moves ~0.3°/day so the daily minimum can
+  // be up to ~0.15° away from the true closest approach. Use 0.5° as a loose gate so we
+  // always run the hourly refinement scan for anything that got close, and rely on the
+  // post-scan EXACT_THRESH check to reject truly non-perfecting aspects.
+  const REFINE_GATE = 0.5;
   const exactJDs = [];
   for (const { day, diff } of localMinima) {
-    if (diff > EXACT_THRESH) continue;  // daily minimum too large → aspect doesn't perfect
+    if (diff > REFINE_GATE) continue;  // too far even after hourly refinement
     // Hourly scan ±1 day around the minimum to find true closest approach
     const jdCenter = jdStart + day;
     let minD = Infinity, minJD = jdCenter;
@@ -7088,24 +7093,52 @@ function navigateSkyBy(unit, delta) {
 const ZET_RANK = { 0:0, 2:1, 3:2, 4:3, 5:4, 6:5, 7:6, 8:7, 9:8, 10:9, 15:10, 12:11 };
 const ZET_ORDER = [2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 12]; // строки сверху вниз (без ☉ и ☽)
 
+// Точный момент аспекта = реальное пересечение (перфекция), а не «ближайший подход».
+// phiA/phiB — знаковая разница долгот (-180,180] на двух соседних выборках;
+// возвращает JD пересечения цели ±A между ними или null (нет перфекции — напр. планета
+// развернулась в ретро, не дойдя до точного аспекта).
+function aspectCrossJD(phiA, phiB, A, jdA, jdB) {
+  const lerp = (T, a, b) => jdA + ((T - a) / (b - a)) * (jdB - jdA);
+  if (A === 180) {
+    // оппозиция: пересечение границы ±180 (скачок знака с большим разрывом)
+    if (Math.abs(phiA - phiB) > 180) {
+      const pb = phiB + (phiB < phiA ? 360 : -360);
+      const T = phiA < 0 ? -180 : 180;
+      return lerp(T, phiA, pb);
+    }
+    return null;
+  }
+  const targets = A === 0 ? [0] : [A, -A];
+  for (const T of targets) {
+    if (Math.abs(phiA - phiB) < 180 && (phiA - T) * (phiB - T) <= 0 && phiA !== phiB) {
+      return lerp(T, phiA, phiB);
+    }
+  }
+  return null;
+}
+
 // Генерик-скан: ищет периоды аспекта по выборкам долгот lons1/lons2 с шагом step (в днях).
 // idxToJD(i) → JD выборки i. Возвращает массив периодов {asp, startJD, endJD, exactJDs}.
 function scanAspectPeriods(lons1, lons2, N, idxToJD, aspects, orb) {
+  const phi = new Float64Array(N);
+  for (let i = 0; i < N; i++) phi[i] = (((lons1[i] - lons2[i] + 180) % 360) + 360) % 360 - 180;
+
   const out = [];
   for (const asp of aspects) {
-    let inP = false, startJD = 0, curMinJD = -1, curMin = Infinity, lastJD = 0;
-    const close = () => {
-      out.push({ asp, startJD, endJD: lastJD, exactJDs: curMinJD >= 0 ? [curMinJD] : [] });
-      inP = false; curMinJD = -1; curMin = Infinity;
-    };
+    let inP = false, startJD = 0, lastJD = 0, exacts = [], prevInOrb = false;
+    const close = () => { out.push({ asp, startJD, endJD: lastJD, exactJDs: exacts }); inP = false; exacts = []; };
     for (let i = 0; i < N; i++) {
       const jd = idxToJD(i);
-      const diff = Math.abs(angDiff(lons1[i], lons2[i]) - asp.angle);
-      if (diff <= orb) {
+      const inOrb = Math.abs(Math.abs(phi[i]) - asp.angle) <= orb;
+      if (inOrb) {
         if (!inP) { inP = true; startJD = jd; }
-        if (diff < curMin) { curMin = diff; curMinJD = jd; }
         lastJD = jd;
+        if (prevInOrb) {
+          const ex = aspectCrossJD(phi[i - 1], phi[i], asp.angle, idxToJD(i - 1), jd);
+          if (ex != null) exacts.push(ex);
+        }
       } else if (inP) { close(); }
+      prevInOrb = inOrb;
     }
     if (inP) close();
   }
@@ -7228,7 +7261,7 @@ function computeSkyTlLayout(periods, moonPeriods, density) {
   if (variantC) {
     // «По очереди»: без строк-планет, всё компактно упаковано в минимум дорожек.
     // Быстрые планеты сверху — сортируем по рангу более быстрой (mover) планеты пары.
-    const all = periods.filter(p => p.exactJDs?.length);
+    const all = periods.slice();
     all.sort((a, b) => (ZET_RANK[a.mover.id] - ZET_RANK[b.mover.id]) || (a.startJD - b.startJD));
     const lanes = [];
     for (const p of all) {
@@ -7246,7 +7279,6 @@ function computeSkyTlLayout(periods, moonPeriods, density) {
 
     const byGroup = {};
     for (const p of periods) {
-      if (!p.exactJDs?.length) continue;
       (byGroup[groupOf(p)] ??= []).push(p);
     }
     rows = order.filter(id => byGroup[id]?.length).map(id => {
@@ -7455,7 +7487,9 @@ function renderSkyTimeline({ periods, moonPeriods = [], density = null, jdStart,
   // helper для рисования полос аспектов
   const drawBars = (ps, baseY) => {
     for (const p of ps) {
-      const op = emph(p) ? 0.85 : 0.12;
+      // Аспект, не доходящий до точности (нет перфекции) — рисуем тускло.
+      const perfects = p.exactJDs?.length > 0;
+      const op = emph(p) ? (perfects ? 0.85 : 0.3) : 0.1;
       const x1 = xOf(p.startJD), x2 = xOf(p.endJD);
       const barW = Math.max(x2 - x1, 3);
       const barY = baseY + 10 + p.sub * SUB_H + (SUB_H - BAR_H) / 2;
@@ -7463,7 +7497,7 @@ function renderSkyTimeline({ periods, moonPeriods = [], density = null, jdStart,
       const anchorGlyph = p.anchorId === 1 ? moonGlyph : PLANETS.find(q => q.id === p.anchorId).glyph;
       const nearest = p.exactJDs?.length
         ? p.exactJDs.reduce((b, j) => Math.abs(j - jdToday) < Math.abs(b - jdToday) ? j : b) : null;
-      showTip(bar, `${p.mover.glyph} ${p.asp.symbol} ${anchorGlyph}` + (nearest ? `  ·  ${fmtDate(nearest)}` : ''));
+      showTip(bar, `${p.mover.glyph} ${p.asp.symbol} ${anchorGlyph}` + (nearest ? `  ·  ${fmtDate(nearest)}` : '  ·  без перфекции'));
       svgR.appendChild(bar);
       for (const ejd of (p.exactJDs ?? [])) {
         const xE = xOf(ejd);
@@ -7478,6 +7512,7 @@ function renderSkyTimeline({ periods, moonPeriods = [], density = null, jdStart,
         const label = bothGlyphs ? (p.mover.glyph + p.asp.symbol + anchorGlyph) : (p.mover.glyph + p.asp.symbol);
         svgR.appendChild(txt(lblX, barY - 3, label, {
           'font-size': 10, fill: p.asp.color, 'text-anchor': 'middle', 'dominant-baseline': 'auto',
+          opacity: String(perfects ? 1 : 0.4),
         }));
       }
     }

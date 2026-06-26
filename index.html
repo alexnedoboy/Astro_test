@@ -228,6 +228,8 @@
     transition: background 0.15s; line-height: 1;
   }
   .icon-btn:hover { background: var(--bg-hover); }
+  #notesToggleBtn { display: none; }
+  body.home-off #notesToggleBtn { display: flex; }
   .back-btn { font-size: 1.2em; color: var(--accent); }
 
   /* ── Settings dropdown ─────────────────────────────────── */
@@ -401,6 +403,48 @@
     z-index: 249;
   }
   #left-panel.open + #left-panel-backdrop { display: block; }
+
+  /* ── Notes panel (slides from right) ─────────────────────────── */
+  #notes-panel {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    width: 360px; max-width: 92vw;
+    background: var(--bg);
+    border-left: 1px solid var(--bd-light);
+    box-shadow: -3px 0 16px rgba(0,0,0,0.07);
+    z-index: 250;
+    display: flex; flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.18s ease;
+    overflow: hidden;
+  }
+  #notes-panel.open { transform: translateX(0); }
+  #notes-panel-backdrop {
+    display: none;
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 249;
+  }
+  #notes-panel.open + #notes-panel-backdrop { display: block; }
+  #notes-panel-head {
+    flex-shrink: 0;
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 6px 0 12px;
+    height: var(--hdr-h);
+    border-bottom: 1px solid var(--bd-light);
+  }
+  #notes-panel-title {
+    flex: 1; min-width: 0;
+    font-size: 0.82em; font-weight: 600; color: var(--tx-3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #notes-panel-close {
+    flex: 0 0 auto;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; border-radius: 5px;
+    font-size: 1.05em; color: var(--tx-5); cursor: pointer;
+  }
+  #notes-panel-close:hover { background: var(--bg-hover); color: var(--tx-2); }
 
   #left-panel-head {
     flex-shrink: 0;
@@ -972,33 +1016,22 @@
   #v2-aspect-panel #aspect-grid {
     overflow-x: hidden;
   }
-  /* ── Правая панель: табы Данные / Заметки ─────────────────────────────────── */
-  #v2-panel-tabs {
-    display: flex; gap: 4px;
-    padding: 8px 8px 6px;
-    position: sticky; top: 0; z-index: 2;
-    background: var(--bg-panel-info);
-    border-bottom: 1px solid var(--bd-light);
-  }
-  .v2-panel-tab {
-    flex: 1 1 0;
-    padding: 5px 8px; font-size: 0.8em;
-    background: none; border: 1px solid var(--bd-light); border-radius: 6px;
-    color: var(--tx-5); cursor: pointer;
-  }
-  .v2-panel-tab:hover { background: var(--bg-hover); color: var(--tx-2); }
-  .v2-panel-tab.active { background: var(--bg-active); color: var(--tx); border-color: var(--bd); }
-  #v2-aspect-panel.show-notes #right-info-content { display: none !important; }
 
   /* ── Заметки ──────────────────────────────────────────────────────────────── */
-  #v2-notes-view { display: none; padding: 2px 8px 10px; }
-  #v2-aspect-panel.show-notes #v2-notes-view { display: block; }
+  #v2-notes-view {
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+    padding: 8px 10px 12px;
+  }
+  #notes-list-screen { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  #notes-list { flex: 1; min-height: 0; overflow-y: auto; }
   #notes-msg { display: none; font-size: 0.82em; color: var(--tx-7); padding: 16px 4px; text-align: center; }
   #v2-notes-view.msg-only #notes-msg { display: block; }
   #v2-notes-view.msg-only #notes-list-screen,
   #v2-notes-view.msg-only #notes-editor-screen { display: none; }
   #notes-editor-screen { display: none; }
-  #v2-notes-view.editing #notes-editor-screen { display: block; }
+  #v2-notes-view.editing #notes-editor-screen { display: flex; flex-direction: column; flex: 1; min-height: 0; }
   #v2-notes-view.editing #notes-list-screen { display: none; }
 
   .note-item {
@@ -1025,7 +1058,7 @@
   .note-del:hover { background: var(--danger-bg); color: var(--danger); }
   #notes-empty { font-size: 0.82em; color: var(--tx-7); padding: 14px 4px; text-align: center; }
   #note-add-btn {
-    display: block; width: 100%; padding: 7px; margin: 8px 0 2px;
+    display: block; width: 100%; flex: 0 0 auto; padding: 7px; margin: 8px 0 2px;
     background: none; border: 1px dashed var(--bd); border-radius: 6px;
     color: var(--tx-5); cursor: pointer; font-size: 0.82em;
   }
@@ -1041,7 +1074,7 @@
   }
   #note-title:focus { border-bottom-color: var(--accent); }
   #note-body {
-    width: 100%; box-sizing: border-box; min-height: 46vh;
+    width: 100%; box-sizing: border-box; flex: 1; min-height: 200px;
     border: 1px solid var(--bd-input); border-radius: 6px;
     background: var(--bg-input);
     font: inherit; font-size: 0.86em; line-height: 1.45; color: var(--tx);
@@ -1553,6 +1586,32 @@
 </div>
 <div id="left-panel-backdrop"></div>
 
+<!-- ── Notes panel (slides from right) ───────────────────────── -->
+<div id="notes-panel">
+  <div id="notes-panel-head">
+    <span id="notes-panel-title" data-i18n="panelTabNotes">Заметки</span>
+    <button id="notes-panel-close" title="Закрыть">✕</button>
+  </div>
+  <div id="v2-notes-view">
+    <div id="notes-msg"></div>
+    <div id="notes-list-screen">
+      <div id="notes-list"></div>
+      <button id="note-add-btn" data-i18n="noteNew">+ Новая заметка</button>
+    </div>
+    <div id="notes-editor-screen">
+      <div id="note-editor-bar">
+        <button id="note-back-btn" class="v2-icon-btn" data-i18n-title="noteBackTitle" title="К списку">←</button>
+        <input id="note-title" data-i18n-placeholder="noteTitlePlaceholder" placeholder="Название…" autocomplete="off">
+        <button id="note-preview-btn" class="v2-icon-btn" data-i18n-title="notePreviewTitle" title="Просмотр">👁&#xFE0E;</button>
+        <button id="note-export-btn" class="v2-icon-btn" data-i18n-title="noteExportTitle" title="Экспорт .md">⤓</button>
+      </div>
+      <textarea id="note-body" spellcheck="false"></textarea>
+      <div id="note-preview"></div>
+    </div>
+  </div>
+</div>
+<div id="notes-panel-backdrop"></div>
+
 <!-- ── App header ────────────────────────────────────────────── -->
 <div id="app-header">
   <button id="panel-toggle-btn" title="Карты">
@@ -1565,6 +1624,7 @@
     <button id="tab-add-btn" title="Новая карта">+</button>
   </div>
   <div id="header-right">
+    <button id="notesToggleBtn" class="icon-btn" data-i18n-title="panelTabNotes" title="Заметки">🗒&#xFE0E;</button>
     <button id="settingsBtn" class="icon-btn settings-btn" data-i18n-title="settings" title="Настройки">⚙&#xFE0E;</button>
   </div>
 </div>
@@ -1733,32 +1793,11 @@
       <div id="chart-block"></div>
     </div>
     <div id="v2-aspect-panel">
-      <div id="v2-panel-tabs">
-        <button class="v2-panel-tab active" data-ptab="data" data-i18n="panelTabData">Данные</button>
-        <button class="v2-panel-tab" data-ptab="notes" data-i18n="panelTabNotes">Заметки</button>
-      </div>
       <div id="right-info-content" style="display:none">
         <table id="info-table">
           <tbody id="tableBody"></tbody>
         </table>
         <div id="aspect-grid"></div>
-      </div>
-      <div id="v2-notes-view">
-        <div id="notes-msg"></div>
-        <div id="notes-list-screen">
-          <div id="notes-list"></div>
-          <button id="note-add-btn" data-i18n="noteNew">+ Новая заметка</button>
-        </div>
-        <div id="notes-editor-screen">
-          <div id="note-editor-bar">
-            <button id="note-back-btn" class="v2-icon-btn" data-i18n-title="noteBackTitle" title="К списку">←</button>
-            <input id="note-title" data-i18n-placeholder="noteTitlePlaceholder" placeholder="Название…" autocomplete="off">
-            <button id="note-preview-btn" class="v2-icon-btn" data-i18n-title="notePreviewTitle" title="Просмотр">👁&#xFE0E;</button>
-            <button id="note-export-btn" class="v2-icon-btn" data-i18n-title="noteExportTitle" title="Экспорт .md">⤓</button>
-          </div>
-          <textarea id="note-body" spellcheck="false"></textarea>
-          <div id="note-preview"></div>
-        </div>
       </div>
     </div>
   </div>
@@ -2745,8 +2784,8 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   if (window.location.hash !== newHash) {
     history.pushState({ chartId: data.id }, '', newHash);
   }
-  // Если открыта вкладка «Заметки» с подсказкой «Сохраните карту» — обновить её
-  if (document.getElementById('v2-aspect-panel').classList.contains('show-notes')) openNotesTab();
+  // Если открыта панель «Заметки» с подсказкой «Сохраните карту» — обновить её
+  if (document.getElementById('notes-panel').classList.contains('open')) openNotesTab();
 });
 
 // ── Notes ─────────────────────────────────────────────────────────────────────
@@ -2774,17 +2813,22 @@ function noteDateStr(n) {
   return d.toLocaleDateString(currentLang, { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-document.querySelectorAll('.v2-panel-tab').forEach(btn => {
-  btn.addEventListener('click', () => switchPanelTab(btn.dataset.ptab));
-});
-
-function switchPanelTab(tab) {
-  flushNoteSave();
-  document.querySelectorAll('.v2-panel-tab').forEach(b =>
-    b.classList.toggle('active', b.dataset.ptab === tab));
-  document.getElementById('v2-aspect-panel').classList.toggle('show-notes', tab === 'notes');
-  if (tab === 'notes') openNotesTab();
+function openNotesPanel() {
+  document.getElementById('notes-panel').classList.add('open');
+  openNotesTab();
 }
+function closeNotesPanel() {
+  flushNoteSave();
+  document.getElementById('notes-panel').classList.remove('open');
+}
+function toggleNotesPanel() {
+  const panel = document.getElementById('notes-panel');
+  if (panel.classList.contains('open')) closeNotesPanel();
+  else openNotesPanel();
+}
+document.getElementById('notesToggleBtn').addEventListener('click', toggleNotesPanel);
+document.getElementById('notes-panel-close').addEventListener('click', closeNotesPanel);
+document.getElementById('notes-panel-backdrop').addEventListener('click', closeNotesPanel);
 
 function showNotesMsg(msg) {
   notesView.classList.remove('editing', 'previewing');
@@ -2941,9 +2985,7 @@ function resetNotesState() {
   currentNoteId = null;
   notesView.classList.remove('editing', 'previewing', 'msg-only');
   document.getElementById('note-preview-btn').classList.remove('active-toggle');
-  document.querySelectorAll('.v2-panel-tab').forEach(b =>
-    b.classList.toggle('active', b.dataset.ptab === 'data'));
-  document.getElementById('v2-aspect-panel').classList.remove('show-notes');
+  document.getElementById('notes-panel').classList.remove('open');
 }
 
 // ── Мини-рендерер markdown ────────────────────────────────────────────────────

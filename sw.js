@@ -1,6 +1,6 @@
-// Минимальный service worker: нужен для установки PWA.
-// Кэшируется только index.html (фолбэк при обрыве сети);
-// расчёты (swisseph-wasm) и Supabase офлайн не работают — это осознанно.
+// Service worker: нужен для установки PWA.
+// Стратегия: network-first с no-cache заголовком (всегда свежий index.html).
+// Офлайн-фолбэк: последняя закэшированная версия.
 const CACHE = 'aspectus-v1';
 
 self.addEventListener('install', e => {
@@ -17,9 +17,9 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.mode !== 'navigate') return; // CDN/API запросы идут напрямую в сеть
+  if (e.request.mode !== 'navigate') return;
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-cache' })
       .then(resp => {
         const copy = resp.clone();
         caches.open(CACHE).then(c => c.put('./', copy));

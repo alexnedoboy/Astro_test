@@ -393,6 +393,46 @@
     display: flex; flex-direction: column; align-items: center; gap: 2px;
   }
 
+  /* ── Left panel (charts sidebar) ──────────────────────────── */
+  #left-panel {
+    position: fixed;
+    top: var(--hdr-h); left: var(--sidebar-w); bottom: 0;
+    width: 240px;
+    background: var(--bg);
+    border-right: 1px solid var(--bd-light);
+    z-index: 250;
+    display: flex; flex-direction: column;
+    transform: translateX(-100%);
+    transition: transform 0.18s ease;
+    overflow: hidden;
+  }
+  #left-panel.open { transform: translateX(0); }
+  #left-panel-backdrop {
+    display: none;
+    position: fixed; inset: 0; z-index: 249;
+  }
+  #left-panel.open + #left-panel-backdrop { display: block; }
+  #left-panel-home-btn {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; padding: 10px 14px;
+    background: none; border: none; border-bottom: 1px solid var(--bd-light);
+    font: inherit; font-size: 0.85em; color: var(--tx-3);
+    cursor: pointer; text-align: left;
+  }
+  #left-panel-home-btn:hover { background: var(--bg-hover); color: var(--tx); }
+  #left-panel-list { flex: 1; overflow-y: auto; }
+  #left-panel-list .chart-item {
+    border-radius: 0;
+    border-bottom: 1px solid var(--bd-light);
+    background: transparent;
+    padding: 8px 14px;
+  }
+  #left-panel-list .chart-item:hover { background: var(--bg-hover); }
+  #left-panel-empty {
+    padding: 16px 14px;
+    font-size: 0.82em; color: var(--tx-7);
+  }
+
   #app-header {
     position: fixed;
     top: 0; left: var(--sidebar-w); right: 0;
@@ -1440,6 +1480,13 @@
     <button id="settingsBtn" class="icon-btn settings-btn" data-i18n-title="settings" title="Настройки">⚙&#xFE0E;</button>
   </div>
 </div>
+
+<!-- ── Left panel ────────────────────────────────────────────── -->
+<div id="left-panel">
+  <button id="left-panel-home-btn">🏠 Главная</button>
+  <div id="left-panel-list"></div>
+</div>
+<div id="left-panel-backdrop"></div>
 
 <!-- ── App header ────────────────────────────────────────────── -->
 <div id="app-header">
@@ -6945,8 +6992,50 @@ document.getElementById('v2-exit-btn').addEventListener('click', () => exitChart
 
 document.getElementById('v2-logo').addEventListener('click', () => exitChartMode(true));
 
-document.getElementById('sidebar-logo').addEventListener('click', () => {
-  if (document.getElementById('layout-v2').classList.contains('v2-visible')) exitChartMode(true);
+function renderLeftPanel() {
+  const list = document.getElementById('left-panel-list');
+  list.innerHTML = '';
+  if (!_homeCharts || !_homeCharts.length) {
+    list.innerHTML = `<div id="left-panel-empty">Нет сохранённых карт</div>`;
+    return;
+  }
+  const arr = [..._homeCharts].sort((a, b) =>
+    ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || (homeChartTs(b) - homeChartTs(a)));
+  for (const c of arr) {
+    const div = document.createElement('div');
+    div.className = 'chart-item';
+    const fmtD = c.birth_date ? c.birth_date.split('-').reverse().join('.') : '';
+    const meta = [fmtD, c.city ?? ''].filter(Boolean).join(' · ');
+    div.innerHTML = `
+      <div class="chart-item-info">
+        <div class="chart-item-name">${escapeHtml(c.name ?? '')}</div>
+        ${meta ? `<div class="chart-item-meta">${meta}</div>` : ''}
+      </div>`;
+    div.addEventListener('click', () => { closeLeftPanel(); loadChartFromDB(c); });
+    list.appendChild(div);
+  }
+}
+
+function openLeftPanel() {
+  document.getElementById('left-panel').classList.add('open');
+  renderLeftPanel();
+}
+
+function closeLeftPanel() {
+  document.getElementById('left-panel').classList.remove('open');
+}
+
+function toggleLeftPanel() {
+  const panel = document.getElementById('left-panel');
+  if (panel.classList.contains('open')) closeLeftPanel();
+  else openLeftPanel();
+}
+
+document.getElementById('sidebar-logo').addEventListener('click', toggleLeftPanel);
+document.getElementById('left-panel-backdrop').addEventListener('click', closeLeftPanel);
+document.getElementById('left-panel-home-btn').addEventListener('click', () => {
+  closeLeftPanel();
+  exitChartMode(true);
 });
 
 document.getElementById('tab-add-btn').addEventListener('click', () => {

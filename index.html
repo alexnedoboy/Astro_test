@@ -60,7 +60,7 @@
 
     /* ── Layout panels (each independently configurable) ─── */
     --hdr-h:             clamp(28px, 3.5vh, 40px);
-    --sidebar-w:         44px;
+    --sidebar-w:         0px;
     --bg-panel-control:  #fff;
     --bg-panel-chart:    #fff;
     --bg-panel-info:     #fff;
@@ -369,29 +369,15 @@
 
   /* ── Auth bar ──────────────────────────────────────────── */
   /* ── App sidebar (always visible, app-level chrome) ─────── */
-  #app-sidebar {
-    position: fixed;
-    top: 0; left: 0; bottom: 0;
-    width: var(--sidebar-w);
-    display: flex; flex-direction: column; align-items: center;
-    background: var(--bg-page);
-    border-right: 1px solid var(--bd-light);
-    z-index: 300;
-    box-sizing: border-box;
-    padding: 6px 0;
-  }
-  #sidebar-logo {
+  #panel-toggle-btn {
     flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    width: 32px; height: 32px; border-radius: 6px;
-    cursor: pointer;
+    width: 28px; height: 28px; border-radius: 5px;
+    border: none; background: none; cursor: pointer;
+    margin-bottom: 1px;
   }
-  #sidebar-logo img { width: 26px; height: 26px; object-fit: contain; }
-  #sidebar-logo:hover { background: var(--bg-hover); }
-  #sidebar-bottom {
-    margin-top: auto;
-    display: flex; flex-direction: column; align-items: center; gap: 2px;
-  }
+  #panel-toggle-btn img { width: 20px; height: 20px; object-fit: contain; }
+  #panel-toggle-btn:hover { background: var(--bg-active); }
 
   /* ── Left panel (charts sidebar) ──────────────────────────── */
   #left-panel {
@@ -1516,16 +1502,6 @@
   <div id="charts-list"></div>
 </div>
 
-<!-- ── App sidebar ───────────────────────────────────────────── -->
-<div id="app-sidebar">
-  <div id="sidebar-logo">
-    <img src="Aspectus%20logo.png" alt="Aspectus">
-  </div>
-  <div id="sidebar-bottom">
-    <button id="settingsBtn" class="icon-btn settings-btn" data-i18n-title="settings" title="Настройки">⚙&#xFE0E;</button>
-  </div>
-</div>
-
 <!-- ── Left panel ────────────────────────────────────────────── -->
 <div id="left-panel">
   <div id="left-panel-head">
@@ -1547,11 +1523,15 @@
 
 <!-- ── App header ────────────────────────────────────────────── -->
 <div id="app-header">
+  <button id="panel-toggle-btn" title="Карты">
+    <img src="Aspectus%20logo.png" alt="Aspectus">
+  </button>
   <div id="tab-bar">
     <!-- tabs injected here by JS -->
   </div>
   <button id="tab-add-btn" title="Новая карта">+</button>
   <div id="header-right">
+    <button id="settingsBtn" class="icon-btn settings-btn" data-i18n-title="settings" title="Настройки">⚙&#xFE0E;</button>
   </div>
 </div>
 <div id="settings-dropdown">
@@ -7127,7 +7107,7 @@ function toggleLeftPanel() {
   else openLeftPanel();
 }
 
-document.getElementById('sidebar-logo').addEventListener('click', toggleLeftPanel);
+document.getElementById('panel-toggle-btn').addEventListener('click', toggleLeftPanel);
 document.getElementById('left-panel-backdrop').addEventListener('click', closeLeftPanel);
 document.getElementById('left-panel-home-btn').addEventListener('click', () => {
   closeLeftPanel();

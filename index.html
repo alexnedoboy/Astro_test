@@ -58,6 +58,14 @@
     --bg-row-info:#FAF6F4;   /* info-table row hover */
     --bg-chart-item: #FAF7F5; /* home recent chart items */
 
+    /* ── Layout panels (each independently configurable) ─── */
+    --hdr-h:             40px;
+    --sidebar-w:         44px;
+    --bg-panel-control:  #fff;
+    --bg-panel-chart:    #fff;
+    --bg-panel-info:     #fff;
+    --bg-panel-tl:       #fff;
+
     /* ── Aspect grid ──────────────────────────────────────── */
     --ag-empty:   #F5F0ED;   /* empty cell in aspect grid */
     --ag-self:    #EDE8E4;   /* diagonal (same planet) cell */
@@ -70,15 +78,27 @@
 
   }
 
+  html { width: 100%; }
   body {
     font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
     background: var(--bg-page);
     color: var(--tx);
-    min-height: 100vh;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0;
+  }
+  #page-body {
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 8px 0 20px;
+    overflow-y: auto;
+    padding: calc(var(--hdr-h) + 8px) 0 20px var(--sidebar-w);
   }
   h1 { color: var(--accent); font-size: 1.35em; margin-bottom: 18px; letter-spacing: 0.04em; }
 
@@ -199,12 +219,6 @@
   #fc-calc-btn:hover { background: var(--accent-hv); }
 
   /* ── Header ───────────────────────────────────────────── */
-  #header-top {
-    display: flex; align-items: center;
-    padding: 0 12px; height: 48px; gap: 8px;
-  }
-  #header-home { display: flex; align-items: center; }
-
   /* ── Icon buttons ──────────────────────────────────────── */
   .icon-btn {
     display: flex; align-items: center; justify-content: center;
@@ -217,7 +231,6 @@
   .back-btn { font-size: 1.2em; color: var(--accent); }
 
   /* ── Settings dropdown ─────────────────────────────────── */
-  #header-right { position: relative; flex-shrink: 0; margin-left: auto; }
   .settings-btn { font-size: 1.05em; }
   #settings-dropdown {
     display: none; position: fixed;
@@ -355,13 +368,110 @@
   .geo-item:last-child { border-bottom: none; }
 
   /* ── Auth bar ──────────────────────────────────────────── */
-  #app-header {
-    width: 100%; max-width: 480px;
-    display: flex; flex-direction: column;
-    position: relative; background: transparent;
-    border-bottom: 1px solid var(--bd-light); margin-bottom: 0;
+  /* ── App sidebar (always visible, app-level chrome) ─────── */
+  #app-sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: var(--sidebar-w);
+    display: flex; flex-direction: column; align-items: center;
+    background: var(--bg-page);
+    border-right: 1px solid var(--bd-light);
+    z-index: 300;
+    box-sizing: border-box;
+    padding: 6px 0;
   }
-  #app-header h1 { margin-bottom: 0; }
+  #sidebar-logo {
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 6px;
+    cursor: pointer;
+  }
+  #sidebar-logo img { width: 26px; height: 26px; object-fit: contain; }
+  #sidebar-logo:hover { background: var(--bg-hover); }
+  #sidebar-bottom {
+    margin-top: auto;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+
+  #app-header {
+    position: fixed;
+    top: 0; left: var(--sidebar-w); right: 0;
+    height: var(--hdr-h);
+    display: flex; flex-direction: row; align-items: flex-end;
+    background: var(--bg-hover);
+    border-bottom: 1px solid var(--bd-light);
+    box-sizing: border-box;
+    z-index: 200;
+    padding: 5px 6px 0 6px;
+    gap: 2px;
+  }
+  #tab-bar {
+    flex: 1; min-width: 0;
+    display: flex; align-items: flex-end;
+    gap: 2px;
+    overflow-x: auto; overflow-y: visible;
+    scrollbar-width: none;
+  }
+  #tab-bar::-webkit-scrollbar { display: none; }
+  .app-tab {
+    flex: 1;
+    min-width: 80px;
+    max-width: 220px;
+    display: flex; align-items: center; gap: 5px;
+    padding: 0 10px;
+    height: 30px;
+    border-radius: 6px 6px 0 0;
+    border: 1px solid transparent;
+    border-bottom: none;
+    cursor: pointer;
+    font-size: 0.81em; color: var(--tx-5);
+    white-space: nowrap;
+    position: relative;
+    background: transparent;
+    user-select: none;
+    margin-bottom: -1px;
+    box-sizing: border-box;
+  }
+  .app-tab-name {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .app-tab.active {
+    color: var(--tx-2);
+    background: var(--bg);
+    border-color: var(--bd-light);
+    border-bottom: 1px solid var(--bg);
+  }
+  .app-tab:hover:not(.active) {
+    background: var(--bg-active);
+    color: var(--tx-3);
+    border-color: var(--bd-light);
+  }
+  .app-tab-close {
+    flex-shrink: 0;
+    width: 15px; height: 15px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 3px; font-size: 0.78em; color: var(--tx-7);
+    background: none; border: none; cursor: pointer; padding: 0;
+    line-height: 1;
+  }
+  .app-tab-close:hover { background: var(--bg-active); color: var(--tx-3); }
+  #tab-add-btn {
+    flex-shrink: 0;
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none;
+    color: var(--tx-6); font-size: 1em; cursor: pointer;
+    border-radius: 4px;
+    margin-bottom: 3px;
+  }
+  #tab-add-btn:hover { background: var(--bg-active); color: var(--tx-2); }
+  #header-right {
+    flex-shrink: 0;
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 8px;
+    height: 100%;
+  }
   #auth-zone { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
   #user-info { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   #user-email-short {
@@ -593,12 +703,12 @@
     display: none; flex-direction: column; gap: 9px;
   }
   body.home-dash #home-right { display: flex; }
-  body.home-dash #app-header { max-width: 920px; }
 
   /* Виджет «Небо сейчас» */
   #home-sky {
-    background: var(--bg); border: 1px solid var(--bd);
-    border-radius: 12px; padding: 10px 12px 12px;
+    background: transparent;
+    border-bottom: 1px solid var(--bd-light);
+    padding: 10px 12px 12px;
   }
   #home-sky-head { display: flex; align-items: center; gap: 6px; }
   #home-sky-title {
@@ -628,8 +738,9 @@
   /* Виджет «События» */
   #home-events {
     display: none;
-    background: var(--bg); border: 1px solid var(--bd);
-    border-radius: 12px; padding: 10px 12px;
+    background: transparent;
+    border-bottom: 1px solid var(--bd-light);
+    padding: 10px 12px;
   }
   body.home-dash #home-events.visible { display: block; }
   .home-block-title {
@@ -671,7 +782,7 @@
   /* Список карт на главной */
   #home-charts { width: 100%; display: none; }
   #home-charts.visible { display: block; }
-  #home-charts-list .chart-item { border-radius: 9px; border-bottom: none; margin-bottom: 4px; background: var(--bg-chart-item); }
+  #home-charts-list .chart-item { border-radius: 0; border-bottom: 1px solid var(--bd-light); margin-bottom: 0; background: transparent; }
   #home-charts-list .chart-item:hover { background: var(--bg-hover); }
   .chart-item-big3 {
     flex: 0 0 auto; font-size: 0.84em; color: var(--tx-5); white-space: nowrap;
@@ -702,10 +813,10 @@
   #layout-v2 {
     display: none;
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: var(--hdr-h); left: var(--sidebar-w); right: 0; bottom: 0;
     flex-direction: column;
     overflow: hidden;
-    background: #e4e3e3;
+    background: var(--bg-page);
     z-index: 100;
   }
   #layout-v2.v2-visible { display: flex; }
@@ -713,23 +824,23 @@
   #v2-top {
     flex: 0 0 74vh;
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 8px 8px 8px;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
     box-sizing: border-box;
     overflow: hidden;
   }
   #v2-chart-area {
     flex: 0 0 auto;
-    width: calc(74vh - 16px);
-    max-width: calc(100vw - 124px);
+    width: calc(74vh);
+    max-width: calc(100vw - 116px - 180px);
     aspect-ratio: 1 / 1;
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg);
-    border-radius: 8px;
+    background: var(--bg-panel-chart);
+    border-right: 1px solid var(--bd-light);
     padding: 8px;
     box-sizing: border-box;
     position: relative;
@@ -745,8 +856,8 @@
   }
   #v2-chart-expand-btn:hover { opacity: 1; background: var(--bg-hover); color: var(--tx-2); }
   #layout-v2.tl-hidden #v2-chart-area {
-    width: calc(100vh - 16px);
-    max-width: calc(100vw - 124px);
+    width: calc(100vh - var(--hdr-h));
+    max-width: calc(100vw - 116px - 180px);
   }
   #v2-chart-area #chart-block {
     width: 100% !important;
@@ -763,15 +874,15 @@
   }
   #v2-aspect-panel {
     flex: 1;
-    min-width: 0;
-    max-height: calc(74vh - 16px);
+    min-width: 180px;
+    max-height: 74vh;
     overflow-y: auto;
     overflow-x: hidden;
-    background: var(--bg);
-    border-radius: 8px;
+    background: var(--bg-panel-info);
+    border-left: 1px solid var(--bd-light);
   }
   #layout-v2.tl-hidden #v2-aspect-panel {
-    max-height: calc(100vh - 16px);
+    max-height: calc(100vh - var(--hdr-h));
   }
   #v2-aspect-panel #right-info-content {
     width: 100%;
@@ -786,8 +897,8 @@
     display: flex; gap: 4px;
     padding: 8px 8px 6px;
     position: sticky; top: 0; z-index: 2;
-    background: var(--bg);
-    border-radius: 8px 8px 0 0;
+    background: var(--bg-panel-info);
+    border-bottom: 1px solid var(--bd-light);
   }
   .v2-panel-tab {
     flex: 1 1 0;
@@ -872,13 +983,13 @@
   #note-preview a { color: var(--link); }
   #v2-control-panel {
     flex: 0 0 116px;
-    align-self: flex-start;
-    height: calc(74vh - 16px);
+    align-self: stretch;
+    height: 100%;
     display: flex;
     flex-direction: column;
     gap: 3px;
-    background: var(--bg);
-    border-radius: 8px;
+    background: var(--bg-panel-control);
+    border-right: 1px solid var(--bd-light);
     padding: 6px 4px;
     box-sizing: border-box;
     overflow-y: auto;
@@ -886,15 +997,7 @@
   }
   /* группы панели: на десктопе боксов не создают, дети раскладываются как раньше */
   #v2-panel-head, #v2-panel-modes, #v2-panel-nav { display: contents; }
-  #v2-logo {
-    display: block;
-    width: 52px;
-    height: 52px;
-    margin: 2px auto 4px;
-    object-fit: contain;
-    flex-shrink: 0;
-    cursor: pointer;
-  }
+  #v2-logo { display: none; }
   #v2-chart-info {
     flex-shrink: 0;
     padding: 2px 2px 4px;
@@ -959,12 +1062,7 @@
     position: absolute; inset: 0; width: 100%; height: 100%;
     opacity: 0; cursor: pointer; border: none; padding: 0; margin: 0;
   }
-  #v2-bottom-row {
-    display: flex; flex-shrink: 0;
-    border-top: 1px solid var(--bd-light);
-    margin: 0 -4px -6px;
-    order: 1; /* в DOM стоит в шапке, визуально остаётся внизу панели */
-  }
+  #v2-bottom-row { display: none; }
   #v2-bottom-row .v2-icon-btn {
     flex: 1; width: auto; height: 34px;
     font-size: 1.05em; color: var(--tx-5);
@@ -1000,7 +1098,7 @@
   #layout-v2.tl-expanded #v2-top { flex: 0 0 0; padding: 0; overflow: hidden; }
 
   /* tl-hidden: timeline hidden, chart fills screen */
-  #layout-v2.tl-hidden #v2-top { flex: 0 0 100vh; }
+  #layout-v2.tl-hidden #v2-top { flex: 0 0 calc(100vh - var(--hdr-h)); }
   #layout-v2.tl-hidden #v2-bottom { flex: 0 0 0; height: 0; overflow: hidden; }
   #layout-v2.tl-hidden #v2-tl-tab { display: none; }
 
@@ -1008,17 +1106,17 @@
     flex: 1;
     min-height: 0;
     overflow: hidden;
-    padding: 0 8px 8px;
+    padding: 0;
     box-sizing: border-box;
     position: relative;
+    border-top: 1px solid var(--bd-light);
   }
   #v2-timeline-wrap {
     height: 100%;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    background: var(--bg);
-    border-radius: 8px;
+    background: var(--bg-panel-tl);
   }
   #v2-timeline-wrap #right-timeline-content {
     flex: 1;
@@ -1122,14 +1220,14 @@
   #sky-layout {
     display: none;
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: var(--hdr-h); left: var(--sidebar-w); right: 0; bottom: 0;
     flex-direction: column;
     overflow: hidden;
-    background: #e4e3e3;
+    background: var(--bg-page);
     z-index: 100;
   }
   #sky-layout.sky-visible { display: flex; }
-  #sky-layout.sky-tl-hidden #sky-top { flex: 0 0 100vh; }
+  #sky-layout.sky-tl-hidden #sky-top { flex: 0 0 calc(100vh - var(--hdr-h)); }
   #sky-layout.sky-tl-hidden #sky-bottom { flex: 0 0 0; height: 0; overflow: hidden; }
   #sky-layout.sky-tl-hidden #sky-tl-tab { display: none; }
 
@@ -1330,15 +1428,23 @@
   <div id="charts-list"></div>
 </div>
 
+<!-- ── App sidebar ───────────────────────────────────────────── -->
+<div id="app-sidebar">
+  <div id="sidebar-logo">
+    <img src="Aspectus%20logo.png" alt="Aspectus">
+  </div>
+  <div id="sidebar-bottom">
+    <button id="settingsBtn" class="icon-btn settings-btn" data-i18n-title="settings" title="Настройки">⚙&#xFE0E;</button>
+  </div>
+</div>
+
 <!-- ── App header ────────────────────────────────────────────── -->
 <div id="app-header">
-  <div id="header-top">
-    <div id="header-home">
-      <h1 data-i18n="appTitle">Натальная карта</h1>
-    </div>
-    <div id="header-right">
-      <button id="settingsBtn" class="icon-btn settings-btn" data-i18n-title="settings" title="Настройки">⚙&#xFE0E;</button>
-    </div>
+  <div id="tab-bar">
+    <!-- tabs injected here by JS -->
+  </div>
+  <button id="tab-add-btn" title="Новая карта">+</button>
+  <div id="header-right">
   </div>
 </div>
 <div id="settings-dropdown">
@@ -1366,6 +1472,7 @@
   </div>
 </div>
 
+<div id="page-body">
 <div id="edit-backdrop"></div>
 <div id="form-wrap">
   <div class="row">
@@ -1447,6 +1554,8 @@
     </div>
   </div>
 </div>
+
+</div><!-- /#page-body -->
 
 <!-- ── Layout V2 ──────────────────────────────────────────────────────── -->
 <div id="layout-v2">
@@ -3124,6 +3233,24 @@ document.getElementById('birthPlace').addEventListener('keydown', async e => {
 
 // ── Page mode: home ↔ chart ───────────────────────────────────────────────────
 
+// ── Tab bar ───────────────────────────────────────────────────────────────────
+function setAppTab(name) {
+  const bar = document.getElementById('tab-bar');
+  bar.innerHTML = '';
+  const tab = document.createElement('div');
+  tab.className = 'app-tab active';
+  tab.innerHTML = `<span class="app-tab-name">${name || '—'}</span><button class="app-tab-close" title="Закрыть">✕</button>`;
+  tab.querySelector('.app-tab-close').addEventListener('click', e => {
+    e.stopPropagation();
+    exitChartMode(true);
+  });
+  bar.appendChild(tab);
+}
+
+function clearAppTab() {
+  document.getElementById('tab-bar').innerHTML = '';
+}
+
 // Видимость главного экрана управляется классом home-off на body (см. CSS).
 function hideHome() {
   document.body.classList.add('home-off');
@@ -3142,6 +3269,7 @@ function enterChartMode(name, date, time) {
   hideHome();
   const dateTime = [date, time].filter(Boolean).join(' · ');
   setV2ChartInfo(name, dateTime);
+  setAppTab(name);
   activateLayout2();
 }
 
@@ -3157,6 +3285,7 @@ function exitChartMode(updateHistory = true) {
     history.pushState('', document.title, window.location.pathname + window.location.search);
   }
   document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', ...V2_TL_STATES);
+  clearAppTab();
   showHome();
   natalData = null;
   cachedTimeline = null;
@@ -6812,6 +6941,17 @@ function activateLayout2() {
 document.getElementById('v2-exit-btn').addEventListener('click', () => exitChartMode(true));
 
 document.getElementById('v2-logo').addEventListener('click', () => exitChartMode(true));
+
+document.getElementById('sidebar-logo').addEventListener('click', () => {
+  if (document.getElementById('layout-v2').classList.contains('v2-visible')) exitChartMode(true);
+});
+
+document.getElementById('tab-add-btn').addEventListener('click', () => {
+  if (document.getElementById('layout-v2').classList.contains('v2-visible')) {
+    exitChartMode(true);
+  }
+  document.getElementById('newChartBtn')?.click();
+});
 
 document.getElementById('v2-edit-btn').addEventListener('click', enterEditMode);
 

@@ -372,9 +372,11 @@
   #panel-toggle-btn {
     flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
-    width: 28px; height: 28px; border-radius: 5px;
+    width: 26px; height: 26px; border-radius: 5px;
     border: none; background: none; cursor: pointer;
-    margin-bottom: 1px;
+    padding: 0; margin-bottom: 1px;
+    -webkit-appearance: none; appearance: none;
+    box-sizing: border-box;
   }
   #panel-toggle-btn img { width: 20px; height: 20px; object-fit: contain; }
   #panel-toggle-btn:hover { background: var(--bg-active); }
@@ -469,7 +471,7 @@
     top: 0; left: var(--sidebar-w); right: 0;
     height: var(--hdr-h);
     display: flex; flex-direction: row; align-items: flex-end;
-    background: var(--bg-hover);
+    background: #F6F6F6;
     border-bottom: 1px solid var(--bd-light);
     box-sizing: border-box;
     z-index: 200;

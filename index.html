@@ -396,7 +396,7 @@
   /* ── Left panel (charts sidebar) ──────────────────────────── */
   #left-panel {
     position: fixed;
-    top: var(--hdr-h); left: var(--sidebar-w); bottom: 0;
+    top: 0; left: var(--sidebar-w); bottom: 0;
     width: 240px;
     background: var(--bg);
     border-right: 1px solid var(--bd-light);
@@ -409,27 +409,72 @@
   #left-panel.open { transform: translateX(0); }
   #left-panel-backdrop {
     display: none;
-    position: fixed; inset: 0; z-index: 249;
+    position: fixed; top: 0; left: var(--sidebar-w); right: 0; bottom: 0;
+    z-index: 249;
   }
   #left-panel.open + #left-panel-backdrop { display: block; }
-  #left-panel-home-btn {
-    display: flex; align-items: center; gap: 8px;
-    width: 100%; padding: 10px 14px;
-    background: none; border: none; border-bottom: 1px solid var(--bd-light);
-    font: inherit; font-size: 0.85em; color: var(--tx-3);
-    cursor: pointer; text-align: left;
+
+  #left-panel-head {
+    flex-shrink: 0;
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 6px;
+    height: var(--hdr-h);
+    border-bottom: 1px solid var(--bd-light);
   }
-  #left-panel-home-btn:hover { background: var(--bg-hover); color: var(--tx); }
+  #left-panel-home-btn {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 6px;
+    background: none; border: none; border-radius: 4px;
+    font: inherit; font-size: 0.78em; color: var(--tx-5);
+    cursor: pointer; white-space: nowrap;
+  }
+  #left-panel-home-btn:hover { background: var(--bg-hover); color: var(--tx-2); }
+  #left-panel-title {
+    flex: 1; min-width: 0;
+    font-size: 0.78em; font-weight: 600; color: var(--tx-3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    text-align: center;
+  }
+  #left-panel-sort {
+    font: inherit; font-size: 0.75em; color: var(--tx-5);
+    background: none; border: none; cursor: pointer; padding: 3px 2px;
+    border-radius: 4px;
+  }
+  #left-panel-sort:hover { background: var(--bg-hover); }
+
+  #left-panel-search-wrap {
+    flex-shrink: 0;
+    padding: 6px 8px 4px;
+    border-bottom: 1px solid var(--bd-light);
+  }
+  #left-panel-search {
+    width: 100%; box-sizing: border-box;
+    border: 1px solid var(--bd-input); border-radius: 5px;
+    background: var(--bg-input);
+    font: inherit; font-size: 0.8em; color: var(--tx);
+    padding: 4px 8px; outline: none;
+  }
+  #left-panel-search:focus { border-color: var(--accent); }
+
+  #left-panel-groups {
+    flex-shrink: 0;
+    display: none; flex-wrap: wrap; gap: 4px;
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--bd-light);
+  }
+  #left-panel-groups.visible { display: flex; }
+  #left-panel-groups .hg-chip { font-size: 0.75em; padding: 2px 7px; }
+
   #left-panel-list { flex: 1; overflow-y: auto; }
   #left-panel-list .chart-item {
     border-radius: 0;
     border-bottom: 1px solid var(--bd-light);
     background: transparent;
-    padding: 8px 14px;
+    padding: 7px 12px;
   }
   #left-panel-list .chart-item:hover { background: var(--bg-hover); }
   #left-panel-empty {
-    padding: 16px 14px;
+    padding: 16px 12px;
     font-size: 0.82em; color: var(--tx-7);
   }
 
@@ -1483,7 +1528,19 @@
 
 <!-- ── Left panel ────────────────────────────────────────────── -->
 <div id="left-panel">
-  <button id="left-panel-home-btn">🏠 Главная</button>
+  <div id="left-panel-head">
+    <button id="left-panel-home-btn">← Главная</button>
+    <span id="left-panel-title">Карты</span>
+    <select id="left-panel-sort">
+      <option value="date">По дате</option>
+      <option value="name">А–Я</option>
+      <option value="birth">Дата рожд.</option>
+    </select>
+  </div>
+  <div id="left-panel-search-wrap">
+    <input id="left-panel-search" type="text" placeholder="Поиск…" autocomplete="off">
+  </div>
+  <div id="left-panel-groups"></div>
   <div id="left-panel-list"></div>
 </div>
 <div id="left-panel-backdrop"></div>
@@ -6992,15 +7049,50 @@ document.getElementById('v2-exit-btn').addEventListener('click', () => exitChart
 
 document.getElementById('v2-logo').addEventListener('click', () => exitChartMode(true));
 
-function renderLeftPanel() {
+let _panelSearch = '';
+let _panelGroup  = '';
+let _panelSort   = 'date';
+
+function renderLeftPanelGroups() {
+  const wrap = document.getElementById('left-panel-groups');
+  const folders = [...new Set(_homeCharts.map(c => c.folder).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru'));
+  const hasPinned = _homeCharts.some(c => c.pinned);
+  if (_panelGroup === '★' && !hasPinned) _panelGroup = '';
+  if (_panelGroup && _panelGroup !== '★' && !folders.includes(_panelGroup)) _panelGroup = '';
+  wrap.innerHTML = '';
+  const chips = [['', 'Все']];
+  if (hasPinned) chips.push(['★', '★']);
+  folders.forEach(f => chips.push([f, f]));
+  if (chips.length <= 1) { wrap.classList.remove('visible'); return; }
+  wrap.classList.add('visible');
+  for (const [val, label] of chips) {
+    const b = document.createElement('button');
+    b.className = 'hg-chip' + (val === _panelGroup ? ' active' : '');
+    b.textContent = label;
+    b.addEventListener('click', () => { _panelGroup = val; renderLeftPanelGroups(); renderLeftPanelList(); });
+    wrap.appendChild(b);
+  }
+}
+
+function renderLeftPanelList() {
   const list = document.getElementById('left-panel-list');
   list.innerHTML = '';
   if (!_homeCharts || !_homeCharts.length) {
-    list.innerHTML = `<div id="left-panel-empty">Нет сохранённых карт</div>`;
+    list.innerHTML = `<div class="left-panel-empty">Нет сохранённых карт</div>`;
     return;
   }
-  const arr = [..._homeCharts].sort((a, b) =>
-    ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || (homeChartTs(b) - homeChartTs(a)));
+  let arr = [..._homeCharts];
+  if (_panelGroup === '★') arr = arr.filter(c => c.pinned);
+  else if (_panelGroup) arr = arr.filter(c => c.folder === _panelGroup);
+  const q = _panelSearch.trim().toLowerCase();
+  if (q) arr = arr.filter(c => (c.name ?? '').toLowerCase().includes(q) || (c.city ?? '').toLowerCase().includes(q));
+  if (_panelSort === 'name') arr.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'ru'));
+  else if (_panelSort === 'birth') arr.sort((a, b) => (a.birth_date ?? '').localeCompare(b.birth_date ?? ''));
+  else arr.sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || (homeChartTs(b) - homeChartTs(a)));
+  if (!arr.length) {
+    list.innerHTML = `<div class="left-panel-empty">Ничего не найдено</div>`;
+    return;
+  }
   for (const c of arr) {
     const div = document.createElement('div');
     div.className = 'chart-item';
@@ -7010,7 +7102,8 @@ function renderLeftPanel() {
       <div class="chart-item-info">
         <div class="chart-item-name">${escapeHtml(c.name ?? '')}</div>
         ${meta ? `<div class="chart-item-meta">${meta}</div>` : ''}
-      </div>`;
+      </div>
+      ${c.pinned ? '<span style="color:var(--accent);font-size:0.8em">★</span>' : ''}`;
     div.addEventListener('click', () => { closeLeftPanel(); loadChartFromDB(c); });
     list.appendChild(div);
   }
@@ -7018,7 +7111,10 @@ function renderLeftPanel() {
 
 function openLeftPanel() {
   document.getElementById('left-panel').classList.add('open');
-  renderLeftPanel();
+  document.getElementById('left-panel-search').value = _panelSearch;
+  document.getElementById('left-panel-sort').value = _panelSort;
+  renderLeftPanelGroups();
+  renderLeftPanelList();
 }
 
 function closeLeftPanel() {
@@ -7036,6 +7132,14 @@ document.getElementById('left-panel-backdrop').addEventListener('click', closeLe
 document.getElementById('left-panel-home-btn').addEventListener('click', () => {
   closeLeftPanel();
   exitChartMode(true);
+});
+document.getElementById('left-panel-search').addEventListener('input', e => {
+  _panelSearch = e.target.value;
+  renderLeftPanelList();
+});
+document.getElementById('left-panel-sort').addEventListener('change', e => {
+  _panelSort = e.target.value;
+  renderLeftPanelList();
 });
 
 document.getElementById('tab-add-btn').addEventListener('click', () => {

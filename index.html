@@ -478,8 +478,13 @@
     padding: 2px 6px 0 6px;
     gap: 2px;
   }
-  #tab-bar {
+  #tab-area {
     flex: 1; min-width: 0;
+    display: flex; align-items: flex-end;
+    overflow: hidden;
+  }
+  #tab-bar {
+    flex: 0 0 auto;
     display: flex; align-items: flex-end;
     gap: 2px;
     overflow-x: auto; overflow-y: visible;
@@ -487,11 +492,11 @@
   }
   #tab-bar::-webkit-scrollbar { display: none; }
   .app-tab {
-    flex: 1;
+    flex: 0 0 auto;
     min-width: 80px;
     max-width: 220px;
-    display: flex; align-items: center; gap: 5px;
-    padding: 0 10px;
+    display: flex; align-items: center; gap: 2px;
+    padding: 0 6px 0 10px;
     height: clamp(22px, 3vh, 34px);
     border-radius: 6px 6px 0 0;
     border: 1px solid transparent;
@@ -514,6 +519,7 @@
     background: var(--bg);
     border-color: var(--bd-light);
     border-bottom: 1px solid var(--bg);
+    z-index: 2;
   }
   .app-tab:hover:not(.active) {
     background: var(--bg-active);
@@ -1078,7 +1084,7 @@
   #v2-panel-modes {
     display: flex; flex-direction: column; flex-shrink: 0;
     pointer-events: auto;
-    gap: 1px;
+    gap: 4px;
   }
   #v2-panel-nav {
     position: absolute;
@@ -1099,15 +1105,20 @@
   }
   #v2-chart-name {
     flex: 1; min-width: 0;
-    font-size: 0.78em; font-weight: 600;
+    font-size: 0.88em; font-weight: 600;
     color: var(--tx);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   #v2-chart-date {
     display: block;
-    font-size: 0.68em; color: var(--tx-8);
+    font-size: 0.7em; color: var(--tx-6);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    padding: 1px 0;
+    padding: 1px 0 0;
+  }
+  #v2-chart-place {
+    display: block;
+    font-size: 0.7em; color: var(--tx-7);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .v2-icon-btn {
     width: 22px; height: 22px;
@@ -1119,7 +1130,7 @@
   }
   .v2-icon-btn:hover { background: var(--bg-hover); color: var(--tx-2); }
   .v2-mode-btn {
-    width: 100%; height: 34px;
+    width: 100%; height: 42px;
     background: var(--bg); border: 1px solid var(--bd-light); border-radius: 6px;
     cursor: pointer; font-size: 0.82em;
     color: var(--tx-4); padding: 0 8px;
@@ -1545,10 +1556,12 @@
   <button id="panel-toggle-btn" title="Карты">
     <img src="Aspectus%20logo.png" alt="Aspectus">
   </button>
-  <div id="tab-bar">
-    <!-- tabs injected here by JS -->
+  <div id="tab-area">
+    <div id="tab-bar">
+      <!-- tabs injected here by JS -->
+    </div>
+    <button id="tab-add-btn" title="Новая карта">+</button>
   </div>
-  <button id="tab-add-btn" title="Новая карта">+</button>
   <div id="header-right">
     <button id="settingsBtn" class="icon-btn settings-btn" data-i18n-title="settings" title="Настройки">⚙&#xFE0E;</button>
   </div>
@@ -1677,6 +1690,7 @@
             <span id="save-confirm"></span>
           </div>
           <span id="v2-chart-date"></span>
+          <span id="v2-chart-place"></span>
         </div>
         <div id="v2-bottom-row">
           <button class="v2-icon-btn" id="v2-settings-btn" title="Настройки">⚙︎</button>
@@ -3369,19 +3383,29 @@ function showHome() {
   if (currentUser) loadHomeCharts();   // база могла измениться, пока была открыта карта
 }
 
+function fmtUtcOff(off) {
+  const h = Math.floor(Math.abs(off));
+  const m = Math.round((Math.abs(off) - h) * 60);
+  const sign = off >= 0 ? '+' : '-';
+  return m ? `GMT${sign}${h}:${String(m).padStart(2,'0')}` : `GMT${sign}${h}`;
+}
+
 function enterChartMode(name, date, time) {
   if (notesChartId !== currentChartId) resetNotesState();
   closeNewChartModal();
   hideHome();
-  const dateTime = [date, time].filter(Boolean).join(' · ');
-  setV2ChartInfo(name, dateTime);
+  const utcOff = parseFloat(document.getElementById('utcOff').value) || 0;
+  const dateTime = [date, time, `(${fmtUtcOff(utcOff)})`].filter(Boolean).join(' ');
+  const city = document.getElementById('birthPlace').value.trim();
+  setV2ChartInfo(name, dateTime, city);
   setAppTab(name);
   activateLayout2();
 }
 
-function setV2ChartInfo(name, dateTime) {
+function setV2ChartInfo(name, dateTime, city) {
   document.getElementById('v2-chart-name').textContent = name || '';
   document.getElementById('v2-chart-date').textContent = dateTime || '';
+  if (city !== undefined) document.getElementById('v2-chart-place').textContent = city;
 }
 
 function exitChartMode(updateHistory = true) {
@@ -3518,8 +3542,10 @@ document.getElementById('calcBtn').addEventListener('click', () => {
 
     if (document.getElementById('form-wrap').classList.contains('editing')) {
       exitEditMode();
-      const editedDateTime = [fmtDate, fmtTime].filter(Boolean).join(' · ');
-      setV2ChartInfo(chartName, editedDateTime);
+      const utcOff2 = parseFloat(document.getElementById('utcOff').value) || 0;
+      const editedDateTime = [fmtDate, fmtTime, `(${fmtUtcOff(utcOff2)})`].filter(Boolean).join(' ');
+      const editedCity = document.getElementById('birthPlace').value.trim();
+      setV2ChartInfo(chartName, editedDateTime, editedCity);
     } else {
       enterChartMode(chartName, fmtDate, fmtTime);
     }

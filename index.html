@@ -962,15 +962,15 @@
   }
   #v2-chart-area {
     flex: 0 0 auto;
-    width: calc(74vh + 140px);
-    max-width: calc(100vw - 180px + 140px);
+    width: calc(74vh + 240px);
+    max-width: calc(100vw - 180px);
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--bg-panel-chart);
     border-right: 1px solid var(--bd-light);
-    padding: 8px 8px 8px 148px;
+    padding: 8px 120px;
     box-sizing: border-box;
     position: relative;
   }
@@ -985,8 +985,8 @@
   }
   #v2-chart-expand-btn:hover { opacity: 1; background: var(--bg-hover); color: var(--tx-2); }
   #layout-v2.tl-hidden #v2-chart-area {
-    width: calc(100vh - var(--hdr-h) + 140px);
-    max-width: calc(100vw - 180px + 140px);
+    width: calc(100vh - var(--hdr-h) + 240px);
+    max-width: calc(100vw - 180px);
   }
   #v2-chart-area #chart-block {
     width: 100% !important;
@@ -1130,9 +1130,10 @@
     padding: 2px;
   }
   #v2-panel-nav {
+    display: none;
     position: absolute;
     left: 6px; right: 6px; bottom: 8px;
-    display: flex; flex-direction: column; flex-shrink: 0;
+    flex-direction: column; flex-shrink: 0;
     pointer-events: auto;
     gap: 1px;
   }

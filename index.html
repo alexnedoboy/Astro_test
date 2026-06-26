@@ -521,6 +521,7 @@
      home-dash — залогинен, форма прячется за кнопку «+ Новая карта» */
   body.home-off #home-main { display: none !important; }
   body.home-off #form-wrap:not(.editing):not(.modal) { display: none !important; }
+  body.home-off #page-body { display: none !important; }
   body.home-dash #form-wrap:not(.editing):not(.modal) { display: none; }
 
   /* ── Auth modal ─────────────────────────────────────────── */
@@ -995,8 +996,10 @@
     overflow-y: auto;
     overflow-x: hidden;
   }
-  /* группы панели: на десктопе боксов не создают, дети раскладываются как раньше */
-  #v2-panel-head, #v2-panel-modes, #v2-panel-nav { display: contents; }
+  /* группы панели: Safari не поддерживает display:contents корректно в flex-контейнерах */
+  #v2-panel-head { display: flex; flex-direction: column; flex-shrink: 0; }
+  #v2-panel-modes { display: flex; flex-direction: column; flex-shrink: 0; }
+  #v2-panel-nav { display: flex; flex-direction: column; flex-shrink: 0; }
   #v2-logo { display: none; }
   #v2-chart-info {
     flex-shrink: 0;

@@ -150,19 +150,19 @@
   .info-retro { color: var(--retro); font-style: italic; font-size: 0.78em; }
   .info-house-lbl { color: var(--tx-6); font-size: 0.8em; width: 28px; }
   .house-angular { font-weight: 700; color: var(--accent-hv); }
-  .info-sep td { height: 5px; border-top: 1px solid var(--bd-light); padding: 0; }
+  .info-sep td { height: 5px; padding: 0; }
   .col-second { display: none; }
   #info-table.mode-biwheel .col-second { display: table-cell; }
   .col-second-house { display: none; }
   #info-table.mode-biwheel-houses .col-second-house { display: table-cell; }
-  .col-divider { border-left: 1px solid var(--bd); }
+  .col-divider { padding-left: 10px; }
   .info-speed { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--tx-6); font-size: 0.82em; text-align: right; }
 
   /* ── Aspect grid ─────────────────────────────────────────────── */
-  #aspect-grid { margin-top: 10px; overflow-x: auto; border-top: 1px solid var(--bd-light); padding-top: 8px; }
+  #aspect-grid { margin-top: 10px; overflow-x: auto; padding-top: 8px; }
   #aspect-table { border-collapse: collapse; font-size: 0.75em; }
-  #aspect-table th.ag-hdr { font-family: 'HamburgSymbols'; font-size: 1.1em; text-align: center; padding: 2px 3px; min-width: 24px; font-weight: normal; border: 1px solid var(--ag-hdr-bd); }
-  #aspect-table td { text-align: center; padding: 1px 2px; min-width: 24px; height: 30px; vertical-align: middle; border: 1px solid var(--ag-cell-bd); }
+  #aspect-table th.ag-hdr { font-family: 'HamburgSymbols'; font-size: 1.1em; text-align: center; padding: 2px 3px; min-width: 24px; font-weight: normal; border: none; }
+  #aspect-table td { text-align: center; padding: 1px 2px; min-width: 24px; height: 30px; vertical-align: middle; border: none; }
   .ag-sym { display: block; font-size: 1.05em; line-height: 1.2; }
   .ag-orb { display: block; font-size: 0.78em; color: var(--tx-7); line-height: 1; }
   .ag-empty { background: var(--bg-nav); }
@@ -481,7 +481,7 @@
   #tab-area {
     flex: 1; min-width: 0;
     display: flex; align-items: flex-end;
-    overflow: hidden;
+    overflow-x: clip; overflow-y: visible;
   }
   #tab-bar {
     flex: 0 0 auto;
@@ -518,7 +518,8 @@
     color: var(--tx-2);
     background: var(--bg);
     border-color: var(--bd-light);
-    border-bottom: 1px solid var(--bg);
+    border-bottom: 2px solid var(--bg);
+    margin-bottom: -2px;
     z-index: 2;
   }
   .app-tab:hover:not(.active) {
@@ -913,15 +914,15 @@
   }
   #v2-chart-area {
     flex: 0 0 auto;
-    width: calc(74vh + 108px);
-    max-width: calc(100vw - 180px + 108px);
+    width: calc(74vh + 140px);
+    max-width: calc(100vw - 180px + 140px);
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--bg-panel-chart);
     border-right: 1px solid var(--bd-light);
-    padding: 8px 8px 8px 116px;
+    padding: 8px 8px 8px 148px;
     box-sizing: border-box;
     position: relative;
   }
@@ -936,8 +937,8 @@
   }
   #v2-chart-expand-btn:hover { opacity: 1; background: var(--bg-hover); color: var(--tx-2); }
   #layout-v2.tl-hidden #v2-chart-area {
-    width: calc(100vh - var(--hdr-h) + 108px);
-    max-width: calc(100vw - 180px + 108px);
+    width: calc(100vh - var(--hdr-h) + 140px);
+    max-width: calc(100vw - 180px + 140px);
   }
   #v2-chart-area #chart-block {
     width: 100% !important;
@@ -1064,17 +1065,16 @@
   #v2-control-panel {
     position: absolute;
     left: 0; top: 0; bottom: 0;
-    width: 112px;
+    width: 144px;
     z-index: 10;
     background: transparent;
     border-right: none;
     pointer-events: none;
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    padding: 6px 4px;
+    padding: 8px 6px;
     box-sizing: border-box;
-    overflow: hidden;
+    overflow: visible;
   }
   /* группы панели */
   #v2-panel-head {
@@ -1082,13 +1082,16 @@
     pointer-events: auto;
   }
   #v2-panel-modes {
-    display: flex; flex-direction: column; flex-shrink: 0;
+    position: absolute;
+    left: 6px; right: 6px;
+    top: 50%; transform: translateY(-50%);
+    display: flex; flex-direction: column;
     pointer-events: auto;
     gap: 4px;
   }
   #v2-panel-nav {
     position: absolute;
-    left: 4px; right: 4px; bottom: 6px;
+    left: 6px; right: 6px; bottom: 8px;
     display: flex; flex-direction: column; flex-shrink: 0;
     pointer-events: auto;
     gap: 1px;
@@ -1107,18 +1110,18 @@
     flex: 1; min-width: 0;
     font-size: 0.88em; font-weight: 600;
     color: var(--tx);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    line-height: 1.2;
   }
   #v2-chart-date {
     display: block;
     font-size: 0.7em; color: var(--tx-6);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    padding: 1px 0 0;
+    padding: 2px 0 0;
+    line-height: 1.3;
   }
   #v2-chart-place {
     display: block;
     font-size: 0.7em; color: var(--tx-7);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    line-height: 1.3;
   }
   .v2-icon-btn {
     width: 22px; height: 22px;
@@ -1130,11 +1133,11 @@
   }
   .v2-icon-btn:hover { background: var(--bg-hover); color: var(--tx-2); }
   .v2-mode-btn {
-    width: 100%; height: 42px;
+    width: 100%; flex: 0 0 84px; height: 84px;
     background: var(--bg); border: 1px solid var(--bd-light); border-radius: 6px;
     cursor: pointer; font-size: 0.82em;
     color: var(--tx-4); padding: 0 8px;
-    white-space: nowrap; flex-shrink: 0;
+    white-space: nowrap;
     text-align: left;
     -webkit-appearance: none; appearance: none;
     box-sizing: border-box;

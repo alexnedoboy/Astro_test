@@ -903,19 +903,19 @@
     padding: 0;
     box-sizing: border-box;
     overflow: hidden;
+    position: relative;
   }
   #v2-chart-area {
     flex: 0 0 auto;
-    width: calc(74vh);
-    max-width: calc(100vw - 116px - 180px);
-    aspect-ratio: 1 / 1;
+    width: calc(74vh + 108px);
+    max-width: calc(100vw - 180px + 108px);
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--bg-panel-chart);
     border-right: 1px solid var(--bd-light);
-    padding: 8px;
+    padding: 8px 8px 8px 116px;
     box-sizing: border-box;
     position: relative;
   }
@@ -930,8 +930,8 @@
   }
   #v2-chart-expand-btn:hover { opacity: 1; background: var(--bg-hover); color: var(--tx-2); }
   #layout-v2.tl-hidden #v2-chart-area {
-    width: calc(100vh - var(--hdr-h));
-    max-width: calc(100vw - 116px - 180px);
+    width: calc(100vh - var(--hdr-h) + 108px);
+    max-width: calc(100vw - 180px + 108px);
   }
   #v2-chart-area #chart-block {
     width: 100% !important;
@@ -1056,27 +1056,41 @@
   #note-preview hr { border: none; border-top: 1px solid var(--bd-light); margin: 10px 0; }
   #note-preview a { color: var(--link); }
   #v2-control-panel {
-    flex: 0 0 116px;
-    align-self: stretch;
-    height: 100%;
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 112px;
+    z-index: 10;
+    background: transparent;
+    border-right: none;
+    pointer-events: none;
     display: flex;
     flex-direction: column;
     gap: 3px;
-    background: var(--bg-panel-control);
-    border-right: 1px solid var(--bd-light);
     padding: 6px 4px;
     box-sizing: border-box;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: hidden;
   }
-  /* группы панели: Safari не поддерживает display:contents корректно в flex-контейнерах */
-  #v2-panel-head { display: flex; flex-direction: column; flex-shrink: 0; }
-  #v2-panel-modes { display: flex; flex-direction: column; flex-shrink: 0; }
-  #v2-panel-nav { display: flex; flex-direction: column; flex-shrink: 0; }
+  /* группы панели */
+  #v2-panel-head {
+    display: flex; flex-direction: column; flex-shrink: 0;
+    pointer-events: auto;
+  }
+  #v2-panel-modes {
+    display: flex; flex-direction: column; flex-shrink: 0;
+    pointer-events: auto;
+    gap: 1px;
+  }
+  #v2-panel-nav {
+    position: absolute;
+    left: 4px; right: 4px; bottom: 6px;
+    display: flex; flex-direction: column; flex-shrink: 0;
+    pointer-events: auto;
+    gap: 1px;
+  }
   #v2-logo { display: none; }
   #v2-chart-info {
     flex-shrink: 0;
-    padding: 2px 2px 4px;
+    padding: 2px 0;
     min-width: 0;
   }
   body.privacy-mode #v2-chart-info { visibility: hidden; }
@@ -1105,11 +1119,14 @@
   }
   .v2-icon-btn:hover { background: var(--bg-hover); color: var(--tx-2); }
   .v2-mode-btn {
-    width: 100%; height: 52px;
-    background: none; border: none; border-radius: 6px;
-    cursor: pointer; font-size: 0.9em;
-    color: var(--tx-4); padding: 0 4px;
+    width: 100%; height: 34px;
+    background: var(--bg); border: 1px solid var(--bd-light); border-radius: 6px;
+    cursor: pointer; font-size: 0.82em;
+    color: var(--tx-4); padding: 0 8px;
     white-space: nowrap; flex-shrink: 0;
+    text-align: left;
+    -webkit-appearance: none; appearance: none;
+    box-sizing: border-box;
   }
   .v2-nav-btn {
     width: 100%; height: 28px;
@@ -1120,7 +1137,7 @@
   }
   .v2-mode-btn:hover, .v2-nav-btn:hover { background: var(--bg-hover); color: var(--tx-2); }
   .v2-mode-btn.active { background: var(--bg-active); color: var(--tx); font-weight: 600; }
-  .v2-ctrl-sep { height: 1px; background: var(--bd-light); margin: 4px 0; flex-shrink: 0; }
+  .v2-ctrl-sep { display: none; }
   .v2-ctrl-spacer { flex: 1; min-height: 4px; }
   .v2-nav-row { display: flex; gap: 2px; }
   .v2-nav-row .v2-nav-btn { flex: 1; font-size: 0.72em; }

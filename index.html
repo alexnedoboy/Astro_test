@@ -541,9 +541,9 @@
   #tab-bar::-webkit-scrollbar { display: none; }
   .app-tab {
     flex: 0 0 auto;
-    min-width: 80px;
+    min-width: 120px;
     max-width: 220px;
-    display: flex; align-items: center; gap: 2px;
+    display: flex; align-items: center; gap: 4px;
     padding: 0 6px 0 10px;
     height: clamp(22px, 3vh, 34px);
     border-radius: 6px 6px 0 0;
@@ -577,13 +577,21 @@
   }
   .app-tab-close {
     flex-shrink: 0;
-    width: 15px; height: 15px;
+    width: 14px; height: 14px;
     display: flex; align-items: center; justify-content: center;
-    border-radius: 3px; font-size: 0.78em; color: var(--tx-7);
+    border-radius: 3px; font-size: 0.6em; color: var(--tx-7);
     background: none; border: none; cursor: pointer; padding: 0;
     line-height: 1;
   }
   .app-tab-close:hover { background: var(--bg-active); color: var(--tx-3); }
+  /* На десктопе крестик виден только на наведённой/активной вкладке — меньше
+     шанс случайно закрыть. На тач-устройствах (планшет) он всегда виден.
+     opacity:0 сохраняет место, поэтому ширина вкладки не прыгает. */
+  @media (hover: hover) {
+    .app-tab-close { opacity: 0; transition: opacity .12s; }
+    .app-tab:hover .app-tab-close,
+    .app-tab.active .app-tab-close { opacity: 1; }
+  }
   #tab-add-btn {
     flex: 0 0 24px;
     width: 24px; height: 24px;
@@ -763,12 +771,20 @@
   .chart-del:hover { color: var(--danger); background: var(--danger-bg); }
   .chart-folder-btn { background: none; border: none; color: var(--bd); cursor: pointer; font-size: 0.85em; padding: 4px 5px; border-radius: 4px; flex-shrink: 0; }
   .chart-folder-btn:hover { color: var(--accent); background: var(--bg-hover); }
-  .chart-newtab-btn { background: none; border: none; color: var(--bd); cursor: pointer; font-size: 0.95em; line-height: 1; padding: 4px 6px; border-radius: 4px; flex-shrink: 0; }
-  .chart-newtab-btn:hover { color: var(--accent); background: var(--bg-hover); }
-  /* иконка «в новую вкладку» — только по ховеру строки в левой панели */
-  #left-panel-list .chart-newtab-btn { opacity: 0; transition: opacity .12s; }
-  #left-panel-list .chart-item:hover .chart-newtab-btn,
-  #left-panel-list .chart-newtab-btn:focus-visible { opacity: 1; }
+  /* ── Контекстное меню карты (правый клик / долгий тап) ───────── */
+  #chart-ctx-menu {
+    position: fixed; z-index: 1200; display: none;
+    min-width: 200px; padding: 4px;
+    background: var(--bg); border: 1px solid var(--bd);
+    border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+    font-size: 0.86em; color: var(--tx-3);
+  }
+  #chart-ctx-menu.open { display: block; }
+  .ctx-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; border-radius: 5px; cursor: pointer; white-space: nowrap;
+  }
+  .ctx-item:hover { background: var(--bg-hover); color: var(--tx-2); }
   /* ── Folder picker popover ────────────────────────────────── */
   #folder-picker {
     position: fixed; z-index: 1100;
@@ -1625,6 +1641,7 @@
   <div id="left-panel-list"></div>
 </div>
 <div id="left-panel-backdrop"></div>
+<div id="chart-ctx-menu"></div>
 
 <!-- ── Notes panel (slides from right) ───────────────────────── -->
 <div id="notes-panel">
@@ -2775,6 +2792,90 @@ function markChartOpened(c) {
   if (row) row.last_opened_at = ts;
   sb.from('charts').update({ last_opened_at: ts }).eq('id', c.id)
     .then(({ error }) => { if (error) console.warn('last_opened_at:', error.message); });
+}
+
+// Открыть карту: newTab=false — в текущей вкладке (replace), newTab=true — в новой.
+// Если карта уже открыта в какой-то вкладке — просто фокус на неё.
+function openChartInTab(c, newTab = false) {
+  const ex = tabs.findIndex(t => t.chartId && t.chartId === c.id);
+  if (ex >= 0) { switchTab(ex); markChartOpened(c); return; }
+  if (newTab || dashboardOpen || activeTab < 0 || !tabs[activeTab]) {
+    loadChartFromDB(c);            // нет активной вкладки или просили новую — создаём
+    return;
+  }
+  // Заменить содержимое текущей активной вкладки
+  markChartOpened(c);
+  writeFormFields(rowToFields(c));
+  currentChartId = c.id ?? null;
+  currentTransitJD = null; chartExpanded = false; layout2TlState = 0; tlYearScale = false;
+  if (!computeAndRenderNatal()) return;
+  const t = tabs[activeTab];
+  t.chartId = c.id ?? null;
+  t.fields  = readFormFields();
+  t.header  = readHeader();
+  t.st      = captureState();
+  resetNotesState();
+  updateHashForActiveTab(false);
+  persistTabs();
+  renderTabBar();
+}
+
+// ── Контекстное меню карты (правый клик / долгий тап) ─────────────────────────
+let _ctxOpenedAt = 0;
+function showChartCtxMenu(x, y, c) {
+  const menu = document.getElementById('chart-ctx-menu');
+  menu.innerHTML = '';
+  const addItem = (label, fn) => {
+    const it = document.createElement('div');
+    it.className = 'ctx-item';
+    it.textContent = label;
+    it.addEventListener('click', () => { hideChartCtxMenu(); fn(); });
+    menu.appendChild(it);
+  };
+  addItem('Открыть', () => { closeLeftPanel(); openChartInTab(c, false); });
+  addItem('Открыть в новой вкладке', () => openChartInTab(c, true));
+  menu.classList.add('open');
+  _ctxOpenedAt = Date.now();
+  const r = menu.getBoundingClientRect();
+  let px = x, py = y;
+  if (px + r.width  > window.innerWidth  - 8) px = window.innerWidth  - r.width  - 8;
+  if (py + r.height > window.innerHeight - 8) py = window.innerHeight - r.height - 8;
+  menu.style.left = Math.max(8, px) + 'px';
+  menu.style.top  = Math.max(8, py) + 'px';
+}
+function hideChartCtxMenu() {
+  document.getElementById('chart-ctx-menu').classList.remove('open');
+}
+document.addEventListener('click', e => {
+  if (Date.now() - _ctxOpenedAt < 300) return;          // не закрывать тем же кликом/тапом
+  if (!e.target.closest('#chart-ctx-menu')) hideChartCtxMenu();
+});
+document.addEventListener('scroll', hideChartCtxMenu, true);
+window.addEventListener('resize', hideChartCtxMenu);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideChartCtxMenu(); });
+
+// Навесить контекстное меню (правый клик + долгий тап) на строку карты
+function attachChartCtxMenu(div, c) {
+  div.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    showChartCtxMenu(e.clientX, e.clientY, c);
+  });
+  let lpTimer = null;
+  div.dataset.lpFired = '';
+  div.addEventListener('touchstart', e => {
+    div.dataset.lpFired = '';
+    const t = e.touches[0];
+    lpTimer = setTimeout(() => {
+      div.dataset.lpFired = '1';
+      showChartCtxMenu(t.clientX, t.clientY, c);
+    }, 500);
+  }, { passive: true });
+  const cancelLP = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
+  div.addEventListener('touchmove', cancelLP, { passive: true });
+  div.addEventListener('touchend', e => {
+    cancelLP();
+    if (div.dataset.lpFired) e.preventDefault();   // подавить клик после долгого тапа
+  });
 }
 
 // ── Save chart ────────────────────────────────────────────────────────────────
@@ -7503,14 +7604,15 @@ function renderLeftPanelList() {
         <div class="chart-item-name">${escapeHtml(c.name ?? '')}</div>
         ${meta ? `<div class="chart-item-meta">${meta}</div>` : ''}
       </div>
-      ${c.pinned ? '<span style="color:var(--accent);font-size:0.8em">★</span>' : ''}
-      <button class="chart-newtab-btn" title="Открыть в новой вкладке" aria-label="Открыть в новой вкладке">⧉</button>`;
-    div.addEventListener('click', () => { closeLeftPanel(); loadChartFromDB(c); });
-    // Иконка — открыть во вкладке, не закрывая панель (можно открыть несколько подряд)
-    div.querySelector('.chart-newtab-btn').addEventListener('click', e => {
-      e.stopPropagation();
-      loadChartFromDB(c);
+      ${c.pinned ? '<span style="color:var(--accent);font-size:0.8em">★</span>' : ''}`;
+    // Обычный клик — открыть в текущей вкладке (replace) и закрыть панель.
+    // Правый клик / долгий тап — меню с «Открыть в новой вкладке».
+    div.addEventListener('click', () => {
+      if (div.dataset.lpFired) { div.dataset.lpFired = ''; return; }  // был долгий тап
+      closeLeftPanel();
+      openChartInTab(c, false);
     });
+    attachChartCtxMenu(div, c);
     list.appendChild(div);
   }
 }

@@ -785,6 +785,8 @@
     padding: 7px 10px; border-radius: 5px; cursor: pointer; white-space: nowrap;
   }
   .ctx-item:hover { background: var(--bg-hover); color: var(--tx-2); }
+  .ctx-item.ctx-danger { color: var(--danger); }
+  .ctx-item.ctx-danger:hover { background: var(--danger-bg); color: var(--danger); }
   /* ── Folder picker popover ────────────────────────────────── */
   #folder-picker {
     position: fixed; z-index: 1100;
@@ -1028,6 +1030,50 @@
     height: 100% !important;
     width: auto !important;
     max-width: 100%;
+  }
+
+  /* ── Сплит-прототип: две карты рядом ─────────────────────────── */
+  #split-pane { display: none; }
+  #layout-v2.split-on #v2-chart-area {
+    width: auto; flex: 1 1 auto; max-width: none;
+    justify-content: stretch; align-items: stretch;
+    gap: 12px; padding: 10px 12px;
+  }
+  #layout-v2.split-on #v2-aspect-panel { display: none; }
+  #layout-v2.split-on #chart-block {
+    flex: 1 1 0; min-width: 0; height: auto; aspect-ratio: auto;
+    width: auto; margin: 0; align-self: center;
+  }
+  #layout-v2.split-on #chart-block svg,
+  #chart-block-2 svg {
+    width: 100% !important; height: auto !important; max-height: 78vh;
+  }
+  #layout-v2.split-on #split-pane {
+    display: flex; flex-direction: column; flex: 1 1 0; min-width: 0;
+    align-items: stretch; gap: 8px;
+    border-left: 1px dashed var(--bd); padding-left: 12px;
+  }
+  #split-head {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.8em; color: var(--tx-6);
+  }
+  #split-head select {
+    flex: 1; min-width: 0; padding: 3px 6px;
+    border: 1px solid var(--bd-input); border-radius: 5px;
+    background: var(--bg-input); color: var(--tx-3); font-size: 0.95em;
+  }
+  #split-close {
+    flex-shrink: 0; width: 20px; height: 20px; border-radius: 4px;
+    border: none; background: none; color: var(--tx-7); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-size: 0.8em;
+  }
+  #split-close:hover { background: var(--danger-bg); color: var(--danger); }
+  #chart-block-2 { align-self: center; width: 100%; }
+  #split-stub {
+    border: 1px dashed var(--bd); border-radius: 8px;
+    padding: 18px 12px; text-align: center;
+    color: var(--tx-7); font-size: 0.82em; font-style: italic;
+    background: var(--bg-row-alt);
   }
   #v2-aspect-panel {
     flex: 1;
@@ -1812,6 +1858,7 @@
           <span id="v2-chart-place"></span>
         </div>
         <div id="v2-bottom-row">
+          <button class="v2-icon-btn" id="v2-split-btn" title="Сравнение: две карты рядом">⊞</button>
           <button class="v2-icon-btn" id="v2-settings-btn" title="Настройки">⚙︎</button>
           <button class="v2-icon-btn" id="v2-exit-btn" title="Обычный вид">↩</button>
         </div>
@@ -1848,6 +1895,15 @@
     <div id="v2-chart-area">
       <button id="v2-chart-expand-btn" title="Развернуть карту">⤢</button>
       <div id="chart-block"></div>
+      <div id="split-pane">
+        <div id="split-head">
+          <span class="split-head-lbl">Сравнить с:</span>
+          <select id="split-select"></select>
+          <button id="split-close" title="Выйти из сравнения">✕</button>
+        </div>
+        <div id="chart-block-2"></div>
+        <div id="split-stub">Таймлайн и детали 2-й карты — заглушка (прототип)</div>
+      </div>
     </div>
     <div id="v2-aspect-panel">
       <div id="right-info-content" style="display:none">
@@ -2822,18 +2878,17 @@ function openChartInTab(c, newTab = false) {
 
 // ── Контекстное меню карты (правый клик / долгий тап) ─────────────────────────
 let _ctxOpenedAt = 0;
-function showChartCtxMenu(x, y, c) {
+// Универсальное контекстное меню: items = [{ label, fn, danger? }]
+function showCtxMenu(x, y, items) {
   const menu = document.getElementById('chart-ctx-menu');
   menu.innerHTML = '';
-  const addItem = (label, fn) => {
+  items.filter(Boolean).forEach(({ label, fn, danger }) => {
     const it = document.createElement('div');
-    it.className = 'ctx-item';
+    it.className = 'ctx-item' + (danger ? ' ctx-danger' : '');
     it.textContent = label;
     it.addEventListener('click', () => { hideChartCtxMenu(); fn(); });
     menu.appendChild(it);
-  };
-  addItem('Открыть', () => { closeLeftPanel(); openChartInTab(c, false); });
-  addItem('Открыть в новой вкладке', () => openChartInTab(c, true));
+  });
   menu.classList.add('open');
   _ctxOpenedAt = Date.now();
   const r = menu.getBoundingClientRect();
@@ -2854,29 +2909,48 @@ document.addEventListener('scroll', hideChartCtxMenu, true);
 window.addEventListener('resize', hideChartCtxMenu);
 document.addEventListener('keydown', e => { if (e.key === 'Escape') hideChartCtxMenu(); });
 
-// Навесить контекстное меню (правый клик + долгий тап) на строку карты
-function attachChartCtxMenu(div, c) {
-  div.addEventListener('contextmenu', e => {
-    e.preventDefault();
-    showChartCtxMenu(e.clientX, e.clientY, c);
-  });
+// Меню карты в списке (левая панель)
+function showChartCtxMenu(x, y, c) {
+  showCtxMenu(x, y, [
+    { label: 'Открыть',                 fn: () => { closeLeftPanel(); openChartInTab(c, false); } },
+    { label: 'Открыть в новой вкладке', fn: () => openChartInTab(c, true) },
+  ]);
+}
+
+// Меню вкладки (правый клик / долгий тап по вкладке)
+function showTabCtxMenu(x, y, i) {
+  const hasOther = tabs.length > 1;
+  showCtxMenu(x, y, [
+    { label: splitOn ? 'Сравнить (показать здесь)' : 'Сравнить с этой картой',
+      fn: () => compareWithTab(i) },
+    { label: 'Закрыть', danger: true, fn: () => closeTab(i) },
+  ]);
+}
+
+// Сплит: активная карта слева, выбранная вкладка — справа
+function compareWithTab(i) {
+  if (dashboardOpen || activeTab < 0) { switchTab(i); return; }
+  splitTabUid = (i === activeTab) ? null : tabs[i].uid;   // с собой не сравниваем
+  setSplit(true);
+}
+
+// Навесить контекстное меню (правый клик + долгий тап). showFn(x, y) рисует меню.
+// Возвращает функцию-геттер «был ли долгий тап» (для подавления обычного клика).
+function attachCtxMenu(el, showFn) {
+  el.addEventListener('contextmenu', e => { e.preventDefault(); showFn(e.clientX, e.clientY); });
   let lpTimer = null;
-  div.dataset.lpFired = '';
-  div.addEventListener('touchstart', e => {
-    div.dataset.lpFired = '';
+  el.dataset.lpFired = '';
+  el.addEventListener('touchstart', e => {
+    el.dataset.lpFired = '';
     const t = e.touches[0];
-    lpTimer = setTimeout(() => {
-      div.dataset.lpFired = '1';
-      showChartCtxMenu(t.clientX, t.clientY, c);
-    }, 500);
+    lpTimer = setTimeout(() => { el.dataset.lpFired = '1'; showFn(t.clientX, t.clientY); }, 500);
   }, { passive: true });
   const cancelLP = () => { if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; } };
-  div.addEventListener('touchmove', cancelLP, { passive: true });
-  div.addEventListener('touchend', e => {
-    cancelLP();
-    if (div.dataset.lpFired) e.preventDefault();   // подавить клик после долгого тапа
-  });
+  el.addEventListener('touchmove', cancelLP, { passive: true });
+  el.addEventListener('touchend', e => { cancelLP(); if (el.dataset.lpFired) e.preventDefault(); });
 }
+// Совместимость со старым вызовом для строк карт
+function attachChartCtxMenu(div, c) { attachCtxMenu(div, (x, y) => showChartCtxMenu(x, y, c)); }
 
 // ── Save chart ────────────────────────────────────────────────────────────────
 
@@ -3658,13 +3732,18 @@ function renderTabBar() {
     tab.className = 'app-tab' + (!dashboardOpen && i === activeTab ? ' active' : '');
     tab.innerHTML = `<span class="app-tab-name"></span><button class="app-tab-close" title="Закрыть">✕</button>`;
     tab.querySelector('.app-tab-name').textContent = t.header?.name || t.fields?.name || '—';
-    tab.addEventListener('click', () => switchTab(i));
+    tab.addEventListener('click', () => {
+      if (tab.dataset.lpFired) { tab.dataset.lpFired = ''; return; }  // был долгий тап
+      switchTab(i);
+    });
     tab.querySelector('.app-tab-close').addEventListener('click', e => {
       e.stopPropagation();
       closeTab(i);
     });
+    attachCtxMenu(tab, (x, y) => showTabCtxMenu(x, y, i));
     bar.appendChild(tab);
   });
+  if (splitOn) refreshSplit();
 }
 
 // Показать вкладку i без снапшота текущей (низкоуровневое)
@@ -3746,6 +3825,7 @@ function openNewTabFromForm(chartId) {
 function goDashboard(push = true) {
   if (!tabs.length) { fullExitToHome(push); return; }
   if (!dashboardOpen) snapshotActiveTab();
+  if (splitOn) setSplit(false);
   dashboardOpen = true;
   document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', ...V2_TL_STATES);
   layout2Active = false;
@@ -3758,6 +3838,7 @@ function goDashboard(push = true) {
 
 // Полный выход на дашборд без вкладок
 function fullExitToHome(push = true) {
+  if (splitOn) setSplit(false);
   resetNotesState();
   currentChartId = null;
   if (push) history.pushState('', document.title, window.location.pathname + window.location.search);
@@ -3772,6 +3853,95 @@ function fullExitToHome(push = true) {
   persistTabs();
   renderTabBar();
 }
+
+// ── Сплит-прототип: вторая карта рядом (только колесо, остальное — заглушка) ───
+let splitOn = false;
+let splitTabUid = null;   // uid вкладки, показанной во второй панели
+
+// Чистый расчёт натала из полей формы вкладки (не трогает глобалы/DOM)
+function computeNatalData(f) {
+  if (!swe || !f) return null;
+  const lat = parseFloat(f.lat), lon = parseFloat(f.lon);
+  const utcOff = parseFloat(f.utcOff) || 0;
+  if (!f.birthDate || !f.birthTime || isNaN(lat) || isNaN(lon)) return null;
+  try {
+    const [y, m, d] = f.birthDate.split('-').map(Number);
+    const [hr, mn]  = f.birthTime.split(':').map(Number);
+    const jd    = swe.julday(y, m, d, hr + mn / 60 - utcOff);
+    const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+    const planets = PLANETS.map(p => {
+      const r = swe.calc_ut(jd, p.id, flags);
+      return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
+    });
+    const hRes  = swe.houses(jd, lat, lon, 'P');
+    const cusps = Array.from(hRes.cusps).slice(1, 13);
+    const ascmc = Array.from(hRes.ascmc);
+    const asc = ((ascmc[0] % 360) + 360) % 360, mc = ((ascmc[1] % 360) + 360) % 360;
+    planets.forEach(p => { p.house = findHouse(p.longitude, cusps); });
+    return { planets, cusps, asc, mc, birthJD: jd, lat, lon, originalBirthJD: jd, utcOff };
+  } catch { return null; }
+}
+
+// Натал карты вкладки: активная — живой natalData; иначе снимок; иначе считаем из полей
+function tabNatal(t) {
+  if (!t) return null;
+  if (!dashboardOpen && tabs[activeTab] && t.uid === tabs[activeTab].uid) return natalData;
+  if (t.st?.natalData) return t.st.natalData;
+  if (t._splitNatal) return t._splitNatal;
+  const nd = computeNatalData(t.fields);
+  if (nd) t._splitNatal = nd;   // кэш для прототипа (не ломает ленивый st)
+  return nd;
+}
+
+function populateSplitSelect() {
+  const sel = document.getElementById('split-select');
+  if (!sel) return;
+  sel.innerHTML = '';
+  const others = tabs.filter((_, i) => i !== activeTab);
+  if (!others.length) {
+    splitTabUid = null;
+    const o = document.createElement('option');
+    o.value = ''; o.textContent = '— нет других вкладок —';
+    sel.appendChild(o);
+    return;
+  }
+  if (!others.some(t => t.uid === splitTabUid)) splitTabUid = others[0].uid;
+  others.forEach(t => {
+    const o = document.createElement('option');
+    o.value = String(t.uid);
+    o.textContent = t.header?.name || t.fields?.name || '—';
+    if (t.uid === splitTabUid) o.selected = true;
+    sel.appendChild(o);
+  });
+}
+
+function renderSplitPane() {
+  const host = document.getElementById('chart-block-2');
+  if (!host) return;
+  const t = tabs.find(t => t.uid === splitTabUid);
+  const nd = tabNatal(t);
+  if (!nd) {
+    host.innerHTML = '<div style="padding:24px 12px;text-align:center;color:var(--tx-7);font-size:0.85em">Откройте вторую карту во вкладке</div>';
+    return;
+  }
+  renderChart(nd.planets, nd.cusps, nd.asc, nd.mc, 'chart-block-2');
+}
+
+function refreshSplit() { populateSplitSelect(); renderSplitPane(); }
+
+function setSplit(on) {
+  splitOn = on;
+  document.getElementById('layout-v2').classList.toggle('split-on', on);
+  document.getElementById('v2-split-btn')?.classList.toggle('active', on);
+  if (on) refreshSplit();
+}
+
+document.getElementById('v2-split-btn').addEventListener('click', () => setSplit(!splitOn));
+document.getElementById('split-close').addEventListener('click', () => setSplit(false));
+document.getElementById('split-select').addEventListener('change', e => {
+  splitTabUid = e.target.value ? Number(e.target.value) : null;
+  renderSplitPane();
+});
 
 function updateHashForActiveTab(push = false) {
   const t = tabs[activeTab];
@@ -4258,7 +4428,7 @@ function drawZodiacRing(g) {
   }
 }
 
-function renderChart(planets, cusps, asc, mc) {
+function renderChart(planets, cusps, asc, mc, targetId = 'chart-block') {
   const svg = el('svg', { viewBox: VIEWBOX, width: '100%', style: 'display:block' });
 
   // Clip group
@@ -4307,7 +4477,7 @@ function renderChart(planets, cusps, asc, mc) {
   // 10. Cusp labels
   drawHouseLabels(g, cusps, 0);
 
-  document.getElementById('chart-block').replaceChildren(svg);
+  document.getElementById(targetId).replaceChildren(svg);
 }
 
 // ── House axes ────────────────────────────────────────────────────────────────

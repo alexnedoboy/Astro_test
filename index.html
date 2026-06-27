@@ -763,6 +763,12 @@
   .chart-del:hover { color: var(--danger); background: var(--danger-bg); }
   .chart-folder-btn { background: none; border: none; color: var(--bd); cursor: pointer; font-size: 0.85em; padding: 4px 5px; border-radius: 4px; flex-shrink: 0; }
   .chart-folder-btn:hover { color: var(--accent); background: var(--bg-hover); }
+  .chart-newtab-btn { background: none; border: none; color: var(--bd); cursor: pointer; font-size: 0.95em; line-height: 1; padding: 4px 6px; border-radius: 4px; flex-shrink: 0; }
+  .chart-newtab-btn:hover { color: var(--accent); background: var(--bg-hover); }
+  /* иконка «в новую вкладку» — только по ховеру строки в левой панели */
+  #left-panel-list .chart-newtab-btn { opacity: 0; transition: opacity .12s; }
+  #left-panel-list .chart-item:hover .chart-newtab-btn,
+  #left-panel-list .chart-newtab-btn:focus-visible { opacity: 1; }
   /* ── Folder picker popover ────────────────────────────────── */
   #folder-picker {
     position: fixed; z-index: 1100;
@@ -7497,8 +7503,14 @@ function renderLeftPanelList() {
         <div class="chart-item-name">${escapeHtml(c.name ?? '')}</div>
         ${meta ? `<div class="chart-item-meta">${meta}</div>` : ''}
       </div>
-      ${c.pinned ? '<span style="color:var(--accent);font-size:0.8em">★</span>' : ''}`;
+      ${c.pinned ? '<span style="color:var(--accent);font-size:0.8em">★</span>' : ''}
+      <button class="chart-newtab-btn" title="Открыть в новой вкладке" aria-label="Открыть в новой вкладке">⧉</button>`;
     div.addEventListener('click', () => { closeLeftPanel(); loadChartFromDB(c); });
+    // Иконка — открыть во вкладке, не закрывая панель (можно открыть несколько подряд)
+    div.querySelector('.chart-newtab-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      loadChartFromDB(c);
+    });
     list.appendChild(div);
   }
 }

@@ -650,6 +650,10 @@
   body.home-off #home-main { display: none !important; }
   body.home-off #form-wrap:not(.editing):not(.modal) { display: none !important; }
   body.home-off #page-body { display: none !important; }
+  /* Правка / новая карта должны всплывать поверх открытой карты:
+     показываем page-body (дашборд при этом скрыт правилом выше) */
+  body.home-off #page-body:has(#form-wrap.editing),
+  body.home-off #page-body:has(#form-wrap.modal) { display: block !important; }
   body.home-dash #form-wrap:not(.editing):not(.modal) { display: none; }
 
   /* ── Auth modal ─────────────────────────────────────────── */
@@ -2748,33 +2752,23 @@ async function loadChartsList() {
 }
 
 function loadChartFromDB(c) {
-  currentChartId = c.id ?? null;
-  // Отметка «последнего открытия» для сортировки базы (ошибки игнорируем —
-  // до миграции колонки last_opened_at может не быть)
-  if (c.id && currentUser) {
-    const ts = new Date().toISOString();
-    const row = _homeCharts.find(x => x.id === c.id);
-    if (row) row.last_opened_at = ts;
-    sb.from('charts').update({ last_opened_at: ts }).eq('id', c.id)
-      .then(({ error }) => { if (error) console.warn('last_opened_at:', error.message); });
-  }
-  if (currentChartId) {
-    const newHash = `#chart/${currentChartId}`;
-    if (window.location.hash === newHash) {
-      history.replaceState({ chartId: currentChartId }, '', newHash);
-    } else {
-      history.pushState({ chartId: currentChartId }, '', newHash);
-    }
-  }
-  document.getElementById('chartName').value  = c.name        ?? '';
-  document.getElementById('birthDate').value  = c.birth_date  ?? '';
-  document.getElementById('birthTime').value  = c.birth_time  ?? '';
-  document.getElementById('birthPlace').value = c.city        ?? '';
-  document.getElementById('lat').value        = c.lat         ?? '';
-  document.getElementById('lonVal').value     = c.lon         ?? '';
-  document.getElementById('utcOff').value     = c.utc_offset  ?? '';
-  detectedTimezone = c.timezone ?? null;
-  document.getElementById('calcBtn').click();
+  // Уже открыта в одной из вкладок — просто переключиться
+  const ex = tabs.findIndex(t => t.chartId && t.chartId === c.id);
+  if (ex >= 0) { switchTab(ex); markChartOpened(c); return; }
+  markChartOpened(c);
+  writeFormFields(rowToFields(c));
+  openNewTabFromForm(c.id ?? null);
+}
+
+// Отметка «последнего открытия» для сортировки базы (ошибки игнорируем —
+// до миграции колонки last_opened_at может не быть)
+function markChartOpened(c) {
+  if (!c.id || !currentUser) return;
+  const ts = new Date().toISOString();
+  const row = _homeCharts.find(x => x.id === c.id);
+  if (row) row.last_opened_at = ts;
+  sb.from('charts').update({ last_opened_at: ts }).eq('id', c.id)
+    .then(({ error }) => { if (error) console.warn('last_opened_at:', error.message); });
 }
 
 // ── Save chart ────────────────────────────────────────────────────────────────
@@ -2810,6 +2804,8 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   showSaveConfirm(tr('saved'));
   // Сохранённая карта сразу становится «открытой» — заметки доступны без переоткрытия
   currentChartId = data.id;
+  // Привязать id к активной вкладке (была несохранённой)
+  if (activeTab >= 0 && tabs[activeTab]) { tabs[activeTab].chartId = data.id; persistTabs(); }
   const newHash = `#chart/${data.id}`;
   if (window.location.hash !== newHash) {
     history.pushState({ chartId: data.id }, '', newHash);
@@ -3292,16 +3288,23 @@ let currentMode      = 'transit'; // 'transit' | 'progressed' | 'direction'
 let currentForecastHouse = 7;    // selected house for long-term forecast (1–12)
 let currentChartId   = null;   // Supabase id of the currently open chart
 let _pendingChartLoad = null;  // chart row waiting for swe to initialize
+let sweReady = false;          // true после полной инициализации swisseph
 
 (async () => {
   try {
     swe = new SwissEph();
     await swe.initSwissEph();
+    sweReady = true;
     setStatus(tr('ready'));
     document.getElementById('calcBtn').disabled = false;
     // Главный экран: теперь можно считать небо, большую тройку и транзиты
     startHomeSky();
     if (_homeCharts.length) { renderHomeList(); renderHomeEvents(); }
+    // Восстановленные вкладки ждали инициализации — теперь отрисуем активную
+    if (_pendingTabPaint) {
+      _pendingTabPaint = false;
+      if (!dashboardOpen && activeTab >= 0 && tabs[activeTab]) showTab(activeTab);
+    }
     if (_pendingChartLoad) {
       const c = _pendingChartLoad;
       _pendingChartLoad = null;
@@ -3427,23 +3430,346 @@ document.getElementById('birthPlace').addEventListener('keydown', async e => {
 
 // ── Page mode: home ↔ chart ───────────────────────────────────────────────────
 
-// ── Tab bar ───────────────────────────────────────────────────────────────────
-function setAppTab(name) {
-  const bar = document.getElementById('tab-bar');
-  bar.innerHTML = '';
-  const tab = document.createElement('div');
-  tab.className = 'app-tab active';
-  tab.innerHTML = `<span class="app-tab-name">${name || '—'}</span><button class="app-tab-close" title="Закрыть">✕</button>`;
-  tab.querySelector('.app-tab-close').addEventListener('click', e => {
-    e.stopPropagation();
-    exitChartMode(true);
-  });
-  bar.appendChild(tab);
+// ── Tabs (Obsidian-style) ─────────────────────────────────────────────────────
+// Каждая вкладка хранит полный снимок состояния одной открытой карты. Рендер
+// идёт в те же статичные DOM-узлы V2 — при переключении мы свопаем глобалы и
+// перерисовываем. Натальные данные пересчёту не подлежат, поэтому держим их
+// прямо в объекте вкладки.
+let tabs = [];           // [{ uid, chartId, fields, header, st }]
+let activeTab = -1;      // индекс активной вкладки (-1 = ни одной)
+let dashboardOpen = true; // показан ли дашборд поверх вкладок
+let _tabUid = 0;
+
+function readFormFields() {
+  return {
+    name:      document.getElementById('chartName').value,
+    birthDate: document.getElementById('birthDate').value,
+    birthTime: document.getElementById('birthTime').value,
+    city:      document.getElementById('birthPlace').value,
+    lat:       document.getElementById('lat').value,
+    lon:       document.getElementById('lonVal').value,
+    utcOff:    document.getElementById('utcOff').value,
+    timezone:  detectedTimezone ?? null,
+  };
+}
+function writeFormFields(f) {
+  if (!f) return;
+  document.getElementById('chartName').value  = f.name      ?? '';
+  document.getElementById('birthDate').value  = f.birthDate ?? '';
+  document.getElementById('birthTime').value  = f.birthTime ?? '';
+  document.getElementById('birthPlace').value = f.city      ?? '';
+  document.getElementById('lat').value        = f.lat       ?? '';
+  document.getElementById('lonVal').value     = f.lon       ?? '';
+  document.getElementById('utcOff').value     = f.utcOff    ?? '';
+  detectedTimezone = f.timezone ?? null;
+}
+function rowToFields(c) {
+  return {
+    name: c.name ?? '', birthDate: c.birth_date ?? '', birthTime: c.birth_time ?? '',
+    city: c.city ?? '', lat: c.lat ?? '', lon: c.lon ?? '',
+    utcOff: c.utc_offset ?? '', timezone: c.timezone ?? null,
+  };
+}
+function readHeader() {
+  return {
+    name:     document.getElementById('v2-chart-name').textContent,
+    dateTime: document.getElementById('v2-chart-date').textContent,
+    city:     document.getElementById('v2-chart-place').textContent,
+  };
 }
 
-function clearAppTab() {
-  document.getElementById('tab-bar').innerHTML = '';
+// Снимок всех «карточных» глобалов в объект (с глубокими копиями коллекций)
+function captureState() {
+  return {
+    natalData, currentMode, currentTransitJD, cachedTimeline,
+    tlPastYears, tlFutureYears,
+    expandedRows: new Set(expandedRows),
+    fastCache: { ...fastCache },
+    hiddenTPlants: new Set(hiddenTPlants),
+    moonBandCollapsed, tlYearScale, chartExpanded, layout2TlState,
+  };
 }
+function applyState(s) {
+  natalData        = s.natalData;
+  currentMode      = s.currentMode;
+  currentTransitJD = s.currentTransitJD;
+  cachedTimeline   = s.cachedTimeline;
+  tlPastYears      = s.tlPastYears;
+  tlFutureYears    = s.tlFutureYears;
+  expandedRows     = s.expandedRows;
+  fastCache        = s.fastCache;
+  hiddenTPlants    = s.hiddenTPlants;
+  moonBandCollapsed = s.moonBandCollapsed;
+  tlYearScale      = s.tlYearScale;
+  chartExpanded    = s.chartExpanded;
+  layout2TlState   = s.layout2TlState;
+}
+
+function snapshotActiveTab() {
+  if (activeTab < 0 || !tabs[activeTab]) return;
+  const t = tabs[activeTab];
+  t.chartId = currentChartId;
+  t.st      = captureState();
+  // fields/header НЕ перечитываем из формы: при составлении новой карты форма
+  // уже содержит её данные. Источник вкладки фиксируется при создании/правке.
+}
+
+// Привести классы/кнопки V2 к текущему layout-состоянию и показать карту
+function applyLayout2Classes() {
+  const v2 = document.getElementById('layout-v2');
+  hideHome();
+  v2.classList.add('v2-visible');
+  v2.classList.remove(...V2_TL_STATES, 'tl-hidden');
+  if (chartExpanded) {
+    v2.classList.add('tl-hidden');
+    document.getElementById('v2-chart-expand-btn').textContent = '⤡';
+  } else {
+    v2.classList.add(V2_TL_STATES[layout2TlState]);
+    document.getElementById('v2-chart-expand-btn').textContent = '⤢';
+  }
+  document.getElementById('v2-tl-toggle').textContent = V2_TL_LABELS[layout2TlState];
+  layout2Active = true;
+}
+
+// Полная перерисовка V2 из текущих глобалов (natalData уже выставлен)
+function paintActiveChart() {
+  applyLayout2Classes();
+  switchToMode(currentMode);
+  if (cachedTimeline) {
+    const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
+    requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
+  } else if (natalData) {
+    computeAndRenderTimeline(natalData.planets);
+  }
+}
+
+function renderTabBar() {
+  const bar = document.getElementById('tab-bar');
+  bar.innerHTML = '';
+  tabs.forEach((t, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'app-tab' + (!dashboardOpen && i === activeTab ? ' active' : '');
+    tab.innerHTML = `<span class="app-tab-name"></span><button class="app-tab-close" title="Закрыть">✕</button>`;
+    tab.querySelector('.app-tab-name').textContent = t.header?.name || t.fields?.name || '—';
+    tab.addEventListener('click', () => switchTab(i));
+    tab.querySelector('.app-tab-close').addEventListener('click', e => {
+      e.stopPropagation();
+      closeTab(i);
+    });
+    bar.appendChild(tab);
+  });
+}
+
+// Показать вкладку i без снапшота текущей (низкоуровневое)
+function showTab(i) {
+  const t = tabs[i];
+  if (!t) return;
+  activeTab = i;
+  dashboardOpen = false;
+  writeFormFields(t.fields);
+  currentChartId = t.chartId ?? null;
+  setV2ChartInfo(t.header?.name, t.header?.dateTime, t.header?.city);
+  if (t.st) {
+    applyState(t.st);
+    paintActiveChart();
+  } else {
+    rebuildTabFromFields(t);   // ленивая вкладка после перезагрузки
+  }
+  if (notesChartId !== currentChartId) resetNotesState();
+  updateHashForActiveTab(false);
+  renderTabBar();
+  persistTabs();
+}
+
+function switchTab(i) {
+  if (i < 0 || i >= tabs.length) return;
+  if (!dashboardOpen && i === activeTab) return;
+  if (!dashboardOpen) snapshotActiveTab();
+  showTab(i);
+}
+
+function closeTab(i) {
+  if (i < 0 || i >= tabs.length) return;
+  const wasShown = !dashboardOpen && i === activeTab;
+  tabs.splice(i, 1);
+  if (activeTab > i) activeTab--;
+  else if (activeTab === i) activeTab = Math.min(i, tabs.length - 1);
+  if (tabs.length === 0) {
+    activeTab = -1;
+    fullExitToHome();
+    return;
+  }
+  persistTabs();
+  if (wasShown) showTab(activeTab);
+  else renderTabBar();
+}
+
+// Создать новую вкладку из текущей формы и построить карту
+function openNewTabFromForm(chartId) {
+  if (!dashboardOpen) snapshotActiveTab();
+  const t = { uid: ++_tabUid, chartId: chartId ?? null, fields: null, header: null, st: null };
+  tabs.push(t);
+  activeTab = tabs.length - 1;
+  dashboardOpen = false;
+  currentChartId = chartId ?? null;
+  // Свежая карта — дефолтный layout и «сегодня»
+  currentTransitJD = null;
+  chartExpanded = false;
+  layout2TlState = 0;
+  tlYearScale = false;
+  if (!computeAndRenderNatal()) {
+    tabs.pop();
+    activeTab = tabs.length - 1;
+    if (!tabs.length) { activeTab = -1; fullExitToHome(); }
+    else { dashboardOpen = false; showTab(activeTab); }
+    return false;
+  }
+  t.fields  = readFormFields();
+  t.header  = readHeader();
+  t.chartId = currentChartId ?? null;
+  t.st      = captureState();
+  resetNotesState();
+  updateHashForActiveTab(true);
+  persistTabs();
+  renderTabBar();
+  return true;
+}
+
+// Показать дашборд, не закрывая вкладки
+function goDashboard(push = true) {
+  if (!tabs.length) { fullExitToHome(push); return; }
+  if (!dashboardOpen) snapshotActiveTab();
+  dashboardOpen = true;
+  document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', ...V2_TL_STATES);
+  layout2Active = false;
+  resetNotesState();
+  showHome();
+  if (push) history.pushState('', document.title, window.location.pathname + window.location.search);
+  persistTabs();
+  renderTabBar();
+}
+
+// Полный выход на дашборд без вкладок
+function fullExitToHome(push = true) {
+  resetNotesState();
+  currentChartId = null;
+  if (push) history.pushState('', document.title, window.location.pathname + window.location.search);
+  document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', ...V2_TL_STATES);
+  showHome();
+  natalData = null;
+  cachedTimeline = null;
+  layout2Active = false;
+  chartExpanded = false;
+  layout2TlState = 0;
+  dashboardOpen = true;
+  persistTabs();
+  renderTabBar();
+}
+
+function updateHashForActiveTab(push = false) {
+  const t = tabs[activeTab];
+  if (!t || !t.chartId) {
+    if (parseChartHash()) history.replaceState('', document.title, window.location.pathname + window.location.search);
+    return;
+  }
+  const newHash = `#chart/${t.chartId}`;
+  if (window.location.hash === newHash) return;
+  if (push) history.pushState({ chartId: t.chartId }, '', newHash);
+  else      history.replaceState({ chartId: t.chartId }, '', newHash);
+}
+
+// Ленивая вкладка (после перезагрузки): пересчитать карту из полей и применить
+// сохранённое «лёгкое» состояние вида (t.view).
+function rebuildTabFromFields(t) {
+  writeFormFields(t.fields);
+  currentChartId = t.chartId ?? null;
+  const v = t.view || {};
+  chartExpanded  = !!v.chartExpanded;
+  layout2TlState = v.layout2TlState ?? 0;
+  tlYearScale    = !!v.tlYearScale;
+  currentTransitJD = null;
+  if (!computeAndRenderNatal()) return;
+  // Наложить сохранённый вид поверх дефолтного транзита «сегодня»
+  if (v.currentMode) currentMode = v.currentMode;
+  if (v.currentTransitJD != null) currentTransitJD = v.currentTransitJD;
+  tlPastYears   = v.tlPastYears   ?? 0;
+  tlFutureYears = v.tlFutureYears ?? 0;
+  if (Array.isArray(v.expandedRows))  expandedRows  = new Set(v.expandedRows);
+  if (Array.isArray(v.hiddenTPlants)) hiddenTPlants = new Set(v.hiddenTPlants);
+  moonBandCollapsed = !!v.moonBandCollapsed;
+  if (t.header) setV2ChartInfo(t.header.name, t.header.dateTime, t.header.city);
+  cachedTimeline = null;
+  paintActiveChart();
+  t.st = captureState();
+  t.view = null;
+}
+
+// ── Персистентность вкладок (localStorage) ───────────────────────────────────
+// Сохраняем только «лёгкое»: источник (fields) + шапку + состояние вида.
+// natalData/кэши не сериализуем — пересчитываются из fields при активации.
+const TABS_LS_KEY = 'chartTabs';
+let _pendingTabPaint = false;
+
+function stateToView(s) {
+  if (!s) return null;
+  return {
+    currentMode: s.currentMode,
+    currentTransitJD: s.currentTransitJD,
+    tlPastYears: s.tlPastYears,
+    tlFutureYears: s.tlFutureYears,
+    expandedRows: [...s.expandedRows],
+    hiddenTPlants: [...s.hiddenTPlants],
+    moonBandCollapsed: s.moonBandCollapsed,
+    tlYearScale: s.tlYearScale,
+    chartExpanded: s.chartExpanded,
+    layout2TlState: s.layout2TlState,
+  };
+}
+
+function tabToStorage(t, live) {
+  if (live) {
+    return { chartId: currentChartId ?? null, fields: readFormFields(), header: readHeader(), view: stateToView(captureState()) };
+  }
+  return { chartId: t.chartId ?? null, fields: t.fields, header: t.header, view: t.st ? stateToView(t.st) : (t.view || null) };
+}
+
+function persistTabs() {
+  try {
+    const showingChart = !dashboardOpen && activeTab >= 0;
+    const data = {
+      activeTab,
+      dashboardOpen,
+      tabs: tabs.map((t, i) => tabToStorage(t, showingChart && i === activeTab)),
+    };
+    localStorage.setItem(TABS_LS_KEY, JSON.stringify(data));
+  } catch (e) { /* квота/доступ — молча игнорируем */ }
+}
+
+function restoreTabs() {
+  let data;
+  try { data = JSON.parse(localStorage.getItem(TABS_LS_KEY)); } catch { return; }
+  if (!data || !Array.isArray(data.tabs) || !data.tabs.length) return;
+  tabs = data.tabs.map(d => ({
+    uid: ++_tabUid,
+    chartId: d.chartId ?? null,
+    fields: d.fields || null,
+    header: d.header || null,
+    st: null,                 // ленивая — построим при первом показе
+    view: d.view || null,
+  }));
+  activeTab = (typeof data.activeTab === 'number' && data.activeTab < tabs.length) ? data.activeTab : 0;
+  dashboardOpen = data.dashboardOpen !== false;   // по умолчанию показываем дашборд
+  renderTabBar();
+  if (!dashboardOpen && tabs[activeTab]) {
+    if (sweReady) showTab(activeTab);
+    else _pendingTabPaint = true;   // дождёмся инициализации swisseph
+  }
+}
+
+// Перед перезагрузкой/закрытием — зафиксировать актуальный вид активной вкладки
+window.addEventListener('beforeunload', persistTabs);
+
+restoreTabs();
 
 // Видимость главного экрана управляется классом home-off на body (см. CSS).
 function hideHome() {
@@ -3464,38 +3790,15 @@ function fmtUtcOff(off) {
   return m ? `GMT${sign}${h}:${String(m).padStart(2,'0')}` : `GMT${sign}${h}`;
 }
 
-function enterChartMode(name, date, time) {
-  if (notesChartId !== currentChartId) resetNotesState();
-  closeNewChartModal();
-  hideHome();
-  const utcOff = parseFloat(document.getElementById('utcOff').value) || 0;
-  const dateTime = [date, time, `(${fmtUtcOff(utcOff)})`].filter(Boolean).join(' ');
-  const city = document.getElementById('birthPlace').value.trim();
-  setV2ChartInfo(name, dateTime, city);
-  setAppTab(name);
-  activateLayout2();
-}
-
 function setV2ChartInfo(name, dateTime, city) {
   document.getElementById('v2-chart-name').textContent = name || '';
   document.getElementById('v2-chart-date').textContent = dateTime || '';
   if (city !== undefined) document.getElementById('v2-chart-place').textContent = city;
 }
 
+// Кнопки «выход/логотип/домой» уводят на дашборд, не закрывая вкладки
 function exitChartMode(updateHistory = true) {
-  resetNotesState();
-  currentChartId = null;
-  if (updateHistory) {
-    history.pushState('', document.title, window.location.pathname + window.location.search);
-  }
-  document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', ...V2_TL_STATES);
-  clearAppTab();
-  showHome();
-  natalData = null;
-  cachedTimeline = null;
-  layout2Active = false;
-  chartExpanded = false;
-  layout2TlState = 0;
+  goDashboard(updateHistory);
 }
 
 // ── Hash routing ──────────────────────────────────────────────────────────────
@@ -3520,9 +3823,14 @@ async function loadChartFromHash() {
 
 window.addEventListener('popstate', () => {
   const id = parseChartHash();
-  if (!id && natalData) {
-    exitChartMode(false);
-  } else if (id && id !== currentChartId) {
+  if (!id) {
+    if (!dashboardOpen) goDashboard(false);
+    return;
+  }
+  const ex = tabs.findIndex(t => t.chartId === id);
+  if (ex >= 0) {
+    if (dashboardOpen || ex !== activeTab) switchTab(ex);
+  } else {
     loadChartFromHash();
   }
 });
@@ -3571,8 +3879,10 @@ document.getElementById('edit-backdrop').addEventListener('click', closeNewChart
 
 // ── Calculate ─────────────────────────────────────────────────────────────────
 
-document.getElementById('calcBtn').addEventListener('click', () => {
-  if (!swe) return;
+// Построить натальные данные из формы и отрисовать в V2.
+// Не управляет вкладками — это делают вызывающие. Возвращает true при успехе.
+function computeAndRenderNatal() {
+  if (!swe) return false;
   const dateVal = document.getElementById('birthDate').value;
   const timeVal = document.getElementById('birthTime').value;
   const lat     = parseFloat(document.getElementById('lat').value);
@@ -3580,7 +3890,7 @@ document.getElementById('calcBtn').addEventListener('click', () => {
   const utcOff  = parseFloat(document.getElementById('utcOff').value) || 0;
 
   if (!dateVal || !timeVal || isNaN(lat) || isNaN(lon)) {
-    setStatus(tr('fillAllFields')); return;
+    setStatus(tr('fillAllFields')); return false;
   }
   try {
     const [y, m, d] = dateVal.split('-').map(Number);
@@ -3613,16 +3923,12 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     const rawDate = document.getElementById('birthDate').value;
     const fmtDate = rawDate ? rawDate.split('-').reverse().join('.') : '';
     const fmtTime = document.getElementById('birthTime').value || '';
+    const dateTime = [fmtDate, fmtTime, `(${fmtUtcOff(utcOff)})`].filter(Boolean).join(' ');
 
-    if (document.getElementById('form-wrap').classList.contains('editing')) {
-      exitEditMode();
-      const utcOff2 = parseFloat(document.getElementById('utcOff').value) || 0;
-      const editedDateTime = [fmtDate, fmtTime, `(${fmtUtcOff(utcOff2)})`].filter(Boolean).join(' ');
-      const editedCity = document.getElementById('birthPlace').value.trim();
-      setV2ChartInfo(chartName, editedDateTime, editedCity);
-    } else {
-      enterChartMode(chartName, fmtDate, fmtTime);
-    }
+    closeNewChartModal();
+    setV2ChartInfo(chartName, dateTime, document.getElementById('birthPlace').value.trim());
+    applyLayout2Classes();
+
     renderChart(planets, cusps, asc, mc);
     buildInfoTable(planets, cusps);
     buildAspectGrid(addSouthNode(planets, cusps));
@@ -3632,7 +3938,29 @@ document.getElementById('calcBtn').addEventListener('click', () => {
     else showTransitNow();
     computeAndRenderTimeline(natalData.planets);
     setStatus('');
-  } catch (e) { setStatus(tr('error') + e.message); }
+    return true;
+  } catch (e) { setStatus(tr('error') + e.message); return false; }
+}
+
+document.getElementById('calcBtn').addEventListener('click', () => {
+  if (!swe) return;
+  if (document.getElementById('form-wrap').classList.contains('editing')) {
+    // Редактирование открытой карты — пересобрать активную вкладку на месте
+    exitEditMode();
+    if (!computeAndRenderNatal()) return;
+    if (activeTab >= 0 && tabs[activeTab]) {
+      const t = tabs[activeTab];
+      t.fields  = readFormFields();
+      t.header  = readHeader();
+      t.chartId = currentChartId;
+      t.st      = captureState();
+      persistTabs();
+      renderTabBar();
+    }
+  } else {
+    // Новая карта из формы — отдельная несохранённая вкладка
+    openNewTabFromForm(null);
+  }
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -7109,40 +7437,7 @@ const V2_TL_STATES  = ['tl-normal', 'tl-expanded'];
 const V2_TL_LABELS  = ['▲', '▼'];
 let layout2TlState  = 0;
 let chartExpanded   = false;
-
-function activateLayout2() {
-  if (layout2Active) return;
-  const v2 = document.getElementById('layout-v2');
-  v2.classList.add('v2-visible');
-  v2.classList.remove(...V2_TL_STATES, 'tl-hidden');
-  v2.classList.add(V2_TL_STATES[layout2TlState]);
-  document.getElementById('v2-tl-toggle').textContent = V2_TL_LABELS[layout2TlState];
-  chartExpanded = false;
-  document.getElementById('v2-chart-expand-btn').textContent = '⤢';
-  layout2Active = true;
-
-  if (natalData) {
-    currentMode = 'transit';
-    renderBiwheelAt(currentTransitJD ?? computeJDNow());
-    syncV2ModeButtons();
-    syncV2DateLabel();
-  }
-
-  if (natalData) {
-    if (tlYearScale) {
-      tlYearScale = false;
-      const c = currentTransitJD ?? computeJDNow();
-      cachedTimeline = null;
-      fastCache = {};
-      computeAndRenderTimeline(natalData.planets, c);
-    } else if (cachedTimeline) {
-      const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
-      requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
-    } else {
-      computeAndRenderTimeline(natalData.planets);
-    }
-  }
-}
+// Показ V2 теперь идёт через computeAndRenderNatal()/paintActiveChart() (см. менеджер вкладок).
 
 document.getElementById('v2-exit-btn').addEventListener('click', () => exitChartMode(true));
 
@@ -7242,10 +7537,8 @@ document.getElementById('left-panel-sort').addEventListener('change', e => {
 });
 
 document.getElementById('tab-add-btn').addEventListener('click', () => {
-  if (document.getElementById('layout-v2').classList.contains('v2-visible')) {
-    exitChartMode(true);
-  }
-  document.getElementById('newChartBtn')?.click();
+  // Открыть форму новой карты как модалку, не закрывая текущие вкладки
+  openNewChartModal();
 });
 
 document.getElementById('v2-edit-btn').addEventListener('click', enterEditMode);

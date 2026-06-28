@@ -1192,6 +1192,17 @@
     font-size: 0.7em; color: var(--tx-7);
     line-height: 1.3;
   }
+  #v2-case-type {
+    display: inline-block;
+    margin-top: 3px;
+    font-size: 0.6em; letter-spacing: 0.05em;
+    color: var(--tx-7);
+    background: var(--bg-active);
+    border: 1px solid var(--bd-light);
+    border-radius: 3px;
+    padding: 1px 6px; line-height: 1.5;
+  }
+  #v2-case-type:empty { display: none; }
   .v2-icon-btn {
     width: 22px; height: 22px;
     flex: 0 0 22px;
@@ -1810,6 +1821,7 @@
           </div>
           <span id="v2-chart-date"></span>
           <span id="v2-chart-place"></span>
+          <span id="v2-case-type"></span>
         </div>
         <div id="v2-bottom-row">
           <button class="v2-icon-btn" id="v2-settings-btn" title="Настройки">⚙︎</button>
@@ -3586,30 +3598,44 @@ function readHeader() {
 }
 
 // Снимок всех «карточных» глобалов в объект (с глубокими копиями коллекций)
+// ── Контекст кейса (см. WORKSPACE_CONCEPT.md §5, MIGRATION.md инкр.1) ─────────
+// Структурированная форма состояния кейса. Глобалы остаются рантаймом; контекст —
+// сериализованный снимок. Форма:
+//   { subjects:[{ role, chartId, data }], layers:[{ method, driven }], T, ui:{…} }
+// subjects — самосущие карты (сейчас всегда одна, role:'natal'); layers — производные
+// (transit/progressed/direction; natal = пустой массив); T — ось времени (currentTransitJD).
 function captureState() {
   return {
-    natalData, currentMode, currentTransitJD, cachedTimeline,
-    tlPastYears, tlFutureYears,
-    expandedRows: new Set(expandedRows),
-    fastCache: { ...fastCache },
-    hiddenTPlants: new Set(hiddenTPlants),
-    moonBandCollapsed, tlYearScale, chartExpanded, layout2TlState,
+    subjects: [{ role: 'natal', chartId: currentChartId ?? null, data: natalData }],
+    layers: currentMode === 'natal' ? [] : [{ method: currentMode, driven: true }],
+    T: currentTransitJD,
+    ui: {
+      cachedTimeline,
+      tlPastYears, tlFutureYears,
+      expandedRows: new Set(expandedRows),
+      fastCache: { ...fastCache },
+      hiddenTPlants: new Set(hiddenTPlants),
+      moonBandCollapsed, tlYearScale, chartExpanded, layout2TlState,
+    },
   };
 }
 function applyState(s) {
-  natalData        = s.natalData;
-  currentMode      = s.currentMode;
-  currentTransitJD = s.currentTransitJD;
-  cachedTimeline   = s.cachedTimeline;
-  tlPastYears      = s.tlPastYears;
-  tlFutureYears    = s.tlFutureYears;
-  expandedRows     = s.expandedRows;
-  fastCache        = s.fastCache;
-  hiddenTPlants    = s.hiddenTPlants;
-  moonBandCollapsed = s.moonBandCollapsed;
-  tlYearScale      = s.tlYearScale;
-  chartExpanded    = s.chartExpanded;
-  layout2TlState   = s.layout2TlState;
+  const natal = s.subjects && s.subjects.find(x => x.role === 'natal');
+  const layer = s.layers && s.layers[0];
+  const u     = s.ui || {};
+  natalData        = natal ? natal.data : null;
+  currentMode      = layer ? layer.method : 'natal';
+  currentTransitJD = s.T;
+  cachedTimeline   = u.cachedTimeline;
+  tlPastYears      = u.tlPastYears;
+  tlFutureYears    = u.tlFutureYears;
+  expandedRows     = u.expandedRows;
+  fastCache        = u.fastCache;
+  hiddenTPlants    = u.hiddenTPlants;
+  moonBandCollapsed = u.moonBandCollapsed;
+  tlYearScale      = u.tlYearScale;
+  chartExpanded    = u.chartExpanded;
+  layout2TlState   = u.layout2TlState;
 }
 
 function snapshotActiveTab() {
@@ -3676,6 +3702,7 @@ function showTab(i) {
   writeFormFields(t.fields);
   currentChartId = t.chartId ?? null;
   setV2ChartInfo(t.header?.name, t.header?.dateTime, t.header?.city);
+  applyCaseType(t.type);
   if (t.st) {
     applyState(t.st);
     paintActiveChart();
@@ -3714,7 +3741,7 @@ function closeTab(i) {
 // Создать новую вкладку из текущей формы и построить карту
 function openNewTabFromForm(chartId) {
   if (!dashboardOpen) snapshotActiveTab();
-  const t = { uid: ++_tabUid, chartId: chartId ?? null, fields: null, header: null, st: null };
+  const t = { uid: ++_tabUid, chartId: chartId ?? null, fields: null, header: null, st: null, type: 'natal' };
   tabs.push(t);
   activeTab = tabs.length - 1;
   dashboardOpen = false;
@@ -3805,6 +3832,7 @@ function rebuildTabFromFields(t) {
   if (Array.isArray(v.hiddenTPlants)) hiddenTPlants = new Set(v.hiddenTPlants);
   moonBandCollapsed = !!v.moonBandCollapsed;
   if (t.header) setV2ChartInfo(t.header.name, t.header.dateTime, t.header.city);
+  applyCaseType(t.type);
   cachedTimeline = null;
   paintActiveChart();
   t.st = captureState();
@@ -3819,25 +3847,27 @@ let _pendingTabPaint = false;
 
 function stateToView(s) {
   if (!s) return null;
+  const layer = s.layers && s.layers[0];
+  const u = s.ui || {};
   return {
-    currentMode: s.currentMode,
-    currentTransitJD: s.currentTransitJD,
-    tlPastYears: s.tlPastYears,
-    tlFutureYears: s.tlFutureYears,
-    expandedRows: [...s.expandedRows],
-    hiddenTPlants: [...s.hiddenTPlants],
-    moonBandCollapsed: s.moonBandCollapsed,
-    tlYearScale: s.tlYearScale,
-    chartExpanded: s.chartExpanded,
-    layout2TlState: s.layout2TlState,
+    currentMode: layer ? layer.method : 'natal',
+    currentTransitJD: s.T,
+    tlPastYears: u.tlPastYears,
+    tlFutureYears: u.tlFutureYears,
+    expandedRows: [...(u.expandedRows || [])],
+    hiddenTPlants: [...(u.hiddenTPlants || [])],
+    moonBandCollapsed: u.moonBandCollapsed,
+    tlYearScale: u.tlYearScale,
+    chartExpanded: u.chartExpanded,
+    layout2TlState: u.layout2TlState,
   };
 }
 
 function tabToStorage(t, live) {
   if (live) {
-    return { chartId: currentChartId ?? null, fields: readFormFields(), header: readHeader(), view: stateToView(captureState()) };
+    return { chartId: currentChartId ?? null, fields: readFormFields(), header: readHeader(), view: stateToView(captureState()), type: t.type ?? 'natal' };
   }
-  return { chartId: t.chartId ?? null, fields: t.fields, header: t.header, view: t.st ? stateToView(t.st) : (t.view || null) };
+  return { chartId: t.chartId ?? null, fields: t.fields, header: t.header, view: t.st ? stateToView(t.st) : (t.view || null), type: t.type ?? 'natal' };
 }
 
 function persistTabs() {
@@ -3863,6 +3893,7 @@ function restoreTabs() {
     header: d.header || null,
     st: null,                 // ленивая — построим при первом показе
     view: d.view || null,
+    type: d.type ?? 'natal',
   }));
   activeTab = (typeof data.activeTab === 'number' && data.activeTab < tabs.length) ? data.activeTab : 0;
   dashboardOpen = data.dashboardOpen !== false;   // по умолчанию показываем дашборд
@@ -3901,6 +3932,14 @@ function setV2ChartInfo(name, dateTime, city) {
   document.getElementById('v2-chart-name').textContent = name || '';
   document.getElementById('v2-chart-date').textContent = dateTime || '';
   if (city !== undefined) document.getElementById('v2-chart-place').textContent = city;
+}
+
+// Метка типа кейса (натал / синастрия / хорар / …) — см. WORKSPACE_CONCEPT.md §7.
+// Тип фиксируется при создании кейса; межтипового переключения нет.
+const CASE_TYPE_LABELS = { natal:'натал', synastry:'синастрия', horary:'хорар', election:'элекция', event:'событие', sky:'небо' };
+function applyCaseType(type) {
+  const el = document.getElementById('v2-case-type');
+  if (el) el.textContent = CASE_TYPE_LABELS[type] || '';
 }
 
 // Кнопки «выход/логотип/домой» уводят на дашборд, не закрывая вкладки
@@ -4034,6 +4073,7 @@ function computeAndRenderNatal() {
 
     closeNewChartModal();
     setV2ChartInfo(chartName, dateTime, document.getElementById('birthPlace').value.trim());
+    applyCaseType(tabs[activeTab]?.type || 'natal');
     applyLayout2Classes();
 
     renderChart(planets, cusps, asc, mc);

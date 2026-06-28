@@ -17,6 +17,10 @@
   :root {
     /* ── Surfaces ─────────────────────────────────────────── */
     --bg-page:    #FDFDFC;   /* outer page background */
+    --bg-app:     #E9E5DF;   /* app chrome: header + gutters + panel heads (single color) */
+    --bg-tab:     #F3F0EC;   /* unselected tab/case-tab fill (lighter than chrome) */
+    --gutter:     7px;       /* gap between panel plaques */
+    --panel-radius: 0px;     /* panel plaque corner radius (square, PS-style) */
     --bg:         #fff;      /* cards, panels, modals */
     --bg-input:   #FAF7F5;   /* input fields, secondary surfaces */
     --bg-hover:   #F2EDEA;   /* button / item hover state */
@@ -520,10 +524,10 @@
     top: 0; left: var(--sidebar-w); right: 0;
     height: var(--hdr-h);
     display: flex; flex-direction: row; align-items: flex-end;
-    background: #F6F6F6;
+    background: var(--bg);
     box-sizing: border-box;
     z-index: 200;
-    padding: 2px 6px 0 6px;
+    padding: 2px 6px 0;
     gap: 2px;
   }
   #tab-area {
@@ -543,43 +547,39 @@
     flex: 0 0 auto;
     min-width: 120px;
     max-width: 220px;
-    display: flex; align-items: center; gap: 4px;
-    padding: 0 6px 0 10px;
+    display: flex; align-items: center; gap: 2px;
+    padding: 0 4px 0 10px;
     height: clamp(22px, 3vh, 34px);
-    border-radius: 6px 6px 0 0;
-    border: 1px solid transparent;
+    border: 1px solid var(--bd-light);
     border-bottom: none;
+    border-radius: 0;
     cursor: pointer;
     font-size: 0.81em; color: var(--tx-5);
     white-space: nowrap;
     position: relative;
-    background: transparent;
+    background: var(--bg-tab);
     user-select: none;
-    margin-bottom: -1px;
     box-sizing: border-box;
   }
   .app-tab-name {
-    flex: 0 1 auto; min-width: 0;
+    flex: 1 1 auto; min-width: 0;
     overflow: hidden; text-overflow: ellipsis;
   }
   .app-tab.active {
     color: var(--tx-2);
+    font-weight: 500;
     background: var(--bg);
-    border-color: var(--bd-light);
-    border-bottom: 2px solid var(--bg);
-    margin-bottom: -2px;
     z-index: 2;
   }
   .app-tab:hover:not(.active) {
-    background: var(--bg-active);
+    background: var(--bg-input);
     color: var(--tx-3);
-    border-color: var(--bd-light);
   }
   .app-tab-close {
-    flex-shrink: 0;
+    flex: 0 0 14px;
     width: 14px; height: 14px;
     display: flex; align-items: center; justify-content: center;
-    border-radius: 3px; font-size: 0.6em; color: var(--tx-7);
+    border-radius: 3px; font-size: 0.55em; color: var(--tx-7);
     background: none; border: none; cursor: pointer; padding: 0;
     line-height: 1;
   }
@@ -970,8 +970,10 @@
     position: fixed;
     top: var(--hdr-h); left: var(--sidebar-w); right: 0; bottom: 0;
     flex-direction: column;
+    gap: var(--gutter);
+    padding: var(--gutter);
     overflow: hidden;
-    background: var(--bg-page);
+    background: var(--bg-app);
     z-index: 100;
   }
   #layout-v2.v2-visible { display: flex; }
@@ -980,22 +982,21 @@
     flex: 0 0 74vh;
     display: flex;
     align-items: stretch;
-    gap: 0;
+    gap: var(--gutter);
     padding: 0;
     box-sizing: border-box;
     overflow: hidden;
     position: relative;
   }
   #v2-chart-area {
-    flex: 0 0 auto;
-    width: calc(74vh + 124px);
-    max-width: calc(100vw - 180px);
+    flex: 1 1 52%;
+    min-width: 0;
     overflow: hidden;
     display: flex;
     align-items: center;
-    justify-content: flex-end;   /* колесо прижато вправо, слева — место под контролы */
+    justify-content: center;
     background: var(--bg-panel-chart);
-    border-right: 1px solid var(--bd-light);
+    border-radius: var(--panel-radius);
     padding: 8px;
     box-sizing: border-box;
     position: relative;
@@ -1011,44 +1012,72 @@
   }
   #v2-chart-expand-btn:hover { opacity: 1; background: var(--bg-hover); color: var(--tx-2); }
   #layout-v2.tl-hidden #v2-chart-area {
-    width: calc(100vh - var(--hdr-h) + 124px);
-    max-width: calc(100vw - 180px);
+    width: auto;
   }
   #v2-chart-area #chart-block {
+    width: 100%;
     height: 100%;
-    aspect-ratio: 1 / 1;
-    width: auto;
-    max-width: 100%;
-    margin: 0 0 0 auto;   /* прижать вправо, перекрыть общий margin:0 auto */
+    margin: 0;
     display: flex;
     align-items: center;
     justify-content: center;
   }
   #v2-chart-area #chart-block svg {
+    width: 100% !important;
     height: 100% !important;
-    width: auto !important;
-    max-width: 100%;
+    display: block;
   }
   #v2-aspect-panel {
-    flex: 1;
+    flex: 1 1 31%;
     min-width: 180px;
     max-height: 74vh;
-    overflow-y: auto;
-    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     background: var(--bg-panel-info);
-    border-left: 1px solid var(--bd-light);
+    border-radius: var(--panel-radius);
   }
   #layout-v2.tl-hidden #v2-aspect-panel {
     max-height: calc(100vh - var(--hdr-h));
   }
   #v2-aspect-panel #right-info-content {
+    flex: 1;
+    min-height: 0;
     width: 100%;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
     display: block !important;
   }
   #v2-aspect-panel #aspect-grid {
     overflow-x: hidden;
   }
+  /* ── Панель: шапка + табы (переиспользуемый хром, AE-style) ── */
+  .panel-head {
+    flex: 0 0 30px;
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    background: transparent;
+  }
+  .panel-tabs { display: flex; align-items: stretch; gap: 2px; padding-left: 2px; }
+  .panel-tab {
+    border: 1px solid var(--bd-light);
+    border-bottom: none;
+    border-radius: 0;
+    background: var(--bg-tab);
+    padding: 0 14px;
+    font-size: 0.78em;
+    color: var(--tx-5);
+    cursor: pointer;
+  }
+  .panel-tab:hover:not(.active) { color: var(--tx-3); background: var(--bg-input); }
+  .panel-tab.active {
+    color: var(--tx);
+    background: var(--bg-panel-info);
+  }
+  #right-info-content.rp-aspects #info-table { display: none; }
+  #right-info-content.rp-grades  #aspect-grid { display: none; }
+  #right-info-content.rp-aspects #aspect-grid { margin-top: 0; }
 
   /* ── Заметки ──────────────────────────────────────────────────────────────── */
   #v2-notes-view {
@@ -1128,18 +1157,16 @@
   #note-preview hr { border: none; border-top: 1px solid var(--bd-light); margin: 10px 0; }
   #note-preview a { color: var(--link); }
   #v2-control-panel {
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 210px;
+    flex: 0 0 13%;
+    min-width: 130px;
     z-index: 10;
-    background: transparent;
-    border-right: none;
-    pointer-events: none;
+    background: var(--bg-panel-control);
+    border-radius: var(--panel-radius);
     display: flex;
     flex-direction: column;
     padding: 8px 6px;
     box-sizing: border-box;
-    overflow: visible;
+    overflow: hidden;
   }
   /* группы панели */
   #v2-panel-head {
@@ -1311,7 +1338,7 @@
     padding: 0;
     box-sizing: border-box;
     position: relative;
-    border-top: 1px solid var(--bd-light);
+    border-radius: var(--panel-radius);
   }
   #v2-timeline-wrap {
     height: 100%;
@@ -1862,7 +1889,13 @@
       <div id="chart-block"></div>
     </div>
     <div id="v2-aspect-panel">
-      <div id="right-info-content" style="display:none">
+      <div class="panel-head">
+        <div class="panel-tabs" id="rp-tabs">
+          <button class="panel-tab active" data-rptab="grades" data-i18n="panelTabGrades">Градусы</button>
+          <button class="panel-tab" data-rptab="aspects" data-i18n="panelTabAspects">Аспекты</button>
+        </div>
+      </div>
+      <div id="right-info-content" class="rp-grades" style="display:none">
         <table id="info-table">
           <tbody id="tableBody"></tbody>
         </table>
@@ -2026,7 +2059,7 @@ const STRINGS = {
     homeNothingFound:'Ничего не найдено',
     pinTitle:'Закрепить', unpinTitle:'Открепить', groupTitle:'Группа',
     exactOn:'точный', turnsYears:'исполняется {n}',
-    panelTabData:'Данные', panelTabNotes:'Заметки',
+    panelTabData:'Данные', panelTabNotes:'Заметки', panelTabGrades:'Градусы', panelTabAspects:'Аспекты',
     noteNew:'+ Новая заметка', noteUntitled:'Без названия',
     notesEmpty:'Заметок пока нет',
     notesLoginFirst:'Войдите, чтобы делать заметки',
@@ -2106,7 +2139,7 @@ const STRINGS = {
     homeNothingFound:'Nothing found',
     pinTitle:'Pin', unpinTitle:'Unpin', groupTitle:'Group',
     exactOn:'exact', turnsYears:'turns {n}',
-    panelTabData:'Data', panelTabNotes:'Notes',
+    panelTabData:'Data', panelTabNotes:'Notes', panelTabGrades:'Degrees', panelTabAspects:'Aspects',
     noteNew:'+ New note', noteUntitled:'Untitled',
     notesEmpty:'No notes yet',
     notesLoginFirst:'Sign in to add notes',
@@ -3616,6 +3649,7 @@ function captureState() {
       fastCache: { ...fastCache },
       hiddenTPlants: new Set(hiddenTPlants),
       moonBandCollapsed, tlYearScale, chartExpanded, layout2TlState,
+      rightPanelTab,
     },
   };
 }
@@ -3636,6 +3670,7 @@ function applyState(s) {
   tlYearScale      = u.tlYearScale;
   chartExpanded    = u.chartExpanded;
   layout2TlState   = u.layout2TlState;
+  rightPanelTab    = u.rightPanelTab || 'grades';
 }
 
 function snapshotActiveTab() {
@@ -3667,6 +3702,7 @@ function applyLayout2Classes() {
 // Полная перерисовка V2 из текущих глобалов (natalData уже выставлен)
 function paintActiveChart() {
   applyLayout2Classes();
+  applyRightPanelTab();
   switchToMode(currentMode);
   if (cachedTimeline) {
     const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
@@ -3831,6 +3867,7 @@ function rebuildTabFromFields(t) {
   if (Array.isArray(v.expandedRows))  expandedRows  = new Set(v.expandedRows);
   if (Array.isArray(v.hiddenTPlants)) hiddenTPlants = new Set(v.hiddenTPlants);
   moonBandCollapsed = !!v.moonBandCollapsed;
+  rightPanelTab = v.rightPanelTab || 'grades';
   if (t.header) setV2ChartInfo(t.header.name, t.header.dateTime, t.header.city);
   applyCaseType(t.type);
   cachedTimeline = null;
@@ -3860,6 +3897,7 @@ function stateToView(s) {
     tlYearScale: u.tlYearScale,
     chartExpanded: u.chartExpanded,
     layout2TlState: u.layout2TlState,
+    rightPanelTab: u.rightPanelTab,
   };
 }
 
@@ -3941,6 +3979,28 @@ function applyCaseType(type) {
   const el = document.getElementById('v2-case-type');
   if (el) el.textContent = CASE_TYPE_LABELS[type] || '';
 }
+
+// ── Правая панель: табы Градусы / Аспекты (часть панельной системы, см.
+// WORKSPACE_CONCEPT.md §6, §13). Активный таб хранится в context.ui.rightPanelTab.
+let rightPanelTab = 'grades';   // 'grades' | 'aspects'
+function applyRightPanelTab() {
+  const content = document.getElementById('right-info-content');
+  if (content) {
+    content.classList.remove('rp-grades', 'rp-aspects');
+    content.classList.add(rightPanelTab === 'aspects' ? 'rp-aspects' : 'rp-grades');
+  }
+  document.querySelectorAll('#rp-tabs .panel-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.rptab === rightPanelTab));
+}
+function setRightPanelTab(tab) {
+  rightPanelTab = (tab === 'aspects') ? 'aspects' : 'grades';
+  applyRightPanelTab();
+  persistTabs();
+}
+document.getElementById('rp-tabs')?.addEventListener('click', e => {
+  const btn = e.target.closest('.panel-tab');
+  if (btn) setRightPanelTab(btn.dataset.rptab);
+});
 
 // Кнопки «выход/логотип/домой» уводят на дашборд, не закрывая вкладки
 function exitChartMode(updateHistory = true) {

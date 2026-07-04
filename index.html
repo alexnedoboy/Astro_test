@@ -1152,8 +1152,8 @@
     padding: 0; line-height: 1;
   }
   .panel-head-btn:hover { background: var(--bg-input); color: var(--tx-2); }
-  /* Дропдаун шапки правой группы */
-  #rp-dropdown {
+  /* Дропдауны шапок групп (правая группа, панель Карты) */
+  #rp-dropdown, #chart-dropdown {
     display: none;
     position: absolute;
     top: calc(var(--tab-h) + 3px); right: 6px;
@@ -1166,7 +1166,8 @@
     min-width: 140px;
     flex-direction: column;
   }
-  #rp-dropdown.open { display: flex; }
+  #rp-dropdown.open, #chart-dropdown.open { display: flex; }
+  .rp-dd-sep { height: 1px; background: var(--bd-light); margin: 3px 4px; }
   .rp-dd-item {
     display: flex; align-items: center; gap: 6px;
     padding: 5px 8px; border-radius: 4px;
@@ -1795,12 +1796,6 @@
   </div>
 </div>
 <div id="settings-dropdown">
-  <label id="elem-colors-label" style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
-    <input type="checkbox" id="elemColorsToggle"> <span data-i18n="elements">Стихии</span>
-  </label>
-  <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
-    <input type="checkbox" id="progLunarPhasesToggle"> <span data-i18n="progLunarPhases">Фазы прогр. Луны</span>
-  </label>
   <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
     <input type="checkbox" id="privacyModeToggle"> <span data-i18n="privacyMode">Скрыть имя и дату</span>
   </label>
@@ -1950,13 +1945,12 @@
     </div>
     <div id="v2-chart-area">
       <div class="panel-head">
-        <div class="panel-tabs" id="chart-mode-tabs">
-          <button class="panel-tab mode-tab active" data-mode="natal" data-i18n="v2ModeNatal">Натал</button>
-          <button class="panel-tab mode-tab" data-mode="transit" data-i18n="v2ModeTransit">Транзит</button>
-          <button class="panel-tab mode-tab" data-mode="progressed" data-i18n="v2ModeProgressed">Прогр.</button>
-          <button class="panel-tab mode-tab" data-mode="direction" data-i18n="v2ModeDirection">Дирекц.</button>
+        <div class="panel-tabs" id="chart-mode-tabs"></div>
+        <div class="panel-head-actions">
+          <button class="panel-head-btn" id="chart-menu-btn" data-i18n-title="rpPanelMenu" title="Меню панели">☰</button>
         </div>
       </div>
+      <div id="chart-dropdown"></div>
       <button id="v2-chart-expand-btn" title="Развернуть карту">⤢</button>
       <div id="chart-block"></div>
     </div>
@@ -2378,7 +2372,6 @@ function updateAuthUI(user) {
     const pref = meta?.elementColors ?? (localStorage.getItem('elementColors') === '1');
     elementColorsMode = pref;
     localStorage.setItem('elementColors', pref ? '1' : '0');
-    if (elemColorsToggle) elemColorsToggle.checked = pref;
   } else {
     loginBtn.style.display = '';
     userInfo.style.display = 'none';
@@ -2595,34 +2588,27 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   await sb.auth.signOut();
   closeChartsPanel();
 });
-// ── Element colors toggle ─────────────────────────────────────────────────────
-const elemColorsToggle = document.getElementById('elemColorsToggle');
-
+// ── Настройки отображения карты (живут в меню ☰ панели Карты) ─────────────────
 // Load from localStorage on startup (before auth resolves)
-if (localStorage.getItem('elementColors') === '1') {
-  elementColorsMode = true;
-  elemColorsToggle.checked = true;
-}
+if (localStorage.getItem('elementColors') === '1') elementColorsMode = true;
 
-elemColorsToggle.addEventListener('change', async () => {
-  elementColorsMode = elemColorsToggle.checked;
-  localStorage.setItem('elementColors', elementColorsMode ? '1' : '0');
+async function setElementColorsMode(v) {
+  elementColorsMode = v;
+  localStorage.setItem('elementColors', v ? '1' : '0');
   reRenderCurrentChart();
   // Also save to Supabase user metadata if logged in
   try {
     const { data: { user } } = await sb.auth.getUser();
-    if (user) await sb.auth.updateUser({ data: { elementColors: elementColorsMode } });
+    if (user) await sb.auth.updateUser({ data: { elementColors: v } });
   } catch (e) {}
-});
+}
 
 let showProgLunarPhases = localStorage.getItem('showProgLunarPhases') !== '0';
-const progLunarPhasesToggle = document.getElementById('progLunarPhasesToggle');
-progLunarPhasesToggle.checked = showProgLunarPhases;
-progLunarPhasesToggle.addEventListener('change', () => {
-  showProgLunarPhases = progLunarPhasesToggle.checked;
-  localStorage.setItem('showProgLunarPhases', showProgLunarPhases ? '1' : '0');
+function setShowProgLunarPhases(v) {
+  showProgLunarPhases = v;
+  localStorage.setItem('showProgLunarPhases', v ? '1' : '0');
   if (natalData && currentMode === 'progressed') renderProgressedBiwheel(currentTransitJD);
-});
+}
 
 const privacyModeToggle = document.getElementById('privacyModeToggle');
 privacyModeToggle.checked = localStorage.getItem('privacyMode') === '1';
@@ -3764,6 +3750,7 @@ function captureState() {
       moonBandCollapsed, tlYearScale, chartExpanded, layout2TlState,
       rightPanelTab,
       rightPanelTabs: [...rightPanelTabs],
+      chartModeTabs: [...chartModeTabs],
     },
   };
 }
@@ -3786,6 +3773,7 @@ function applyState(s) {
   layout2TlState   = u.layout2TlState;
   rightPanelTabs   = sanitizeRpTabs(u.rightPanelTabs);
   rightPanelTab    = u.rightPanelTab || 'grades';
+  chartModeTabs    = sanitizeChartModeTabs(u.chartModeTabs);
 }
 
 function snapshotActiveTab() {
@@ -3820,6 +3808,7 @@ function applyLayout2Classes() {
 function paintActiveChart() {
   applyLayout2Classes();
   applyRightPanelTab();
+  applyChartModeTabs();
   switchToMode(currentMode);
   if (cachedTimeline) {
     const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
@@ -4132,6 +4121,7 @@ function rebuildTabFromFields(t) {
   moonBandCollapsed = !!v.moonBandCollapsed;
   rightPanelTabs = sanitizeRpTabs(v.rightPanelTabs);
   rightPanelTab = v.rightPanelTab || 'grades';
+  chartModeTabs = sanitizeChartModeTabs(v.chartModeTabs);
   if (t.header) setV2ChartInfo(t.header.name, t.header.dateTime, t.header.city);
   applyCaseType(t.type);
   cachedTimeline = null;
@@ -4163,6 +4153,7 @@ function stateToView(s) {
     layout2TlState: u.layout2TlState,
     rightPanelTab: u.rightPanelTab,
     rightPanelTabs: u.rightPanelTabs ? [...u.rightPanelTabs] : undefined,
+    chartModeTabs: u.chartModeTabs ? [...u.chartModeTabs] : undefined,
   };
 }
 
@@ -4369,6 +4360,87 @@ document.getElementById('rp-menu-btn')?.addEventListener('click', e => {
 });
 document.addEventListener('click', e => {
   if (!e.target.closest('#rp-dropdown')) closeRpDropdown();
+  if (!e.target.closest('#chart-dropdown')) closeChartDropdown();
+});
+
+// ── Панель Карты: состав табов-режимов + меню ☰ (аналогично правой группе) ────
+// chartModeTabs — какие производные карты показывать табами (натал всегда есть).
+// Часть context.ui, персистится per-case.
+const CHART_MODE_ALL  = ['transit', 'progressed', 'direction'];
+const MODE_TAB_I18N   = {
+  natal: 'v2ModeNatal', transit: 'v2ModeTransit',
+  progressed: 'v2ModeProgressed', direction: 'v2ModeDirection',
+};
+let chartModeTabs = [...CHART_MODE_ALL];
+
+function sanitizeChartModeTabs(arr) {
+  return Array.isArray(arr) ? CHART_MODE_ALL.filter(m => arr.includes(m)) : [...CHART_MODE_ALL];
+}
+
+function applyChartModeTabs() {
+  const wrap = document.getElementById('chart-mode-tabs');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  for (const m of ['natal', ...CHART_MODE_ALL.filter(x => chartModeTabs.includes(x))]) {
+    const b = document.createElement('button');
+    b.className = 'panel-tab mode-tab' + (m === currentMode ? ' active' : '');
+    b.dataset.mode = m;
+    b.setAttribute('data-i18n', MODE_TAB_I18N[m]);
+    b.textContent = tr(MODE_TAB_I18N[m]);
+    wrap.appendChild(b);
+  }
+}
+
+function toggleChartModeTab(m) {
+  const i = chartModeTabs.indexOf(m);
+  if (i >= 0) {
+    chartModeTabs.splice(i, 1);
+    if (currentMode === m) switchToMode('natal');   // активный режим убрали
+  } else {
+    chartModeTabs.push(m);
+  }
+  applyChartModeTabs();
+  persistTabs();
+}
+
+function closeChartDropdown() {
+  document.getElementById('chart-dropdown')?.classList.remove('open');
+}
+// Меню остаётся открытым после клика по пункту (удобно переключать несколько)
+function renderChartMenu() {
+  const dd = document.getElementById('chart-dropdown');
+  if (!dd) return;
+  dd.innerHTML = '';
+  const mkItem = (label, checked, onClick) => {
+    const item = document.createElement('div');
+    item.className = 'rp-dd-item';
+    const mark = document.createElement('span');
+    mark.className = 'rp-dd-check';
+    mark.textContent = checked ? '✓' : '';
+    const lbl = document.createElement('span');
+    lbl.textContent = label;
+    item.append(mark, lbl);
+    item.addEventListener('click', e => {
+      e.stopPropagation();
+      onClick();
+      renderChartMenu();
+    });
+    dd.appendChild(item);
+  };
+  for (const m of CHART_MODE_ALL)
+    mkItem(tr(MODE_TAB_I18N[m]), chartModeTabs.includes(m), () => toggleChartModeTab(m));
+  const sep = document.createElement('div');
+  sep.className = 'rp-dd-sep';
+  dd.appendChild(sep);
+  mkItem(tr('elements'), elementColorsMode, () => setElementColorsMode(!elementColorsMode));
+  mkItem(tr('progLunarPhases'), showProgLunarPhases, () => setShowProgLunarPhases(!showProgLunarPhases));
+}
+document.getElementById('chart-menu-btn')?.addEventListener('click', e => {
+  e.stopPropagation();
+  const dd = document.getElementById('chart-dropdown');
+  if (dd?.classList.contains('open')) { closeChartDropdown(); return; }
+  renderChartMenu();
+  dd.classList.add('open');
 });
 
 // Кнопки «выход/логотип/домой» уводят на дашборд, не закрывая вкладки
@@ -4504,6 +4576,7 @@ function computeAndRenderNatal() {
     setV2ChartInfo(chartName, dateTime, document.getElementById('birthPlace').value.trim());
     applyCaseType(tabs[activeTab]?.type || 'natal');
     applyRightPanelTab();
+    applyChartModeTabs();
     applyLayout2Classes();
 
     renderChart(planets, cusps, asc, mc);

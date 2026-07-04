@@ -61,6 +61,12 @@
 - `.tl-expanded` — таймлайн развёрнут
 - `.tl-hidden` — таймлайн скрыт, карта на всю высоту
 
+### Палитра (`#palette-view`)
+Кнопка `+` таб-бара открывает пустую вкладку с палитрой (создать/открыть кейс, WORKSPACE_CONCEPT §8).
+У вкладки поле `kind: 'palette' | undefined`; выбор карты или расчёт формы превращает её во вкладку
+кейса в том же слоте (`choosePaletteChart` / `computeIntoPaletteTab`). Snapshot и hash для палитры
+не пишутся. Список карт — из `_homeCharts` (pinned → `last_opened_at`).
+
 ### Правая группа виджетов (`#v2-aspect-panel`)
 Группа переключаемых виджетов-табов (см. WORKSPACE_CONCEPT.md §6, §13):
 - Реестр `RP_WIDGETS`: `grades` (таблица планет) / `aspects` (сетка) / `notes` (заметки) —

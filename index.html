@@ -937,6 +937,69 @@
   }
   #layout-v2.v2-visible { display: flex; }
 
+  /* ── Палитра (пустая вкладка) ─────────────────────────────────────────────── */
+  #palette-view {
+    display: none;
+    position: fixed;
+    top: var(--hdr-h); left: var(--sidebar-w); right: 0; bottom: 0;
+    overflow-y: auto;
+    background: var(--bg-app);
+    z-index: 100;
+  }
+  #palette-view.open { display: block; }
+  #palette-inner {
+    max-width: 440px;
+    margin: 0 auto;
+    padding: 9vh 20px 40px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  #palette-cmds { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
+  .palette-cmd {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg); border: 1px solid var(--bd-light);
+    border-radius: 8px;
+    font-size: 0.92em; color: var(--tx-2); text-align: left;
+    cursor: pointer;
+  }
+  .palette-cmd:hover:not(.disabled) { background: var(--bg-hover); border-color: var(--bd); }
+  .palette-cmd.disabled { opacity: 0.45; cursor: default; }
+  .palette-cmd-glyph { width: 20px; text-align: center; font-size: 1.05em; color: var(--tx-4); flex: 0 0 auto; }
+  .palette-soon {
+    margin-left: auto; font-size: 0.72em; color: var(--tx-7);
+    border: 1px solid var(--bd-light); border-radius: 4px; padding: 1px 6px;
+  }
+  #palette-search {
+    box-sizing: border-box; width: 100%;
+    padding: 9px 12px;
+    background: var(--bg-input); border: 1px solid var(--bd-input);
+    border-radius: 8px;
+    font: inherit; font-size: 0.9em; color: var(--tx);
+    outline: none;
+  }
+  #palette-search:focus { border-color: var(--accent); }
+  #palette-list { margin-top: 6px; display: flex; flex-direction: column; }
+  .palette-item {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--bd-light);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .palette-item:hover, .palette-item.kb-active { background: var(--bg-hover); }
+  .palette-item-name {
+    font-size: 0.9em; color: var(--tx-2); font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .palette-item-pin { flex: 0 0 auto; font-size: 0.8em; color: var(--tx-6); }
+  .palette-item-meta {
+    margin-left: auto; flex: 0 0 auto;
+    font-size: 0.76em; color: var(--tx-7); white-space: nowrap;
+  }
+  #palette-list .palette-empty {
+    font-size: 0.82em; color: var(--tx-7); text-align: center; padding: 18px 4px;
+  }
+
   #v2-top {
     flex: 0 0 74vh;
     display: flex;
@@ -1917,6 +1980,27 @@
     </div>
   </div>
 </div>
+<!-- ── Палитра: пустая вкладка «создать или открыть» (WORKSPACE_CONCEPT §8) ──── -->
+<div id="palette-view">
+  <div id="palette-inner">
+    <div id="palette-cmds">
+      <button class="palette-cmd" data-cmd="natal">
+        <span class="palette-cmd-glyph">☉&#xFE0E;</span><span data-i18n="paletteCmdNatal">Новая карта</span>
+      </button>
+      <button class="palette-cmd disabled" data-cmd="synastry">
+        <span class="palette-cmd-glyph">⚯&#xFE0E;</span><span data-i18n="paletteCmdSynastry">Синастрия</span><span class="palette-soon" data-i18n="paletteSoon">скоро</span>
+      </button>
+      <button class="palette-cmd disabled" data-cmd="horary">
+        <span class="palette-cmd-glyph">?</span><span data-i18n="paletteCmdHorary">Хорар</span><span class="palette-soon" data-i18n="paletteSoon">скоро</span>
+      </button>
+      <button class="palette-cmd disabled" data-cmd="election">
+        <span class="palette-cmd-glyph">⏱&#xFE0E;</span><span data-i18n="paletteCmdElection">Элекция</span><span class="palette-soon" data-i18n="paletteSoon">скоро</span>
+      </button>
+    </div>
+    <input id="palette-search" data-i18n-placeholder="paletteSearchPh" placeholder="Открыть карту…" autocomplete="off">
+    <div id="palette-list"></div>
+  </div>
+</div>
 <!-- ── Sky Now Layout ────────────────────────────────────────────────────────── -->
 <div id="sky-layout">
   <div id="sky-top">
@@ -2045,6 +2129,10 @@ const STRINGS = {
     error:'Ошибка: ', saved:'✓ Сохранено', saveError:'Ошибка',
     saving:'Сохранить', computingTransits:'Вычисление транзитов…', tlAngles:'Углы',
     rpAddWidget:'Добавить виджет', rpPanelMenu:'Меню панели',
+    paletteNewTab:'Новая вкладка', paletteCmdNatal:'Новая карта', paletteCmdSynastry:'Синастрия',
+    paletteCmdHorary:'Хорар', paletteCmdElection:'Элекция', paletteSoon:'скоро',
+    paletteSearchPh:'Открыть карту…', paletteLoginHint:'Войдите, чтобы видеть сохранённые карты',
+    paletteNoResults:'Ничего не найдено',
     noTransits:'Нет активных транзитов в этом периоде.',
     computingDots:'вычисление…', noFastTransits:'нет быстрых транзитов',
     noChartData:'Нет данных карты', computingForecast:'Вычисление…',
@@ -2126,6 +2214,10 @@ const STRINGS = {
     error:'Error: ', saved:'✓ Saved', saveError:'Error',
     saving:'Save', computingTransits:'Computing transits…', tlAngles:'Angles',
     rpAddWidget:'Add widget', rpPanelMenu:'Panel menu',
+    paletteNewTab:'New tab', paletteCmdNatal:'New chart', paletteCmdSynastry:'Synastry',
+    paletteCmdHorary:'Horary', paletteCmdElection:'Election', paletteSoon:'soon',
+    paletteSearchPh:'Open a chart…', paletteLoginHint:'Sign in to see saved charts',
+    paletteNoResults:'Nothing found',
     noTransits:'No active transits in this period.',
     computingDots:'computing…', noFastTransits:'no fast transits',
     noChartData:'No chart data', computingForecast:'Computing…',
@@ -2862,6 +2954,8 @@ function openChartInTab(c, newTab = false) {
   currentTransitJD = null; chartExpanded = false; layout2TlState = 0; tlYearScale = false;
   if (!computeAndRenderNatal()) return;
   const t = tabs[activeTab];
+  delete t.kind;             // вкладка-палитра становится вкладкой кейса
+  t.type    = t.type ?? 'natal';
   t.chartId = c.id ?? null;
   t.fields  = readFormFields();
   t.header  = readHeader();
@@ -3666,6 +3760,7 @@ function applyState(s) {
 
 function snapshotActiveTab() {
   if (activeTab < 0 || !tabs[activeTab]) return;
+  if (tabs[activeTab].kind === 'palette') return;   // у палитры нет состояния кейса
   const t = tabs[activeTab];
   t.chartId = currentChartId;
   t.st      = captureState();
@@ -3677,6 +3772,7 @@ function snapshotActiveTab() {
 function applyLayout2Classes() {
   const v2 = document.getElementById('layout-v2');
   hideHome();
+  hidePaletteView();
   v2.classList.add('v2-visible');
   v2.classList.remove(...V2_TL_STATES, 'tl-hidden');
   if (chartExpanded) {
@@ -3710,7 +3806,8 @@ function renderTabBar() {
     const tab = document.createElement('div');
     tab.className = 'app-tab' + (!dashboardOpen && i === activeTab ? ' active' : '');
     tab.innerHTML = `<span class="app-tab-name"></span><button class="app-tab-close" title="Закрыть">✕</button>`;
-    tab.querySelector('.app-tab-name').textContent = t.header?.name || t.fields?.name || '—';
+    tab.querySelector('.app-tab-name').textContent =
+      t.kind === 'palette' ? tr('paletteNewTab') : (t.header?.name || t.fields?.name || '—');
     tab.addEventListener('click', () => switchTab(i));
     tab.querySelector('.app-tab-close').addEventListener('click', e => {
       e.stopPropagation();
@@ -3726,6 +3823,14 @@ function showTab(i) {
   if (!t) return;
   activeTab = i;
   dashboardOpen = false;
+  if (t.kind === 'palette') {
+    showPaletteView();
+    updateHashForActiveTab(false);
+    renderTabBar();
+    persistTabs();
+    return;
+  }
+  hidePaletteView();
   writeFormFields(t.fields);
   currentChartId = t.chartId ?? null;
   setV2ChartInfo(t.header?.name, t.header?.dateTime, t.header?.city);
@@ -3803,6 +3908,7 @@ function goDashboard(push = true) {
   dashboardOpen = true;
   document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', ...V2_TL_STATES);
   layout2Active = false;
+  hidePaletteView();
   resetNotesState();
   showHome();
   if (push) history.pushState('', document.title, window.location.pathname + window.location.search);
@@ -3813,6 +3919,7 @@ function goDashboard(push = true) {
 // Полный выход на дашборд без вкладок
 function fullExitToHome(push = true) {
   resetNotesState();
+  hidePaletteView();
   currentChartId = null;
   if (push) history.pushState('', document.title, window.location.pathname + window.location.search);
   document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', ...V2_TL_STATES);
@@ -3826,6 +3933,141 @@ function fullExitToHome(push = true) {
   persistTabs();
   renderTabBar();
 }
+
+// ── Палитра: пустая вкладка «создать или открыть» (WORKSPACE_CONCEPT §8) ──────
+// Вкладка с kind:'palette' не имеет кейса; выбор команды или карты превращает её
+// во вкладку кейса (kind снимается). Snapshot/hash для палитры не пишутся.
+let _paletteKb = 0;   // индекс подсвеченного элемента списка (клавиатура)
+
+function openPaletteTab() {
+  if (!dashboardOpen && activeTab >= 0) snapshotActiveTab();
+  tabs.push({ uid: ++_tabUid, kind: 'palette' });
+  showTab(tabs.length - 1);
+}
+
+function showPaletteView() {
+  hideHome();
+  document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', ...V2_TL_STATES);
+  layout2Active = false;
+  document.getElementById('palette-view').classList.add('open');
+  const inp = document.getElementById('palette-search');
+  inp.value = '';
+  _paletteKb = 0;
+  renderPaletteList();
+  if (currentUser && !_homeCharts.length) loadHomeCharts().then(renderPaletteList);
+  setTimeout(() => inp.focus(), 0);
+}
+
+function hidePaletteView() {
+  document.getElementById('palette-view')?.classList.remove('open');
+}
+
+function paletteFiltered() {
+  const q = document.getElementById('palette-search').value.trim().toLowerCase();
+  let arr = _homeCharts;
+  if (q) arr = arr.filter(c =>
+    (c.name ?? '').toLowerCase().includes(q) || (c.city ?? '').toLowerCase().includes(q));
+  return [...arr]
+    .sort((a, b) => (b.pinned === true) - (a.pinned === true) || homeChartTs(b) - homeChartTs(a))
+    .slice(0, 30);
+}
+
+function renderPaletteList() {
+  const list = document.getElementById('palette-list');
+  list.innerHTML = '';
+  const empty = msg => {
+    const d = document.createElement('div');
+    d.className = 'palette-empty';
+    d.textContent = msg;
+    list.appendChild(d);
+  };
+  if (!currentUser) { empty(tr('paletteLoginHint')); return; }
+  const arr = paletteFiltered();
+  if (!arr.length) { empty(tr('paletteNoResults')); return; }
+  _paletteKb = Math.max(0, Math.min(_paletteKb, arr.length - 1));
+  arr.forEach((c, i) => {
+    const item = document.createElement('div');
+    item.className = 'palette-item' + (i === _paletteKb ? ' kb-active' : '');
+    if (c.pinned) {
+      const pin = document.createElement('span');
+      pin.className = 'palette-item-pin';
+      pin.textContent = '★';
+      item.appendChild(pin);
+    }
+    const name = document.createElement('span');
+    name.className = 'palette-item-name';
+    name.textContent = c.name || tr('chartFallback');
+    const meta = document.createElement('span');
+    meta.className = 'palette-item-meta';
+    meta.textContent = [
+      c.birth_date ? c.birth_date.split('-').reverse().join('.') : '',
+      c.city || '',
+    ].filter(Boolean).join(' · ');
+    item.append(name, meta);
+    item.addEventListener('click', () => choosePaletteChart(c));
+    list.appendChild(item);
+  });
+}
+
+// Выбор карты в палитре: открыть в этой же вкладке; если карта уже открыта
+// в другой вкладке — перейти туда, а осиротевшую палитру закрыть.
+function choosePaletteChart(c) {
+  const cur = activeTab;
+  const ex = tabs.findIndex(t => t.chartId && t.chartId === c.id);
+  if (ex >= 0 && ex !== cur) {
+    tabs.splice(cur, 1);
+    hidePaletteView();
+    markChartOpened(c);
+    showTab(ex > cur ? ex - 1 : ex);
+    return;
+  }
+  openChartInTab(c, false);
+}
+
+// Конструктор, запущенный из палитры: кейс рождается в той же вкладке
+function computeIntoPaletteTab() {
+  const t = tabs[activeTab];
+  currentChartId = null;
+  currentTransitJD = null;
+  chartExpanded = false;
+  layout2TlState = 0;
+  tlYearScale = false;
+  if (!computeAndRenderNatal()) return;
+  delete t.kind;
+  t.type    = 'natal';
+  t.chartId = null;
+  t.fields  = readFormFields();
+  t.header  = readHeader();
+  t.st      = captureState();
+  resetNotesState();
+  updateHashForActiveTab(true);
+  persistTabs();
+  renderTabBar();
+}
+
+document.getElementById('palette-cmds').addEventListener('click', e => {
+  const btn = e.target.closest('.palette-cmd');
+  if (!btn || btn.classList.contains('disabled')) return;
+  if (btn.dataset.cmd === 'natal') openNewChartModal();
+});
+document.getElementById('palette-search').addEventListener('input', () => {
+  _paletteKb = 0;
+  renderPaletteList();
+});
+document.getElementById('palette-search').addEventListener('keydown', e => {
+  const arr = paletteFiltered();
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _paletteKb = Math.min(_paletteKb + 1, Math.max(arr.length - 1, 0));
+    renderPaletteList();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _paletteKb = Math.max(_paletteKb - 1, 0);
+    renderPaletteList();
+  } else if (e.key === 'Enter' && arr.length) {
+    choosePaletteChart(arr[_paletteKb] ?? arr[0]);
+  }
+});
 
 function updateHashForActiveTab(push = false) {
   const t = tabs[activeTab];
@@ -3895,6 +4137,7 @@ function stateToView(s) {
 }
 
 function tabToStorage(t, live) {
+  if (t.kind === 'palette') return { kind: 'palette' };
   if (live) {
     return { chartId: currentChartId ?? null, fields: readFormFields(), header: readHeader(), view: stateToView(captureState()), type: t.type ?? 'natal' };
   }
@@ -3917,15 +4160,17 @@ function restoreTabs() {
   let data;
   try { data = JSON.parse(localStorage.getItem(TABS_LS_KEY)); } catch { return; }
   if (!data || !Array.isArray(data.tabs) || !data.tabs.length) return;
-  tabs = data.tabs.map(d => ({
-    uid: ++_tabUid,
-    chartId: d.chartId ?? null,
-    fields: d.fields || null,
-    header: d.header || null,
-    st: null,                 // ленивая — построим при первом показе
-    view: d.view || null,
-    type: d.type ?? 'natal',
-  }));
+  tabs = data.tabs.map(d => d.kind === 'palette'
+    ? { uid: ++_tabUid, kind: 'palette' }
+    : {
+        uid: ++_tabUid,
+        chartId: d.chartId ?? null,
+        fields: d.fields || null,
+        header: d.header || null,
+        st: null,                 // ленивая — построим при первом показе
+        view: d.view || null,
+        type: d.type ?? 'natal',
+      });
   activeTab = (typeof data.activeTab === 'number' && data.activeTab < tabs.length) ? data.activeTab : 0;
   dashboardOpen = data.dashboardOpen !== false;   // по умолчанию показываем дашборд
   renderTabBar();
@@ -4257,6 +4502,9 @@ document.getElementById('calcBtn').addEventListener('click', () => {
       persistTabs();
       renderTabBar();
     }
+  } else if (!dashboardOpen && tabs[activeTab]?.kind === 'palette') {
+    // Конструктор из палитры — кейс рождается в этой же вкладке
+    computeIntoPaletteTab();
   } else {
     // Новая карта из формы — отдельная несохранённая вкладка
     openNewTabFromForm(null);
@@ -7869,8 +8117,8 @@ document.getElementById('left-panel-sort').addEventListener('change', e => {
 });
 
 document.getElementById('tab-add-btn').addEventListener('click', () => {
-  // Открыть форму новой карты как модалку, не закрывая текущие вкладки
-  openNewChartModal();
+  // Новая пустая вкладка с палитрой (создать или открыть кейс)
+  openPaletteTab();
 });
 
 document.getElementById('v2-edit-btn').addEventListener('click', enterEditMode);

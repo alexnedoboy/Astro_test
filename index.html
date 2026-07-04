@@ -993,11 +993,9 @@
     min-width: 0;
     overflow: hidden;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
     background: var(--bg-panel-chart);
     border-radius: var(--panel-radius);
-    padding: 8px;
     box-sizing: border-box;
     position: relative;
   }
@@ -1012,12 +1010,16 @@
   }
   #v2-chart-expand-btn:hover { opacity: 1; background: var(--bg-hover); color: var(--tx-2); }
   #layout-v2.tl-hidden #v2-chart-area {
-    width: auto;
+    flex: 0 1 auto;
+    width: calc(100vh - var(--hdr-h) - 50px);
+    max-width: 100%;
   }
   #v2-chart-area #chart-block {
+    flex: 1;
+    min-height: 0;
     width: 100%;
-    height: 100%;
     margin: 0;
+    padding: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1038,6 +1040,7 @@
     border-radius: var(--panel-radius);
   }
   #layout-v2.tl-hidden #v2-aspect-panel {
+    flex: 1 1 auto;
     max-height: calc(100vh - var(--hdr-h));
   }
   #v2-aspect-panel #right-info-content {
@@ -1856,13 +1859,6 @@
         </div>
       </div>
       <div class="v2-ctrl-sep"></div>
-      <div id="v2-panel-modes">
-        <button class="v2-mode-btn" data-mode="natal" data-i18n="v2ModeNatal">Натал</button>
-        <button class="v2-mode-btn" data-mode="transit" data-i18n="v2ModeTransit">Транзит</button>
-        <button class="v2-mode-btn" data-mode="progressed" data-i18n="v2ModeProgressed">Прогр.</button>
-        <button class="v2-mode-btn" data-mode="direction" data-i18n="v2ModeDirection">Дирекц.</button>
-      </div>
-      <div class="v2-ctrl-sep"></div>
       <div id="v2-panel-nav">
         <button id="v2-nav-date-lbl" style="display:none">
           <span id="v2-nav-date-text"></span>
@@ -1885,6 +1881,14 @@
       <div class="v2-ctrl-spacer"></div>
     </div>
     <div id="v2-chart-area">
+      <div class="panel-head">
+        <div class="panel-tabs" id="chart-mode-tabs">
+          <button class="panel-tab mode-tab active" data-mode="natal" data-i18n="v2ModeNatal">Натал</button>
+          <button class="panel-tab mode-tab" data-mode="transit" data-i18n="v2ModeTransit">Транзит</button>
+          <button class="panel-tab mode-tab" data-mode="progressed" data-i18n="v2ModeProgressed">Прогр.</button>
+          <button class="panel-tab mode-tab" data-mode="direction" data-i18n="v2ModeDirection">Дирекц.</button>
+        </div>
+      </div>
       <button id="v2-chart-expand-btn" title="Развернуть карту">⤢</button>
       <div id="chart-block"></div>
     </div>
@@ -7558,7 +7562,7 @@ function renderLongTermTimeline({ dirEvents, progEvents, transitData, jdStart, j
 // ── Layout V2 ─────────────────────────────────────────────────────────────────
 
 function syncV2ModeButtons() {
-  document.querySelectorAll('.v2-mode-btn').forEach(btn =>
+  document.querySelectorAll('.mode-tab').forEach(btn =>
     btn.classList.toggle('active', btn.dataset.mode === currentMode)
   );
 }
@@ -7607,6 +7611,10 @@ function syncV2DateLabel() {
   }
 }
 
+document.getElementById('chart-mode-tabs').addEventListener('click', e => {
+  const modeBtn = e.target.closest('.mode-tab');
+  if (modeBtn) switchToMode(modeBtn.dataset.mode);
+});
 document.getElementById('v2-control-panel').addEventListener('click', e => {
   const modeBtn = e.target.closest('.v2-mode-btn');
   if (modeBtn) {

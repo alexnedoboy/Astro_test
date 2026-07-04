@@ -1111,9 +1111,32 @@
   }
   .panel-tab.active::before,
   .panel-tab.active + .panel-tab::before { background: transparent; }
+  #right-info-content #dignities-view { display: none; }
   #right-info-content.rp-aspects #info-table { display: none; }
   #right-info-content.rp-grades  #aspect-grid { display: none; }
   #right-info-content.rp-aspects #aspect-grid { margin-top: 0; }
+  #right-info-content.rp-dignities #info-table,
+  #right-info-content.rp-dignities #aspect-grid { display: none; }
+  #right-info-content.rp-dignities #dignities-view { display: block; }
+  /* Таблица достоинств */
+  #dig-daynight { font-size: 0.76em; color: var(--tx-7); padding: 8px 10px 2px; }
+  #dig-table { width: 100%; border-collapse: collapse; font-size: 0.8em; }
+  #dig-table th {
+    font-weight: 500; color: var(--tx-7); padding: 5px 2px;
+    text-align: center; border-bottom: 1px solid var(--bd-light);
+    font-size: 0.9em;
+  }
+  #dig-table td {
+    padding: 5px 2px; text-align: center; color: var(--tx-6);
+    border-bottom: 1px solid var(--bd-light);
+  }
+  #dig-table td.dig-planet { text-align: left; padding-left: 10px; font-size: 1.15em; color: var(--tx-2); }
+  #dig-table td.dig-pos    { color: var(--tx-4); white-space: nowrap; }
+  #dig-table .dig-own      { color: var(--tx); font-weight: 700; }
+  #dig-table td.dig-score  { font-weight: 600; }
+  #dig-table .dig-score-pos { color: var(--ok); }
+  #dig-table .dig-score-neg { color: var(--danger); }
+  #dig-table .dig-peregrine { font-size: 0.78em; font-weight: 400; color: var(--tx-7); font-style: italic; }
   #v2-aspect-panel.rp-show-notes #right-info-content { display: none !important; }
   #v2-aspect-panel.rp-show-notes #v2-notes-view { display: flex; }
   /* Кнопки шапки группы: + (добавить виджет) и ☰ (меню панели) */
@@ -1951,6 +1974,7 @@
           <tbody id="tableBody"></tbody>
         </table>
         <div id="aspect-grid"></div>
+        <div id="dignities-view"></div>
       </div>
       <div id="v2-notes-view">
         <div id="notes-msg"></div>
@@ -2133,6 +2157,9 @@ const STRINGS = {
     paletteCmdHorary:'Хорар', paletteCmdElection:'Элекция', paletteSoon:'скоро',
     paletteSearchPh:'Открыть карту…', paletteLoginHint:'Войдите, чтобы видеть сохранённые карты',
     paletteNoResults:'Ничего не найдено',
+    panelTabDignities:'Достоинства', digDayChart:'Дневная карта', digNightChart:'Ночная карта',
+    digColDom:'Об', digColExalt:'Экз', digColTrip:'Трип', digColTerm:'Терм', digColFace:'Фас',
+    digPeregrine:'перегрин',
     noTransits:'Нет активных транзитов в этом периоде.',
     computingDots:'вычисление…', noFastTransits:'нет быстрых транзитов',
     noChartData:'Нет данных карты', computingForecast:'Вычисление…',
@@ -2218,6 +2245,9 @@ const STRINGS = {
     paletteCmdHorary:'Horary', paletteCmdElection:'Election', paletteSoon:'soon',
     paletteSearchPh:'Open a chart…', paletteLoginHint:'Sign in to see saved charts',
     paletteNoResults:'Nothing found',
+    panelTabDignities:'Dignities', digDayChart:'Day chart', digNightChart:'Night chart',
+    digColDom:'Dom', digColExalt:'Exal', digColTrip:'Trip', digColTerm:'Term', digColFace:'Face',
+    digPeregrine:'peregrine',
     noTransits:'No active transits in this period.',
     computingDots:'computing…', noFastTransits:'no fast transits',
     noChartData:'No chart data', computingForecast:'Computing…',
@@ -4223,9 +4253,10 @@ function applyCaseType(type) {
 // context.ui, персистятся per-case. Реестр RP_WIDGETS — точка добавления новых
 // виджетов (достоинства, мидпойнты и т.д.).
 const RP_WIDGETS = {
-  grades:  { i18n: 'panelTabGrades'  },
-  aspects: { i18n: 'panelTabAspects' },
-  notes:   { i18n: 'panelTabNotes'   },
+  grades:    { i18n: 'panelTabGrades'     },
+  aspects:   { i18n: 'panelTabAspects'    },
+  dignities: { i18n: 'panelTabDignities'  },
+  notes:     { i18n: 'panelTabNotes'      },
 };
 const RP_DEFAULT_TABS = ['grades', 'aspects', 'notes'];
 let rightPanelTabs = [...RP_DEFAULT_TABS];
@@ -4255,9 +4286,10 @@ function applyRightPanelTab() {
   const showNotes = rightPanelTab === 'notes';
   panel?.classList.toggle('rp-show-notes', showNotes);
   if (content && !showNotes) {
-    content.classList.remove('rp-grades', 'rp-aspects');
-    content.classList.add(rightPanelTab === 'aspects' ? 'rp-aspects' : 'rp-grades');
+    content.classList.remove('rp-grades', 'rp-aspects', 'rp-dignities');
+    content.classList.add('rp-' + (RP_WIDGETS[rightPanelTab] ? rightPanelTab : 'grades'));
   }
+  if (rightPanelTab === 'dignities') renderDignities();
   const addBtn = document.getElementById('rp-add-btn');
   if (addBtn) addBtn.style.display =
     Object.keys(RP_WIDGETS).some(id => !rightPanelTabs.includes(id)) ? '' : 'none';
@@ -5087,6 +5119,115 @@ function setInfoTableMode(mode) {
   if (!t) return;
   t.classList.toggle('mode-biwheel', mode === 'biwheel' || mode === 'biwheel-houses');
   t.classList.toggle('mode-biwheel-houses', mode === 'biwheel-houses');
+}
+
+// ── Виджет «Достоинства»: эссенциальные достоинства классической семёрки ──────
+// Обитель +5 / изгнание −5, экзальтация +4 / падение −4, триплицитет (Доротей,
+// день/ночь) +3, терм (египетские) +2, фас (халдейский ряд) +1. Перегрин — нет
+// ни одного положительного достоинства. Читает наталData (натал, не транзиты).
+
+const DIG_SIGN_RULERS = [4, 3, 2, 1, 0, 2, 3, 4, 5, 6, 6, 5]; // Овен..Рыбы → id управителя
+const DIG_EXALT_SIGN  = { 0: 0, 1: 1, 2: 5, 3: 11, 4: 9, 5: 3, 6: 6 }; // планета → знак экзальтации
+// Триплицитеты по стихии (sign % 4): [дневной, ночной] управитель
+const DIG_TRIPLICITY  = [[0, 5], [3, 1], [6, 2], [3, 4]];
+// Египетские термы: [верхняя граница градуса, id планеты]
+const DIG_TERMS = [
+  [[6,5],[12,3],[20,2],[25,4],[30,6]],  // Овен
+  [[8,3],[14,2],[22,5],[27,6],[30,4]],  // Телец
+  [[6,2],[12,5],[17,3],[24,4],[30,6]],  // Близнецы
+  [[7,4],[13,3],[19,2],[26,5],[30,6]],  // Рак
+  [[6,5],[11,3],[18,6],[24,2],[30,4]],  // Лев
+  [[7,2],[17,3],[21,5],[28,4],[30,6]],  // Дева
+  [[6,6],[14,2],[21,5],[28,3],[30,4]],  // Весы
+  [[7,4],[11,3],[19,2],[24,5],[30,6]],  // Скорпион
+  [[12,5],[17,3],[21,2],[26,6],[30,4]], // Стрелец
+  [[7,2],[14,5],[22,3],[26,6],[30,4]],  // Козерог
+  [[7,2],[13,3],[20,5],[25,4],[30,6]],  // Водолей
+  [[12,3],[16,5],[19,2],[28,4],[30,6]], // Рыбы
+];
+const DIG_FACES = [4, 0, 3, 2, 1, 6, 5]; // халдейский ряд: Марс Солнце Венера Меркурий Луна Сатурн Юпитер
+
+function digGlyph(id) { return PLANETS.find(p => p.id === id)?.glyph ?? ''; }
+
+// Достоинства планеты id на долготе lon (isDay — дневная карта)
+function computeDignities(id, lon, isDay) {
+  const sign  = Math.floor((((lon % 360) + 360) % 360) / 30);
+  const inDeg = ((lon % 360) + 360) % 360 - sign * 30;   // градус внутри знака
+  const domicile = DIG_SIGN_RULERS[sign];
+  const detriment = DIG_SIGN_RULERS[(sign + 6) % 12];
+  const exaltHere = Object.entries(DIG_EXALT_SIGN).find(([, s]) => s === sign)?.[0];
+  const exalt = exaltHere != null ? Number(exaltHere) : null;
+  const fallHere = Object.entries(DIG_EXALT_SIGN).find(([, s]) => (s + 6) % 12 === sign)?.[0];
+  const fall = fallHere != null ? Number(fallHere) : null;
+  const trip = DIG_TRIPLICITY[sign % 4][isDay ? 0 : 1];
+  const term = DIG_TERMS[sign].find(([limit]) => inDeg < limit)?.[1] ?? DIG_TERMS[sign][4][1];
+  const face = DIG_FACES[(sign * 3 + Math.floor(inDeg / 10)) % 7];
+  let score = 0;
+  if (id === domicile) score += 5;
+  if (id === detriment) score -= 5;
+  if (exalt === id) score += 4;
+  if (fall === id) score -= 4;
+  if (id === trip) score += 3;
+  if (id === term) score += 2;
+  if (id === face) score += 1;
+  const peregrine = id !== domicile && exalt !== id && id !== trip && id !== term && id !== face;
+  return { sign, inDeg, domicile, exalt, trip, term, face, score, peregrine };
+}
+
+function renderDignities() {
+  const view = document.getElementById('dignities-view');
+  if (!view) return;
+  view.innerHTML = '';
+  if (!natalData) return;
+  const sun = natalData.planets.find(p => p.id === 0);
+  const isDay = sun ? findHouse(sun.longitude, natalData.cusps) >= 7 : true;
+
+  const note = document.createElement('div');
+  note.id = 'dig-daynight';
+  note.textContent = tr(isDay ? 'digDayChart' : 'digNightChart');
+  view.appendChild(note);
+
+  const table = document.createElement('table');
+  table.id = 'dig-table';
+  const cols = ['', '', tr('digColDom'), tr('digColExalt'), tr('digColTrip'), tr('digColTerm'), tr('digColFace'), 'Σ'];
+  const thead = document.createElement('tr');
+  for (const c of cols) {
+    const th = document.createElement('th');
+    th.textContent = c;
+    thead.appendChild(th);
+  }
+  table.appendChild(thead);
+
+  for (const p of natalData.planets.filter(pl => pl.id <= 6)) {
+    const d = computeDignities(p.id, p.longitude, isDay);
+    const row = document.createElement('tr');
+    const cell = (text, cls) => {
+      const td = document.createElement('td');
+      td.textContent = text;
+      if (cls) td.className = cls;
+      row.appendChild(td);
+      return td;
+    };
+    cell(p.glyph, 'dig-planet');
+    cell(`${Math.floor(d.inDeg)}° ${SIGNS[d.sign]}`, 'dig-pos');
+    cell(digGlyph(d.domicile), p.id === d.domicile ? 'dig-own' : '');
+    cell(d.exalt != null ? digGlyph(d.exalt) : '—', p.id === d.exalt ? 'dig-own' : '');
+    cell(digGlyph(d.trip), p.id === d.trip ? 'dig-own' : '');
+    cell(digGlyph(d.term), p.id === d.term ? 'dig-own' : '');
+    cell(digGlyph(d.face), p.id === d.face ? 'dig-own' : '');
+    const sc = cell(d.score > 0 ? `+${d.score}` : `${d.score}`, 'dig-score');
+    if (d.score > 0) sc.classList.add('dig-score-pos');
+    else if (d.score < 0) sc.classList.add('dig-score-neg');
+    if (d.peregrine && d.score <= 0) {
+      sc.textContent = '';
+      const per = document.createElement('span');
+      per.className = 'dig-peregrine';
+      per.textContent = (d.score < 0 ? `${d.score} · ` : '') + tr('digPeregrine');
+      sc.appendChild(per);
+    }
+    table.appendChild(row);
+  }
+  view.appendChild(table);
 }
 
 function findGridAspect(lon1, lon2, id1, id2, orbMode) {

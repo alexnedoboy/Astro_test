@@ -20,7 +20,8 @@
     --bg-app:     #E9E5DF;   /* app chrome: header + gutters + panel heads (single color) */
     --bg-tab:     #F3F0EC;   /* unselected tab/case-tab fill (lighter than chrome) */
     --gutter:     7px;       /* gap between panel plaques */
-    --panel-radius: 0px;     /* panel plaque corner radius (square, PS-style) */
+    --panel-radius: 10px;    /* panel plaque corner radius */
+    --tab-h:      clamp(22px, 3vh, 34px);  /* единая высота вкладок и табов */
     --bg:         #fff;      /* cards, panels, modals */
     --bg-input:   #FAF7F5;   /* input fields, secondary surfaces */
     --bg-hover:   #F2EDEA;   /* button / item hover state */
@@ -536,20 +537,21 @@
     overflow-x: clip; overflow-y: visible;
   }
   #tab-bar {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
+    min-width: 0;
     display: flex; align-items: flex-end;
     gap: 2px;
-    overflow-x: auto; overflow-y: visible;
+    overflow: visible;
     scrollbar-width: none;
   }
   #tab-bar::-webkit-scrollbar { display: none; }
   .app-tab {
-    flex: 0 0 auto;
-    min-width: 120px;
+    flex: 1 1 0;
+    min-width: 0;
     max-width: 220px;
     display: flex; align-items: center; gap: 2px;
     padding: 0 4px 0 10px;
-    height: clamp(22px, 3vh, 34px);
+    height: var(--tab-h);
     border: 1px solid var(--bd-light);
     border-bottom: none;
     border-radius: 0;
@@ -1056,7 +1058,7 @@
   }
   /* ── Панель: шапка + табы (переиспользуемый хром, AE-style) ── */
   .panel-head {
-    flex: 0 0 30px;
+    flex: 0 0 var(--tab-h);
     display: flex;
     align-items: stretch;
     justify-content: space-between;

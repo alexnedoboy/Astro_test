@@ -238,8 +238,6 @@
     transition: background 0.15s; line-height: 1;
   }
   .icon-btn:hover { background: var(--bg-hover); }
-  #notesToggleBtn { display: none; }
-  body.home-off #notesToggleBtn { display: flex; }
   .back-btn { font-size: 1.2em; color: var(--accent); }
 
   /* ── Settings dropdown ─────────────────────────────────── */
@@ -415,47 +413,6 @@
   #left-panel.open + #left-panel-backdrop { display: block; }
 
   /* ── Notes panel (slides from right) ─────────────────────────── */
-  #notes-panel {
-    position: fixed;
-    top: 0; right: 0; bottom: 0;
-    width: 360px; max-width: 92vw;
-    background: var(--bg);
-    border-left: 1px solid var(--bd-light);
-    box-shadow: -3px 0 16px rgba(0,0,0,0.07);
-    z-index: 250;
-    display: flex; flex-direction: column;
-    transform: translateX(100%);
-    transition: transform 0.18s ease;
-    overflow: hidden;
-  }
-  #notes-panel.open { transform: translateX(0); }
-  #notes-panel-backdrop {
-    display: none;
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    z-index: 249;
-  }
-  #notes-panel.open + #notes-panel-backdrop { display: block; }
-  #notes-panel-head {
-    flex-shrink: 0;
-    display: flex; align-items: center; gap: 4px;
-    padding: 0 6px 0 12px;
-    height: var(--hdr-h);
-    border-bottom: 1px solid var(--bd-light);
-  }
-  #notes-panel-title {
-    flex: 1; min-width: 0;
-    font-size: 0.82em; font-weight: 600; color: var(--tx-3);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-  #notes-panel-close {
-    flex: 0 0 auto;
-    width: 28px; height: 28px;
-    display: flex; align-items: center; justify-content: center;
-    background: none; border: none; border-radius: 5px;
-    font-size: 1.05em; color: var(--tx-5); cursor: pointer;
-  }
-  #notes-panel-close:hover { background: var(--bg-hover); color: var(--tx-2); }
-
   #left-panel-head {
     flex-shrink: 0;
     display: flex; align-items: center; gap: 4px;
@@ -1035,6 +992,7 @@
     flex: 1 1 31%;
     min-width: 180px;
     max-height: 74vh;
+    position: relative;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1093,11 +1051,50 @@
   #right-info-content.rp-aspects #info-table { display: none; }
   #right-info-content.rp-grades  #aspect-grid { display: none; }
   #right-info-content.rp-aspects #aspect-grid { margin-top: 0; }
+  #v2-aspect-panel.rp-show-notes #right-info-content { display: none !important; }
+  #v2-aspect-panel.rp-show-notes #v2-notes-view { display: flex; }
+  /* Кнопки шапки группы: + (добавить виджет) и ☰ (меню панели) */
+  .panel-head-actions {
+    display: flex; align-items: center; gap: 2px;
+    padding: 0 5px; flex: 0 0 auto;
+  }
+  .panel-head-btn {
+    width: 22px; height: 22px; align-self: center;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; border-radius: 5px;
+    font-size: 0.8em; color: var(--tx-6); cursor: pointer;
+    padding: 0; line-height: 1;
+  }
+  .panel-head-btn:hover { background: var(--bg-input); color: var(--tx-2); }
+  /* Дропдаун шапки правой группы */
+  #rp-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(var(--tab-h) + 3px); right: 6px;
+    z-index: 60;
+    background: var(--bg);
+    border: 1px solid var(--bd-light);
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.09);
+    padding: 4px;
+    min-width: 140px;
+    flex-direction: column;
+  }
+  #rp-dropdown.open { display: flex; }
+  .rp-dd-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 8px; border-radius: 4px;
+    font-size: 0.8em; color: var(--tx-2); cursor: pointer;
+    user-select: none; white-space: nowrap;
+  }
+  .rp-dd-item:hover:not(.disabled) { background: var(--bg-hover); }
+  .rp-dd-item.disabled { opacity: 0.45; cursor: default; }
+  .rp-dd-check { width: 12px; flex: 0 0 auto; text-align: center; color: var(--tx-4); }
 
-  /* ── Заметки ──────────────────────────────────────────────────────────────── */
+  /* ── Заметки (виджет-таб правой группы) ───────────────────────────────────── */
   #v2-notes-view {
     flex: 1; min-height: 0;
-    display: flex; flex-direction: column;
+    display: none; flex-direction: column;
     overflow-y: auto;
     padding: 8px 10px 12px;
   }
@@ -1696,31 +1693,6 @@
 <div id="chart-ctx-menu"></div>
 
 <!-- ── Notes panel (slides from right) ───────────────────────── -->
-<div id="notes-panel">
-  <div id="notes-panel-head">
-    <span id="notes-panel-title" data-i18n="panelTabNotes">Заметки</span>
-    <button id="notes-panel-close" title="Закрыть">✕</button>
-  </div>
-  <div id="v2-notes-view">
-    <div id="notes-msg"></div>
-    <div id="notes-list-screen">
-      <div id="notes-list"></div>
-      <button id="note-add-btn" data-i18n="noteNew">+ Новая заметка</button>
-    </div>
-    <div id="notes-editor-screen">
-      <div id="note-editor-bar">
-        <button id="note-back-btn" class="v2-icon-btn" data-i18n-title="noteBackTitle" title="К списку">←</button>
-        <input id="note-title" data-i18n-placeholder="noteTitlePlaceholder" placeholder="Название…" autocomplete="off">
-        <button id="note-preview-btn" class="v2-icon-btn" data-i18n-title="notePreviewTitle" title="Просмотр">👁&#xFE0E;</button>
-        <button id="note-export-btn" class="v2-icon-btn" data-i18n-title="noteExportTitle" title="Экспорт .md">⤓</button>
-      </div>
-      <textarea id="note-body" spellcheck="false"></textarea>
-      <div id="note-preview"></div>
-    </div>
-  </div>
-</div>
-<div id="notes-panel-backdrop"></div>
-
 <!-- ── App header ────────────────────────────────────────────── -->
 <div id="app-header">
   <button id="panel-toggle-btn" title="Карты">
@@ -1733,7 +1705,6 @@
     <button id="tab-add-btn" title="Новая карта">+</button>
   </div>
   <div id="header-right">
-    <button id="notesToggleBtn" class="icon-btn" data-i18n-title="panelTabNotes" title="Заметки">🗒&#xFE0E;</button>
     <button id="settingsBtn" class="icon-btn settings-btn" data-i18n-title="settings" title="Настройки">⚙&#xFE0E;</button>
   </div>
 </div>
@@ -1905,16 +1876,35 @@
     </div>
     <div id="v2-aspect-panel">
       <div class="panel-head">
-        <div class="panel-tabs" id="rp-tabs">
-          <button class="panel-tab active" data-rptab="grades" data-i18n="panelTabGrades">Градусы</button>
-          <button class="panel-tab" data-rptab="aspects" data-i18n="panelTabAspects">Аспекты</button>
+        <div class="panel-tabs" id="rp-tabs"></div>
+        <div class="panel-head-actions">
+          <button class="panel-head-btn" id="rp-add-btn" data-i18n-title="rpAddWidget" title="Добавить виджет">+</button>
+          <button class="panel-head-btn" id="rp-menu-btn" data-i18n-title="rpPanelMenu" title="Меню панели">☰</button>
         </div>
       </div>
+      <div id="rp-dropdown"></div>
       <div id="right-info-content" class="rp-grades" style="display:none">
         <table id="info-table">
           <tbody id="tableBody"></tbody>
         </table>
         <div id="aspect-grid"></div>
+      </div>
+      <div id="v2-notes-view">
+        <div id="notes-msg"></div>
+        <div id="notes-list-screen">
+          <div id="notes-list"></div>
+          <button id="note-add-btn" data-i18n="noteNew">+ Новая заметка</button>
+        </div>
+        <div id="notes-editor-screen">
+          <div id="note-editor-bar">
+            <button id="note-back-btn" class="v2-icon-btn" data-i18n-title="noteBackTitle" title="К списку">←</button>
+            <input id="note-title" data-i18n-placeholder="noteTitlePlaceholder" placeholder="Название…" autocomplete="off">
+            <button id="note-preview-btn" class="v2-icon-btn" data-i18n-title="notePreviewTitle" title="Просмотр">👁&#xFE0E;</button>
+            <button id="note-export-btn" class="v2-icon-btn" data-i18n-title="noteExportTitle" title="Экспорт .md">⤓</button>
+          </div>
+          <textarea id="note-body" spellcheck="false"></textarea>
+          <div id="note-preview"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -2054,6 +2044,7 @@ const STRINGS = {
     geocodingError:'Ошибка геокодинга.', fillAllFields:'Заполните все поля.',
     error:'Ошибка: ', saved:'✓ Сохранено', saveError:'Ошибка',
     saving:'Сохранить', computingTransits:'Вычисление транзитов…', tlAngles:'Углы',
+    rpAddWidget:'Добавить виджет', rpPanelMenu:'Меню панели',
     noTransits:'Нет активных транзитов в этом периоде.',
     computingDots:'вычисление…', noFastTransits:'нет быстрых транзитов',
     noChartData:'Нет данных карты', computingForecast:'Вычисление…',
@@ -2134,6 +2125,7 @@ const STRINGS = {
     geocodingError:'Geocoding error.', fillAllFields:'Please fill in all fields.',
     error:'Error: ', saved:'✓ Saved', saveError:'Error',
     saving:'Save', computingTransits:'Computing transits…', tlAngles:'Angles',
+    rpAddWidget:'Add widget', rpPanelMenu:'Panel menu',
     noTransits:'No active transits in this period.',
     computingDots:'computing…', noFastTransits:'no fast transits',
     noChartData:'No chart data', computingForecast:'Computing…',
@@ -2977,8 +2969,8 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   if (window.location.hash !== newHash) {
     history.pushState({ chartId: data.id }, '', newHash);
   }
-  // Если открыта панель «Заметки» с подсказкой «Сохраните карту» — обновить её
-  if (document.getElementById('notes-panel').classList.contains('open')) openNotesTab();
+  // Если активен таб «Заметки» с подсказкой «Сохраните карту» — обновить его
+  if (rightPanelTab === 'notes') openNotesTab();
 });
 
 // ── Notes ─────────────────────────────────────────────────────────────────────
@@ -3005,23 +2997,6 @@ function noteDateStr(n) {
   const d = new Date(n.updated_at ?? n.created_at);
   return d.toLocaleDateString(currentLang, { day: 'numeric', month: 'long', year: 'numeric' });
 }
-
-function openNotesPanel() {
-  document.getElementById('notes-panel').classList.add('open');
-  openNotesTab();
-}
-function closeNotesPanel() {
-  flushNoteSave();
-  document.getElementById('notes-panel').classList.remove('open');
-}
-function toggleNotesPanel() {
-  const panel = document.getElementById('notes-panel');
-  if (panel.classList.contains('open')) closeNotesPanel();
-  else openNotesPanel();
-}
-document.getElementById('notesToggleBtn').addEventListener('click', toggleNotesPanel);
-document.getElementById('notes-panel-close').addEventListener('click', closeNotesPanel);
-document.getElementById('notes-panel-backdrop').addEventListener('click', closeNotesPanel);
 
 function showNotesMsg(msg) {
   notesView.classList.remove('editing', 'previewing');
@@ -3178,7 +3153,6 @@ function resetNotesState() {
   currentNoteId = null;
   notesView.classList.remove('editing', 'previewing', 'msg-only');
   document.getElementById('note-preview-btn').classList.remove('active-toggle');
-  document.getElementById('notes-panel').classList.remove('open');
 }
 
 // ── Мини-рендерер markdown ────────────────────────────────────────────────────
@@ -3665,6 +3639,7 @@ function captureState() {
       hiddenTPlants: new Set(hiddenTPlants),
       moonBandCollapsed, tlYearScale, chartExpanded, layout2TlState,
       rightPanelTab,
+      rightPanelTabs: [...rightPanelTabs],
     },
   };
 }
@@ -3685,6 +3660,7 @@ function applyState(s) {
   tlYearScale      = u.tlYearScale;
   chartExpanded    = u.chartExpanded;
   layout2TlState   = u.layout2TlState;
+  rightPanelTabs   = sanitizeRpTabs(u.rightPanelTabs);
   rightPanelTab    = u.rightPanelTab || 'grades';
 }
 
@@ -3882,6 +3858,7 @@ function rebuildTabFromFields(t) {
   if (Array.isArray(v.expandedRows))  expandedRows  = new Set(v.expandedRows);
   if (Array.isArray(v.hiddenTPlants)) hiddenTPlants = new Set(v.hiddenTPlants);
   moonBandCollapsed = !!v.moonBandCollapsed;
+  rightPanelTabs = sanitizeRpTabs(v.rightPanelTabs);
   rightPanelTab = v.rightPanelTab || 'grades';
   if (t.header) setV2ChartInfo(t.header.name, t.header.dateTime, t.header.city);
   applyCaseType(t.type);
@@ -3913,6 +3890,7 @@ function stateToView(s) {
     chartExpanded: u.chartExpanded,
     layout2TlState: u.layout2TlState,
     rightPanelTab: u.rightPanelTab,
+    rightPanelTabs: u.rightPanelTabs ? [...u.rightPanelTabs] : undefined,
   };
 }
 
@@ -3995,26 +3973,125 @@ function applyCaseType(type) {
   if (el) el.textContent = CASE_TYPE_LABELS[type] || '';
 }
 
-// ── Правая панель: табы Градусы / Аспекты (часть панельной системы, см.
-// WORKSPACE_CONCEPT.md §6, §13). Активный таб хранится в context.ui.rightPanelTab.
-let rightPanelTab = 'grades';   // 'grades' | 'aspects'
+// ── Правая группа панелей: виджеты-табы (см. WORKSPACE_CONCEPT.md §6, §13).
+// Состав группы (rightPanelTabs) и активный виджет (rightPanelTab) — часть
+// context.ui, персистятся per-case. Реестр RP_WIDGETS — точка добавления новых
+// виджетов (достоинства, мидпойнты и т.д.).
+const RP_WIDGETS = {
+  grades:  { i18n: 'panelTabGrades'  },
+  aspects: { i18n: 'panelTabAspects' },
+  notes:   { i18n: 'panelTabNotes'   },
+};
+const RP_DEFAULT_TABS = ['grades', 'aspects', 'notes'];
+let rightPanelTabs = [...RP_DEFAULT_TABS];
+let rightPanelTab  = 'grades';
+
+function sanitizeRpTabs(arr) {
+  const ok = Array.isArray(arr) ? arr.filter(id => RP_WIDGETS[id]) : [];
+  return ok.length ? ok : [...RP_DEFAULT_TABS];
+}
+
 function applyRightPanelTab() {
-  const content = document.getElementById('right-info-content');
-  if (content) {
+  if (!rightPanelTabs.includes(rightPanelTab)) rightPanelTab = rightPanelTabs[0];
+  const tabsEl = document.getElementById('rp-tabs');
+  if (tabsEl) {
+    tabsEl.innerHTML = '';
+    for (const id of rightPanelTabs) {
+      const b = document.createElement('button');
+      b.className = 'panel-tab' + (id === rightPanelTab ? ' active' : '');
+      b.dataset.rptab = id;
+      b.setAttribute('data-i18n', RP_WIDGETS[id].i18n);
+      b.textContent = tr(RP_WIDGETS[id].i18n);
+      tabsEl.appendChild(b);
+    }
+  }
+  const panel     = document.getElementById('v2-aspect-panel');
+  const content   = document.getElementById('right-info-content');
+  const showNotes = rightPanelTab === 'notes';
+  panel?.classList.toggle('rp-show-notes', showNotes);
+  if (content && !showNotes) {
     content.classList.remove('rp-grades', 'rp-aspects');
     content.classList.add(rightPanelTab === 'aspects' ? 'rp-aspects' : 'rp-grades');
   }
-  document.querySelectorAll('#rp-tabs .panel-tab').forEach(b =>
-    b.classList.toggle('active', b.dataset.rptab === rightPanelTab));
+  const addBtn = document.getElementById('rp-add-btn');
+  if (addBtn) addBtn.style.display =
+    Object.keys(RP_WIDGETS).some(id => !rightPanelTabs.includes(id)) ? '' : 'none';
+  if (showNotes) openNotesTab();
 }
+
 function setRightPanelTab(tab) {
-  rightPanelTab = (tab === 'aspects') ? 'aspects' : 'grades';
+  if (!RP_WIDGETS[tab] || !rightPanelTabs.includes(tab)) return;
+  if (rightPanelTab === 'notes' && tab !== 'notes') flushNoteSave();
+  rightPanelTab = tab;
   applyRightPanelTab();
   persistTabs();
 }
+
+// Добавить/убрать виджет из группы; последний оставшийся не убирается
+function toggleRpWidget(id) {
+  if (!RP_WIDGETS[id]) return;
+  const i = rightPanelTabs.indexOf(id);
+  if (i >= 0) {
+    if (rightPanelTabs.length === 1) return;
+    if (rightPanelTab === 'notes' && id === 'notes') flushNoteSave();
+    rightPanelTabs.splice(i, 1);
+  } else {
+    rightPanelTabs.push(id);
+    rightPanelTab = id;   // добавленный сразу активен
+  }
+  applyRightPanelTab();
+  persistTabs();
+}
+
 document.getElementById('rp-tabs')?.addEventListener('click', e => {
   const btn = e.target.closest('.panel-tab');
   if (btn) setRightPanelTab(btn.dataset.rptab);
+});
+
+// Дропдауны шапки: «+» — добавить отсутствующий виджет, «☰» — чеклист состава
+function closeRpDropdown() {
+  document.getElementById('rp-dropdown')?.classList.remove('open');
+}
+function openRpDropdown(mode) {
+  const dd = document.getElementById('rp-dropdown');
+  if (!dd) return;
+  dd.innerHTML = '';
+  const ids = mode === 'add'
+    ? Object.keys(RP_WIDGETS).filter(id => !rightPanelTabs.includes(id))
+    : Object.keys(RP_WIDGETS);
+  for (const id of ids) {
+    const item = document.createElement('div');
+    item.className = 'rp-dd-item';
+    const present = rightPanelTabs.includes(id);
+    if (mode === 'menu') {
+      const mark = document.createElement('span');
+      mark.className = 'rp-dd-check';
+      mark.textContent = present ? '✓' : '';
+      item.appendChild(mark);
+    }
+    const lbl = document.createElement('span');
+    lbl.textContent = tr(RP_WIDGETS[id].i18n);
+    item.appendChild(lbl);
+    if (mode === 'menu' && present && rightPanelTabs.length === 1) item.classList.add('disabled');
+    else item.addEventListener('click', () => { toggleRpWidget(id); closeRpDropdown(); });
+    dd.appendChild(item);
+  }
+  dd.classList.add('open');
+}
+document.getElementById('rp-add-btn')?.addEventListener('click', e => {
+  e.stopPropagation();
+  const dd = document.getElementById('rp-dropdown');
+  if (dd?.classList.contains('open')) closeRpDropdown();
+  else openRpDropdown('add');
+});
+document.getElementById('rp-menu-btn')?.addEventListener('click', e => {
+  e.stopPropagation();
+  const dd = document.getElementById('rp-dropdown');
+  if (dd?.classList.contains('open')) closeRpDropdown();
+  else openRpDropdown('menu');
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('#rp-dropdown')) closeRpDropdown();
 });
 
 // Кнопки «выход/логотип/домой» уводят на дашборд, не закрывая вкладки
@@ -4149,6 +4226,7 @@ function computeAndRenderNatal() {
     closeNewChartModal();
     setV2ChartInfo(chartName, dateTime, document.getElementById('birthPlace').value.trim());
     applyCaseType(tabs[activeTab]?.type || 'natal');
+    applyRightPanelTab();
     applyLayout2Classes();
 
     renderChart(planets, cusps, asc, mc);

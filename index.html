@@ -937,6 +937,12 @@
   }
   #layout-v2.v2-visible { display: flex; }
 
+  /* ── Пресет хорара: карта одна, без таймлайна и навигации по времени ──────── */
+  #layout-v2.case-horary #v2-bottom,
+  #layout-v2.case-horary #chart-mode-tabs,
+  #layout-v2.case-horary #v2-panel-nav { display: none; }
+  #layout-v2.case-horary #v2-top { flex: 1 1 auto; }
+
   /* ── Палитра (пустая вкладка) ─────────────────────────────────────────────── */
   #palette-view {
     display: none;
@@ -2008,8 +2014,8 @@
       <button class="palette-cmd disabled" data-cmd="synastry">
         <span class="palette-cmd-glyph">⚯&#xFE0E;</span><span data-i18n="paletteCmdSynastry">Синастрия</span><span class="palette-soon" data-i18n="paletteSoon">скоро</span>
       </button>
-      <button class="palette-cmd disabled" data-cmd="horary">
-        <span class="palette-cmd-glyph">?</span><span data-i18n="paletteCmdHorary">Хорар</span><span class="palette-soon" data-i18n="paletteSoon">скоро</span>
+      <button class="palette-cmd" data-cmd="horary">
+        <span class="palette-cmd-glyph">?</span><span data-i18n="paletteCmdHorary">Хорар</span>
       </button>
       <button class="palette-cmd disabled" data-cmd="election">
         <span class="palette-cmd-glyph">⏱&#xFE0E;</span><span data-i18n="paletteCmdElection">Элекция</span><span class="palette-soon" data-i18n="paletteSoon">скоро</span>
@@ -2154,6 +2160,8 @@ const STRINGS = {
     panelTabDignities:'Достоинства', digDayChart:'Дневная карта', digNightChart:'Ночная карта',
     digColDom:'Об', digColExalt:'Экз', digColTrip:'Трип', digColTerm:'Терм', digColFace:'Фас',
     digPeregrine:'перегрин',
+    horaryQuestionLabel:'Вопрос', horaryQuestionPh:'Текст вопроса…',
+    horaryDateLabel:'Дата вопроса', horaryPlaceLabel:'Место (астролог)',
     noTransits:'Нет активных транзитов в этом периоде.',
     computingDots:'вычисление…', noFastTransits:'нет быстрых транзитов',
     noChartData:'Нет данных карты', computingForecast:'Вычисление…',
@@ -2242,6 +2250,8 @@ const STRINGS = {
     panelTabDignities:'Dignities', digDayChart:'Day chart', digNightChart:'Night chart',
     digColDom:'Dom', digColExalt:'Exal', digColTrip:'Trip', digColTerm:'Term', digColFace:'Face',
     digPeregrine:'peregrine',
+    horaryQuestionLabel:'Question', horaryQuestionPh:'Question text…',
+    horaryDateLabel:'Date of question', horaryPlaceLabel:'Place (astrologer)',
     noTransits:'No active transits in this period.',
     computingDots:'computing…', noFastTransits:'no fast transits',
     noChartData:'No chart data', computingForecast:'Computing…',
@@ -3810,6 +3820,7 @@ function paintActiveChart() {
   applyRightPanelTab();
   applyChartModeTabs();
   switchToMode(currentMode);
+  if (currentCaseType === 'horary') return;   // пресет хорара — без таймлайна
   if (cachedTimeline) {
     const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
     requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
@@ -3956,7 +3967,8 @@ function fullExitToHome(push = true) {
 // ── Палитра: пустая вкладка «создать или открыть» (WORKSPACE_CONCEPT §8) ──────
 // Вкладка с kind:'palette' не имеет кейса; выбор команды или карты превращает её
 // во вкладку кейса (kind снимается). Snapshot/hash для палитры не пишутся.
-let _paletteKb = 0;   // индекс подсвеченного элемента списка (клавиатура)
+let _paletteKb = 0;         // индекс подсвеченного элемента списка (клавиатура)
+let _paletteCtorType = 'natal';   // тип кейса, выбранный командой-конструктором
 
 function openPaletteTab() {
   if (!dashboardOpen && activeTab >= 0) snapshotActiveTab();
@@ -4046,6 +4058,7 @@ function choosePaletteChart(c) {
 // Конструктор, запущенный из палитры: кейс рождается в той же вкладке
 function computeIntoPaletteTab() {
   const t = tabs[activeTab];
+  t.type = _paletteCtorType || 'natal';   // до расчёта: от типа зависит система домов
   currentChartId = null;
   currentTransitJD = null;
   chartExpanded = false;
@@ -4053,7 +4066,6 @@ function computeIntoPaletteTab() {
   tlYearScale = false;
   if (!computeAndRenderNatal()) return;
   delete t.kind;
-  t.type    = 'natal';
   t.chartId = null;
   t.fields  = readFormFields();
   t.header  = readHeader();
@@ -4067,7 +4079,16 @@ function computeIntoPaletteTab() {
 document.getElementById('palette-cmds').addEventListener('click', e => {
   const btn = e.target.closest('.palette-cmd');
   if (!btn || btn.classList.contains('disabled')) return;
-  if (btn.dataset.cmd === 'natal') openNewChartModal();
+  if (btn.dataset.cmd === 'natal') {
+    _paletteCtorType = 'natal';
+    setFormMode('natal');
+    openNewChartModal();
+  } else if (btn.dataset.cmd === 'horary') {
+    _paletteCtorType = 'horary';
+    setFormMode('horary');
+    openNewChartModal();
+    prefillHoraryForm();
+  }
 });
 document.getElementById('palette-search').addEventListener('input', () => {
   _paletteKb = 0;
@@ -4234,9 +4255,13 @@ function setV2ChartInfo(name, dateTime, city) {
 // Метка типа кейса (натал / синастрия / хорар / …) — см. WORKSPACE_CONCEPT.md §7.
 // Тип фиксируется при создании кейса; межтипового переключения нет.
 const CASE_TYPE_LABELS = { natal:'натал', synastry:'синастрия', horary:'хорар', election:'элекция', event:'событие', sky:'небо' };
+let currentCaseType = 'natal';
 function applyCaseType(type) {
+  currentCaseType = type || 'natal';
   const el = document.getElementById('v2-case-type');
   if (el) el.textContent = CASE_TYPE_LABELS[type] || '';
+  // Пресет хорара: без таймлайна, режимов и контроллера времени (всё anchored)
+  document.getElementById('layout-v2')?.classList.toggle('case-horary', type === 'horary');
 }
 
 // ── Правая группа панелей: виджеты-табы (см. WORKSPACE_CONCEPT.md §6, §13).
@@ -4427,11 +4452,13 @@ function renderChartMenu() {
     });
     dd.appendChild(item);
   };
-  for (const m of CHART_MODE_ALL)
-    mkItem(tr(MODE_TAB_I18N[m]), chartModeTabs.includes(m), () => toggleChartModeTab(m));
-  const sep = document.createElement('div');
-  sep.className = 'rp-dd-sep';
-  dd.appendChild(sep);
+  if (currentCaseType !== 'horary') {   // у хорара слоёв нет — только настройки
+    for (const m of CHART_MODE_ALL)
+      mkItem(tr(MODE_TAB_I18N[m]), chartModeTabs.includes(m), () => toggleChartModeTab(m));
+    const sep = document.createElement('div');
+    sep.className = 'rp-dd-sep';
+    dd.appendChild(sep);
+  }
   mkItem(tr('elements'), elementColorsMode, () => setElementColorsMode(!elementColorsMode));
   mkItem(tr('progLunarPhases'), showProgLunarPhases, () => setShowProgLunarPhases(!showProgLunarPhases));
 }
@@ -4488,8 +4515,48 @@ document.getElementById('cancelEditBtn').addEventListener('click', () => {
   else exitEditMode();
 });
 
+// ── Режим формы: натал / хорар (подмена лейблов, реюз одной формы) ────────────
+const FORM_LABEL_I18N = {
+  natal:  { name: 'nameLabel', namePh: 'namePlaceholder', date: 'birthDateLabel', place: 'birthPlaceLabel' },
+  horary: { name: 'horaryQuestionLabel', namePh: 'horaryQuestionPh', date: 'horaryDateLabel', place: 'horaryPlaceLabel' },
+};
+function setFormMode(mode) {
+  const m = FORM_LABEL_I18N[mode] || FORM_LABEL_I18N.natal;
+  const set = (sel, key) => {
+    const el = document.querySelector(sel);
+    if (el) { el.setAttribute('data-i18n', key); el.textContent = tr(key); }
+  };
+  set('#form-wrap label[data-i18n="nameLabel"], #form-wrap label[data-i18n="horaryQuestionLabel"]', m.name);
+  set('#form-wrap label[data-i18n="birthDateLabel"], #form-wrap label[data-i18n="horaryDateLabel"]', m.date);
+  set('#form-wrap label[data-i18n="birthPlaceLabel"], #form-wrap label[data-i18n="horaryPlaceLabel"]', m.place);
+  const nameInp = document.getElementById('chartName');
+  nameInp.setAttribute('data-i18n-placeholder', m.namePh);
+  nameInp.placeholder = tr(m.namePh);
+}
+
+// Предзаполнение хорара: момент = сейчас, место = место астролога (skyPlace).
+// Всё редактируемое — астролог может вбить момент получения вопроса.
+function prefillHoraryForm() {
+  const now = new Date();
+  document.getElementById('chartName').value = '';
+  document.getElementById('birthDate').value = now.getFullYear() + '-'
+    + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  document.getElementById('birthTime').value =
+    String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  let sp = null;
+  try { sp = JSON.parse(localStorage.getItem('skyPlace')); } catch {}
+  if (sp?.lat != null) {
+    document.getElementById('birthPlace').value = sp.name ?? '';
+    document.getElementById('lat').value = sp.lat;
+    document.getElementById('lonVal').value = sp.lon;
+  }
+  document.getElementById('utcOff').value = -now.getTimezoneOffset() / 60;
+  detectedTimezone = null;
+}
+
 function enterEditMode() {
   const fw = document.getElementById('form-wrap');
+  setFormMode(tabs[activeTab]?.type === 'horary' ? 'horary' : 'natal');
   fw.classList.add('editing');
   document.getElementById('edit-backdrop').classList.add('visible');
   document.getElementById('calcBtn').textContent = tr('saving');
@@ -4501,6 +4568,7 @@ function exitEditMode() {
   fw.classList.remove('editing');
   document.getElementById('edit-backdrop').classList.remove('visible');
   document.getElementById('calcBtn').textContent = tr('buildChart');
+  setFormMode('natal');
 }
 
 // ── New chart modal (кнопка «+ Новая карта» на главной) ───────────────────────
@@ -4519,9 +4587,15 @@ function closeNewChartModal() {
   if (!fw.classList.contains('modal')) return;
   fw.classList.remove('modal');
   document.getElementById('edit-backdrop').classList.remove('visible');
+  setFormMode('natal');
+  _paletteCtorType = 'natal';
 }
 
-document.getElementById('newChartBtn').addEventListener('click', openNewChartModal);
+document.getElementById('newChartBtn').addEventListener('click', () => {
+  _paletteCtorType = 'natal';
+  setFormMode('natal');
+  openNewChartModal();
+});
 document.getElementById('edit-backdrop').addEventListener('click', closeNewChartModal);
 
 // ── Calculate ─────────────────────────────────────────────────────────────────
@@ -4540,6 +4614,7 @@ function computeAndRenderNatal() {
     setStatus(tr('fillAllFields')); return false;
   }
   try {
+    const caseType = tabs[activeTab]?.type || 'natal';
     const [y, m, d] = dateVal.split('-').map(Number);
     const [hr, mn]  = timeVal.split(':').map(Number);
     const jd        = swe.julday(y, m, d, hr + mn / 60 - utcOff);
@@ -4550,7 +4625,8 @@ function computeAndRenderNatal() {
       return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
     });
 
-    const hRes  = swe.houses(jd, lat, lon, 'P');
+    // Хорар — всегда Региомонтан; остальные типы — Плацидус
+    const hRes  = swe.houses(jd, lat, lon, caseType === 'horary' ? 'R' : 'P');
     const cusps = Array.from(hRes.cusps).slice(1, 13);
     const ascmc = Array.from(hRes.ascmc);
     const asc   = ((ascmc[0] % 360) + 360) % 360;
@@ -4586,7 +4662,7 @@ function computeAndRenderNatal() {
     syncV2ModeButtons();
     syncV2DateLabel();
     setInfoTableMode('natal');
-    computeAndRenderTimeline(natalData.planets);
+    if (caseType !== 'horary') computeAndRenderTimeline(natalData.planets);
     setStatus('');
     return true;
   } catch (e) { setStatus(tr('error') + e.message); return false; }

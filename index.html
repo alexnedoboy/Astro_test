@@ -937,17 +937,22 @@
   }
   #layout-v2.v2-visible { display: flex; }
 
-  /* ── Пресет хорара: карта одна, без таймлайна и навигации по времени ──────── */
-  #layout-v2.case-horary #v2-bottom,
+  /* ── Пресет хорара: карта одна, без таймлайна и навигации по времени;
+        внизу вместо таймлайна — градусная линейка ─────────────────────────── */
+  #layout-v2.case-horary #v2-tl-tab,
+  #layout-v2.case-horary #v2-timeline-wrap,
   #layout-v2.case-horary #chart-mode-tabs,
   #layout-v2.case-horary #v2-panel-nav { display: none; }
-  #layout-v2.case-horary #v2-top { flex: 1 1 auto; }
-
-  /* Блок хорара под картой: градусная линейка + таблица достоинств */
-  #horary-block { display: none; flex: 0 0 auto; padding: 0 16px 12px; overflow-y: auto; }
-  #layout-v2.case-horary #horary-block { display: block; }
-  #horary-ruler { max-width: 720px; margin: 0 auto; }
-  #horary-dig-table { max-width: 720px; margin: 6px auto 0; }
+  #layout-v2.case-horary #v2-top { flex: 1 1 auto; min-height: 0; }
+  #layout-v2.case-horary #v2-bottom { flex: 0 0 auto; }
+  #horary-bottom {
+    display: none;
+    background: var(--bg-panel-info);
+    border-radius: var(--panel-radius);
+    padding: 4px 14px 6px;
+  }
+  #layout-v2.case-horary #horary-bottom { display: block; }
+  #horary-ruler { max-width: 1000px; margin: 0 auto; }
 
   /* Исход хорара (сбылся / нет / частично) */
   #v2-outcome { display: none; gap: 4px; margin-top: 7px; flex-wrap: wrap; }
@@ -1108,7 +1113,8 @@
     justify-content: space-between;
     background: var(--bg-tab); /* tab strip; clipped by the panel's rounded corners */
   }
-  .panel-tabs { display: flex; align-items: stretch; }
+  /* Табы сжимаются с многоточием (как вкладки приложения), ☰/+ всегда видимы */
+  .panel-tabs { display: flex; align-items: stretch; flex: 1 1 auto; min-width: 0; }
   .panel-tab {
     position: relative;
     border: none;
@@ -1118,6 +1124,11 @@
     font-size: 0.78em;
     color: var(--tx-5);
     cursor: pointer;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .panel-tab:first-child { border-top-left-radius: var(--panel-radius); }
   .panel-tab:hover:not(.active) { color: var(--tx-3); background: var(--bg-input); }
@@ -1145,22 +1156,18 @@
   #right-info-content.rp-aspflow #aspect-grid { display: none; }
   #right-info-content.rp-dignities #dignities-view { display: block; }
   #right-info-content.rp-aspflow #aspflow-view { display: block; }
-  /* Виджет «Аспекты ±» */
+  /* Виджет «События» (прошлые/будущие) */
   #aspflow-view { padding: 6px 10px 12px; }
   .af-section { font-size: 0.74em; font-weight: 600; color: var(--tx-6); margin: 10px 0 3px; text-transform: uppercase; letter-spacing: 0.04em; }
-  .af-row {
-    display: flex; align-items: baseline; gap: 7px;
-    padding: 4px 2px; font-size: 0.86em;
+  .af-table { width: 100%; border-collapse: collapse; font-size: 0.84em; }
+  .af-table td {
+    padding: 3px 4px; white-space: nowrap;
     border-bottom: 1px solid var(--bd-light);
   }
-  .af-row.af-past { opacity: 0.55; }
-  .af-glyphs { flex: 0 0 auto; font-size: 1.05em; white-space: nowrap; }
-  .af-meta { margin-left: auto; flex: 0 0 auto; font-size: 0.82em; color: var(--tx-6); white-space: nowrap; }
-  .af-voc {
-    margin-top: 4px; padding: 5px 8px; font-size: 0.82em;
-    color: var(--danger); background: var(--danger-bg, #fbeaea); border-radius: 5px;
-  }
-  .af-empty { font-size: 0.82em; color: var(--tx-7); padding: 10px 2px; }
+  .af-table td.af-date { color: var(--tx-6); font-size: 0.88em; }
+  .af-table td.af-ev   { font-size: 1.02em; }
+  .af-table td.af-pos  { color: var(--tx-5); text-align: right; }
+  .af-table td.af-arc  { color: var(--tx-4); text-align: right; }
   /* Таблицы достоинств (виджет и хорар-блок) */
   #dig-daynight { font-size: 0.76em; color: var(--tx-7); padding: 8px 10px 2px; }
   .dig-table { width: 100%; border-collapse: collapse; font-size: 0.8em; }
@@ -2004,7 +2011,6 @@
       <div id="chart-dropdown"></div>
       <button id="v2-chart-expand-btn" title="Развернуть карту">⤢</button>
       <div id="chart-block"></div>
-      <div id="horary-block"></div>
     </div>
     <div id="v2-aspect-panel">
       <div class="panel-head">
@@ -2049,6 +2055,7 @@
     <div id="v2-timeline-wrap">
       <div id="right-timeline-content"></div>
     </div>
+    <div id="horary-bottom"></div>
   </div>
 </div>
 <!-- ── Палитра: пустая вкладка «создать или открыть» (WORKSPACE_CONCEPT §8) ──── -->
@@ -2212,8 +2219,7 @@ const STRINGS = {
     horaryFolder:'Хорары', outcomeYes:'Сбылся', outcomeNo:'Нет', outcomePartial:'Частично',
     digRowDom:'Обитель', digRowExalt:'Экзальтация', digRowTrip:'Триплицитет', digRowTerm:'Терм',
     digRowFace:'Фас', digRowDetr:'Изгнание', digRowFall:'Падение', digRowScore:'Балл',
-    panelTabAspFlow:'Аспекты ±', afMoonPast:'Луна — прошлые', afMoonFuture:'Луна — будущие',
-    afInOrb:'В орбе сейчас', afVoc:'Луна без курса до', afApplying:'аппликация', afSeparating:'сепарация',
+    panelTabAspFlow:'События', afPastEvents:'Прошлые события', afFutureEvents:'Будущие события',
     noTransits:'Нет активных транзитов в этом периоде.',
     computingDots:'вычисление…', noFastTransits:'нет быстрых транзитов',
     noChartData:'Нет данных карты', computingForecast:'Вычисление…',
@@ -2307,8 +2313,7 @@ const STRINGS = {
     horaryFolder:'Хорары', outcomeYes:'Fulfilled', outcomeNo:'No', outcomePartial:'Partially',
     digRowDom:'Domicile', digRowExalt:'Exaltation', digRowTrip:'Triplicity', digRowTerm:'Term',
     digRowFace:'Face', digRowDetr:'Detriment', digRowFall:'Fall', digRowScore:'Score',
-    panelTabAspFlow:'Aspects ±', afMoonPast:'Moon — past', afMoonFuture:'Moon — future',
-    afInOrb:'In orb now', afVoc:'Moon void of course until', afApplying:'applying', afSeparating:'separating',
+    panelTabAspFlow:'Events', afPastEvents:'Past events', afFutureEvents:'Future events',
     noTransits:'No active transits in this period.',
     computingDots:'computing…', noFastTransits:'no fast transits',
     noChartData:'No chart data', computingForecast:'Computing…',
@@ -3040,6 +3045,7 @@ function openChartInTab(c, newTab = false) {
   t.type    = c.case_type ?? 'natal';   // до расчёта: от типа зависит система домов
   t.outcome = c.outcome ?? null;
   if (!computeAndRenderNatal()) return;
+  if (t.type === 'horary') applyHoraryRpPreset();
   t.chartId = c.id ?? null;
   t.fields  = readFormFields();
   t.header  = readHeader();
@@ -4005,6 +4011,7 @@ function openNewTabFromForm(chartId, caseType = 'natal', outcome = null) {
     else { dashboardOpen = false; showTab(activeTab); }
     return false;
   }
+  if (caseType === 'horary') applyHoraryRpPreset();
   t.fields  = readFormFields();
   t.header  = readHeader();
   t.chartId = currentChartId ?? null;
@@ -4152,12 +4159,7 @@ function computeIntoPaletteTab() {
   if (!computeAndRenderNatal()) return;
   delete t.kind;
   t.chartId = null;
-  // Пресет хорара предзагружает свои виджеты (WORKSPACE_CONCEPT §7)
-  if (t.type === 'horary') {
-    rightPanelTabs = ['grades', 'aspects', 'dignities', 'aspflow', 'notes'];
-    rightPanelTab  = 'aspflow';
-    applyRightPanelTab();
-  }
+  if (t.type === 'horary') applyHoraryRpPreset();
   t.fields  = readFormFields();
   t.header  = readHeader();
   t.st      = captureState();
@@ -4464,6 +4466,13 @@ document.getElementById('rp-tabs')?.addEventListener('click', e => {
   const btn = e.target.closest('.panel-tab');
   if (btn) setRightPanelTab(btn.dataset.rptab);
 });
+
+// Пресет хорара: предзагружены все виджеты, активны «События» (WORKSPACE_CONCEPT §7)
+function applyHoraryRpPreset() {
+  rightPanelTabs = ['grades', 'aspects', 'dignities', 'aspflow', 'notes'];
+  rightPanelTab  = 'aspflow';
+  applyRightPanelTab();
+}
 
 // Дропдауны шапки: «+» — добавить отсутствующий виджет, «☰» — чеклист состава
 function closeRpDropdown() {
@@ -5448,6 +5457,7 @@ function computeDignities(id, lon, isDay) {
   return { sign, inDeg, domicile, detriment, exalt, fall, trip, term, face, score, peregrine };
 }
 
+// Виджет «Достоинства»: день/ночь + транспонированная таблица (планеты — колонки)
 function renderDignities() {
   const view = document.getElementById('dignities-view');
   if (!view) return;
@@ -5460,49 +5470,7 @@ function renderDignities() {
   note.id = 'dig-daynight';
   note.textContent = tr(isDay ? 'digDayChart' : 'digNightChart');
   view.appendChild(note);
-
-  const table = document.createElement('table');
-  table.id = 'dig-table';
-  table.className = 'dig-table';
-  const cols = ['', '', tr('digColDom'), tr('digColExalt'), tr('digColTrip'), tr('digColTerm'), tr('digColFace'), 'Σ'];
-  const thead = document.createElement('tr');
-  for (const c of cols) {
-    const th = document.createElement('th');
-    th.textContent = c;
-    thead.appendChild(th);
-  }
-  table.appendChild(thead);
-
-  for (const p of natalData.planets.filter(pl => pl.id <= 6)) {
-    const d = computeDignities(p.id, p.longitude, isDay);
-    const row = document.createElement('tr');
-    const cell = (text, cls) => {
-      const td = document.createElement('td');
-      td.textContent = text;
-      if (cls) td.className = cls;
-      row.appendChild(td);
-      return td;
-    };
-    cell(p.glyph, 'dig-planet');
-    cell(`${Math.floor(d.inDeg)}° ${SIGNS[d.sign]}`, 'dig-pos');
-    cell(digGlyph(d.domicile), p.id === d.domicile ? 'dig-own' : '');
-    cell(d.exalt != null ? digGlyph(d.exalt) : '—', p.id === d.exalt ? 'dig-own' : '');
-    cell(digGlyph(d.trip), p.id === d.trip ? 'dig-own' : '');
-    cell(digGlyph(d.term), p.id === d.term ? 'dig-own' : '');
-    cell(digGlyph(d.face), p.id === d.face ? 'dig-own' : '');
-    const sc = cell(d.score > 0 ? `+${d.score}` : `${d.score}`, 'dig-score');
-    if (d.score > 0) sc.classList.add('dig-score-pos');
-    else if (d.score < 0) sc.classList.add('dig-score-neg');
-    if (d.peregrine && d.score <= 0) {
-      sc.textContent = '';
-      const per = document.createElement('span');
-      per.className = 'dig-peregrine';
-      per.textContent = (d.score < 0 ? `${d.score} · ` : '') + tr('digPeregrine');
-      sc.appendChild(per);
-    }
-    table.appendChild(row);
-  }
-  view.appendChild(table);
+  view.appendChild(buildDignityTable(natalData.planets, natalData.cusps));
 }
 
 // ── Блок хорара под картой: градусная линейка + таблица достоинств ────────────
@@ -5552,13 +5520,12 @@ function buildDegreeRuler(planets) {
 // Транспонированная таблица достоинств: колонки — семёрка, строки — достоинства.
 // В ячейке — управитель данного достоинства в позиции планеты; подсветка — планета
 // в собственном достоинстве / слабости.
-function buildHoraryDigTable(planets, cusps) {
+function buildDignityTable(planets, cusps) {
   const sun = planets.find(p => p.id === 0);
   const isDay = sun ? findHouse(sun.longitude, cusps) >= 7 : true;
   const seven = planets.filter(p => p.id <= 6);
   const digs  = seven.map(p => computeDignities(p.id, p.longitude, isDay));
   const table = document.createElement('table');
-  table.id = 'horary-dig-table';
   table.className = 'dig-table';
   const head = document.createElement('tr');
   head.appendChild(document.createElement('th'));
@@ -5600,100 +5567,163 @@ function buildHoraryDigTable(planets, cusps) {
   return table;
 }
 
+// Градусная линейка живёт в нижней зоне (на месте таймлайна) — панель Карты чистая
 function renderHoraryBlock() {
-  const wrap = document.getElementById('horary-block');
+  const wrap = document.getElementById('horary-bottom');
   if (!wrap) return;
   wrap.innerHTML = '';
   if (currentCaseType !== 'horary' || !natalData) return;
   wrap.appendChild(buildDegreeRuler(natalData.planets));
-  wrap.appendChild(buildHoraryDigTable(natalData.planets, natalData.cusps));
 }
 
-// ── Виджет «Аспекты ±»: прошлые/будущие аспекты Луны + аспекты в орбе ─────────
-// Луна: точные аспекты внутри её текущего знака — сепарации (до момента карты)
-// и аппликации (до выхода из знака). Если аппликаций нет — Луна без курса.
-// Планеты: пары в орбе ≤3° на момент карты, с пометкой аппликация/сепарация.
+// ── Виджет «События»: прошлые и будущие события карты (хорарная классика) ─────
+// Только септенер (высшие игнорируются). Для каждой планеты — окно её текущего
+// знака [вход; выход]. События: ингрессы (вход — в прошлом, выход — в будущем),
+// стационарности R/D, точные аспекты между планетами септенера, пока обе в своих
+// знаках. Колонки: дата/время · событие · позиция быстрой планеты · её дуга от
+// момента карты (минус — прошлое).
 
-const AF_TARGET_IDS = [0, 2, 3, 4, 5, 6, 7, 8, 9];   // без Луны, узлов, Лилит, Хирона
+const EV_SEPTENER = [0, 1, 2, 3, 4, 5, 6];
+const EV_CAP_DAYS = 1100;   // предохранитель (Сатурн проходит знак ~2.5 года)
+let _evCache = { key: null, events: null };
 
 function fmtJdLocal(jd, utcOff) {
   const d = new Date((jd + (utcOff ?? 0) / 24 - 2440587.5) * 86400000);
   return String(d.getUTCDate()).padStart(2, '0') + '.'
-       + String(d.getUTCMonth() + 1).padStart(2, '0') + ' '
+       + String(d.getUTCMonth() + 1).padStart(2, '0') + '.'
+       + String(d.getUTCFullYear() % 100).padStart(2, '0') + ' '
        + String(d.getUTCHours()).padStart(2, '0') + ':'
        + String(d.getUTCMinutes()).padStart(2, '0');
 }
 
-// Точные аспекты Луны к планетам в пределах её текущего знака.
-// Часовой скан jdIn..jdOut: для 60/90/120 — смена знака (angDiff−угол),
-// для ☌/☍ — локальный экстремум angDiff с параболическим уточнением.
-// Возвращает { events: [{asp, target, jd, applying}], jdOut, voc }
-function computeMoonFlow(jd0) {
+function fmtEvPos(lon) {
+  const sign  = Math.floor(lon / 30);
+  const inDeg = lon - sign * 30;
+  const d = Math.floor(inDeg);
+  const m = Math.round((inDeg - d) * 60);
+  return `${String(d).padStart(2, '0')}° ${SIGNS[sign]} ${String(m).padStart(2, '0')}′`;
+}
+
+function fmtEvArc(arc) {
+  const a = Math.abs(arc);
+  const d = Math.floor(a);
+  const m = Math.round((a - d) * 60);
+  return `${arc < 0 ? '−' : ''}${d}°${String(m).padStart(2, '0')}′`;
+}
+
+// Все события в окнах знаков септенера. Возвращает отсортированный массив
+// { jd, label, color?, pos?, arc }.
+function computeHoraryEvents(jd0) {
   const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
-  const lonAt = (id, jd) => ((swe.calc_ut(jd, id, flags)[0] % 360) + 360) % 360;
-  const STEP = 1 / 24;
-  const sign0 = Math.floor(lonAt(1, jd0) / 30);
-  let jdIn = jd0, jdOut = jd0;
-  while (jd0 - jdIn < 3.2 && Math.floor(lonAt(1, jdIn - STEP) / 30) === sign0) jdIn -= STEP;
-  while (jdOut - jd0 < 3.2 && Math.floor(lonAt(1, jdOut + STEP) / 30) === sign0) jdOut += STEP;
+  const memo = new Map();
+  const lonAt = (id, jd) => {
+    const key = id + ':' + jd.toFixed(5);
+    let v = memo.get(key);
+    if (v === undefined) { v = ((swe.calc_ut(jd, id, flags)[0] % 360) + 360) % 360; memo.set(key, v); }
+    return v;
+  };
+  const signAt = (id, jd) => Math.floor(lonAt(id, jd) / 30);
+  const stepFor = ids => ids.includes(1) ? 1 / 24 : (ids.some(i => [0, 2, 3, 4].includes(i)) ? 0.25 : 1);
 
-  const jds = [];
-  for (let jd = jdIn; jd <= jdOut + 1e-9; jd += STEP) jds.push(jd);
-  const moonLons = jds.map(jd => lonAt(1, jd));
+  // бисекция момента смены знака между jdA (текущий знак) и jdB (соседний)
+  const refineSignChange = (id, jdA, jdB) => {
+    const s0 = signAt(id, jdA);
+    for (let k = 0; k < 26; k++) {
+      const m = (jdA + jdB) / 2;
+      if (signAt(id, m) === s0) jdA = m; else jdB = m;
+    }
+    return (jdA + jdB) / 2;
+  };
 
+  // окна текущего знака для каждой планеты
+  const P = {};
+  for (const id of EV_SEPTENER) {
+    const pl = PLANETS.find(p => p.id === id);
+    const st = stepFor([id]);
+    const s0 = signAt(id, jd0);
+    let back = jd0;
+    while (jd0 - back < EV_CAP_DAYS && signAt(id, back - st) === s0) back -= st;
+    const jdIn = refineSignChange(id, back, back - st);
+    let fwd = jd0;
+    while (fwd - jd0 < EV_CAP_DAYS && signAt(id, fwd + st) === s0) fwd += st;
+    const jdOut = refineSignChange(id, fwd, fwd + st);
+    const speed0 = Math.abs(natalData?.planets.find(p => p.id === id)?.speed ?? 0);
+    P[id] = { pl, jdIn, jdOut, sign0: s0, lon0: lonAt(id, jd0), speed0 };
+  }
+
+  const arcOf = (id, jdEv) => (jdEv < jd0 ? -1 : 1) * angDiff(lonAt(id, jdEv), P[id].lon0);
   const events = [];
-  for (const tid of AF_TARGET_IDS) {
-    const target = PLANETS.find(p => p.id === tid);
-    const tLons  = jds.map(jd => lonAt(tid, jd));
-    const diffs  = jds.map((_, i) => angDiff(moonLons[i], tLons[i]));
-    for (const asp of T_ASPECTS) {
-      if (asp.angle > 0 && asp.angle < 180) {
-        for (let i = 1; i < jds.length; i++) {
-          const v1 = diffs[i - 1] - asp.angle, v2 = diffs[i] - asp.angle;
-          if (v1 !== 0 && Math.sign(v1) !== Math.sign(v2) && Math.abs(v2 - v1) < 15) {
-            const jd = jds[i - 1] + STEP * (v1 / (v1 - v2));
-            events.push({ asp, target, jd, applying: jd > jd0 });
-          }
+
+  // ингрессы: вход (прошлое) и выход (будущее) из текущего знака
+  for (const id of EV_SEPTENER) {
+    const { pl, jdIn, jdOut, sign0 } = P[id];
+    events.push({ jd: jdIn,  label: `${pl.glyph} → ${SIGNS[sign0]}`, pos: null, arc: arcOf(id, jdIn) });
+    events.push({ jd: jdOut, label: `${pl.glyph} ${SIGNS[sign0]} →`, pos: null, arc: arcOf(id, jdOut) });
+  }
+
+  // стационарности R/D (Солнце и Луна ретро не бывают)
+  for (const id of [2, 3, 4, 5, 6]) {
+    const { pl, jdIn, jdOut } = P[id];
+    const st = stepFor([id]);
+    let prevLon = lonAt(id, jdIn), prevV = null;
+    for (let jd = jdIn + st; jd <= jdOut + 1e-9; jd += st) {
+      const lon = lonAt(id, jd);
+      const v = ((lon - prevLon + 540) % 360) - 180;
+      if (prevV !== null && v !== 0 && prevV !== 0 && Math.sign(v) !== Math.sign(prevV)) {
+        // станция = экстремум долготы на [jd−2st, jd]; тернарный поиск
+        const wantMax = prevV > 0;
+        let a = jd - 2 * st, b = jd;
+        for (let k = 0; k < 30; k++) {
+          const m1 = a + (b - a) / 3, m2 = b - (b - a) / 3;
+          if ((lonAt(id, m1) < lonAt(id, m2)) === wantMax) a = m1; else b = m2;
         }
-      } else {
-        // ☌ — минимум angDiff около 0; ☍ — максимум около 180
-        const wantMin = asp.angle === 0;
-        for (let i = 1; i < jds.length - 1; i++) {
-          const a = diffs[i - 1], b = diffs[i], c = diffs[i + 1];
-          const isExt = wantMin
-            ? (b <= a && b <= c && b < 0.6)
-            : (b >= a && b >= c && b > 179.4);
-          if (isExt) {
-            const denom = a - 2 * b + c;
-            const shift = Math.abs(denom) > 1e-9 ? (STEP / 2) * (a - c) / denom : 0;
-            const jd = jds[i] + Math.max(-STEP, Math.min(STEP, shift));
-            events.push({ asp, target, jd, applying: jd > jd0 });
+        const jdSt = (a + b) / 2;
+        events.push({ jd: jdSt, label: `${pl.glyph} ${wantMax ? 'R' : 'D'}`,
+                      pos: lonAt(id, jdSt), arc: arcOf(id, jdSt) });
+      }
+      prevV = v; prevLon = lon;
+    }
+  }
+
+  // точные аспекты между парами септенера (пока обе планеты в своих знаках)
+  for (let i = 0; i < EV_SEPTENER.length; i++) for (let j = i + 1; j < EV_SEPTENER.length; j++) {
+    const a = EV_SEPTENER[i], b = EV_SEPTENER[j];
+    const start = Math.max(P[a].jdIn, P[b].jdIn);
+    const end   = Math.min(P[a].jdOut, P[b].jdOut);
+    if (end <= start) continue;
+    const st = stepFor([a, b]);
+    const fast = P[a].speed0 >= P[b].speed0 ? a : b;
+    const slow = fast === a ? b : a;
+    // f-функции: ноль в точном аспекте, непрерывны в его окрестности
+    const sepAt  = jd => ((lonAt(a, jd) - lonAt(b, jd) + 540) % 360) - 180;   // 0 = ☌
+    const fFor = angle => angle === 0 ? sepAt
+      : angle === 180 ? (jd => ((lonAt(a, jd) - lonAt(b, jd) + 360) % 360) - 180)
+      : (jd => Math.abs(sepAt(jd)) - angle);
+    const fns = T_ASPECTS.map(asp => ({ asp, f: fFor(asp.angle), prev: null }));
+    const n = Math.ceil((end - start) / st);
+    for (let k = 0; k <= n; k++) {
+      const jd = Math.min(start + k * st, end);
+      for (const e of fns) {
+        const v = e.f(jd);
+        if (e.prev !== null && v !== 0 && Math.sign(v) !== Math.sign(e.prev.v)
+            && Math.abs(v - e.prev.v) < 90) {
+          // бисекция до минут
+          let lo = e.prev.jd, hi = jd, flo = e.prev.v;
+          for (let q = 0; q < 26; q++) {
+            const m = (lo + hi) / 2, fm = e.f(m);
+            if (Math.sign(fm) === Math.sign(flo)) { lo = m; flo = fm; } else hi = m;
           }
+          const hit = (lo + hi) / 2;
+          events.push({ jd: hit, color: e.asp.color,
+            label: `${P[fast].pl.glyph} ${e.asp.symbol} ${P[slow].pl.glyph}`,
+            pos: lonAt(fast, hit), arc: arcOf(fast, hit) });
         }
+        e.prev = { jd, v };
       }
     }
   }
-  const applying = events.filter(e => e.applying);
-  return { events: events.sort((a, b) => a.jd - b.jd), jdOut, voc: applying.length === 0 };
-}
 
-// Пары планет в орбе ≤3° на момент карты (Луна — в потоке выше)
-function computeInOrbAspects(planets) {
-  const ps = planets.filter(p => AF_TARGET_IDS.includes(p.id));
-  const out = [];
-  for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
-    const a = ps[i], b = ps[j];
-    const s = ((a.longitude - b.longitude + 540) % 360) - 180;
-    const u = Math.abs(s);
-    for (const asp of T_ASPECTS) {
-      const orb = u - asp.angle;
-      if (Math.abs(orb) > 3) continue;
-      // d|s|/dt = sign(s)·(va−vb); аппликация — орбис сокращается
-      const du = Math.sign(s || 1) * ((a.speed ?? 0) - (b.speed ?? 0));
-      out.push({ a, b, asp, orb: Math.abs(orb), applying: orb * du < 0 });
-    }
-  }
-  return out.sort((x, y) => x.orb - y.orb);
+  return events.sort((x, y) => x.jd - y.jd);
 }
 
 function renderAspFlow() {
@@ -5702,7 +5732,8 @@ function renderAspFlow() {
   view.innerHTML = '';
   if (!natalData || !swe) return;
   const utcOff = natalData.utcOff ?? 0;
-  const moonGlyph = PLANETS.find(p => p.id === 1).glyph;
+  const jd0 = natalData.birthJD;
+  if (_evCache.key !== jd0) _evCache = { key: jd0, events: computeHoraryEvents(jd0) };
 
   const section = label => {
     const d = document.createElement('div');
@@ -5710,52 +5741,32 @@ function renderAspFlow() {
     d.textContent = label;
     view.appendChild(d);
   };
-  const row = (text, color, meta, past) => {
-    const r = document.createElement('div');
-    r.className = 'af-row' + (past ? ' af-past' : '');
-    const g = document.createElement('span');
-    g.className = 'af-glyphs';
-    g.textContent = text;
-    if (color) g.style.color = color;
-    const m = document.createElement('span');
-    m.className = 'af-meta';
-    m.textContent = meta;
-    r.append(g, m);
-    view.appendChild(r);
+  const mkTable = list => {
+    const t = document.createElement('table');
+    t.className = 'af-table';
+    for (const e of list) {
+      const row = document.createElement('tr');
+      const td = (text, cls) => {
+        const c = document.createElement('td');
+        c.textContent = text;
+        if (cls) c.className = cls;
+        row.appendChild(c);
+        return c;
+      };
+      td(fmtJdLocal(e.jd, utcOff), 'af-date');
+      const ev = td(e.label, 'af-ev');
+      if (e.color) ev.style.color = e.color;
+      td(e.pos != null ? fmtEvPos(e.pos) : '', 'af-pos');
+      td(fmtEvArc(e.arc), 'af-arc');
+      t.appendChild(row);
+    }
+    view.appendChild(t);
   };
-  const emptyNote = () => {
-    const d = document.createElement('div');
-    d.className = 'af-empty';
-    d.textContent = '—';
-    view.appendChild(d);
-  };
-
-  const { events, jdOut, voc } = computeMoonFlow(natalData.birthJD);
-  const past = events.filter(e => !e.applying);
-  const fut  = events.filter(e => e.applying);
-
-  section(tr('afMoonPast'));
-  if (!past.length) emptyNote();
-  for (const e of past)
-    row(`${moonGlyph} ${e.asp.symbol} ${e.target.glyph}`, e.asp.color, fmtJdLocal(e.jd, utcOff), true);
-
-  section(tr('afMoonFuture'));
-  if (!fut.length) emptyNote();
-  for (const e of fut)
-    row(`${moonGlyph} ${e.asp.symbol} ${e.target.glyph}`, e.asp.color, fmtJdLocal(e.jd, utcOff), false);
-  if (voc) {
-    const d = document.createElement('div');
-    d.className = 'af-voc';
-    d.textContent = `${tr('afVoc')} ${fmtJdLocal(jdOut, utcOff)}`;
-    view.appendChild(d);
-  }
-
-  section(tr('afInOrb'));
-  const inOrb = computeInOrbAspects(natalData.planets);
-  if (!inOrb.length) emptyNote();
-  for (const it of inOrb.slice(0, 16))
-    row(`${it.a.glyph} ${it.asp.symbol} ${it.b.glyph}`, it.asp.color,
-        `${fmtOrb(it.orb)} · ${tr(it.applying ? 'afApplying' : 'afSeparating')}`, false);
+  const events = _evCache.events;
+  section(tr('afPastEvents'));
+  mkTable(events.filter(e => e.jd < jd0));
+  section(tr('afFutureEvents'));
+  mkTable(events.filter(e => e.jd >= jd0));
 }
 
 function findGridAspect(lon1, lon2, id1, id2, orbMode) {

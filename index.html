@@ -943,6 +943,17 @@
   #layout-v2.case-horary #v2-panel-nav { display: none; }
   #layout-v2.case-horary #v2-top { flex: 1 1 auto; }
 
+  /* Исход хорара (сбылся / нет / частично) */
+  #v2-outcome { display: none; gap: 4px; margin-top: 7px; flex-wrap: wrap; }
+  #layout-v2.case-horary #v2-outcome { display: flex; }
+  .outcome-chip {
+    padding: 3px 9px; font-size: 0.72em;
+    border: 1px solid var(--bd-light); border-radius: 10px;
+    background: var(--bg); color: var(--tx-5); cursor: pointer;
+  }
+  .outcome-chip:hover:not(.active) { background: var(--bg-hover); color: var(--tx-3); }
+  .outcome-chip.active { background: var(--bg-active); color: var(--tx); border-color: var(--bd); }
+
   /* ── Палитра (пустая вкладка) ─────────────────────────────────────────────── */
   #palette-view {
     display: none;
@@ -1921,6 +1932,11 @@
           <span id="v2-chart-date"></span>
           <span id="v2-chart-place"></span>
           <span id="v2-case-type"></span>
+          <div id="v2-outcome">
+            <button class="outcome-chip" data-outcome="yes" data-i18n="outcomeYes">Сбылся</button>
+            <button class="outcome-chip" data-outcome="no" data-i18n="outcomeNo">Нет</button>
+            <button class="outcome-chip" data-outcome="partial" data-i18n="outcomePartial">Частично</button>
+          </div>
         </div>
         <div id="v2-bottom-row">
           <button class="v2-icon-btn" id="v2-settings-btn" title="Настройки">⚙︎</button>
@@ -2162,6 +2178,7 @@ const STRINGS = {
     digPeregrine:'перегрин',
     horaryQuestionLabel:'Вопрос', horaryQuestionPh:'Текст вопроса…',
     horaryDateLabel:'Дата вопроса', horaryPlaceLabel:'Место (астролог)',
+    horaryFolder:'Хорары', outcomeYes:'Сбылся', outcomeNo:'Нет', outcomePartial:'Частично',
     noTransits:'Нет активных транзитов в этом периоде.',
     computingDots:'вычисление…', noFastTransits:'нет быстрых транзитов',
     noChartData:'Нет данных карты', computingForecast:'Вычисление…',
@@ -2252,6 +2269,7 @@ const STRINGS = {
     digPeregrine:'peregrine',
     horaryQuestionLabel:'Question', horaryQuestionPh:'Question text…',
     horaryDateLabel:'Date of question', horaryPlaceLabel:'Place (astrologer)',
+    horaryFolder:'Хорары', outcomeYes:'Fulfilled', outcomeNo:'No', outcomePartial:'Partially',
     noTransits:'No active transits in this period.',
     computingDots:'computing…', noFastTransits:'no fast transits',
     noChartData:'No chart data', computingForecast:'Computing…',
@@ -2950,7 +2968,7 @@ function loadChartFromDB(c) {
   if (ex >= 0) { switchTab(ex); markChartOpened(c); return; }
   markChartOpened(c);
   writeFormFields(rowToFields(c));
-  openNewTabFromForm(c.id ?? null);
+  openNewTabFromForm(c.id ?? null, c.case_type ?? 'natal', c.outcome ?? null);
 }
 
 // Отметка «последнего открытия» для сортировки базы (ошибки игнорируем —
@@ -2978,10 +2996,11 @@ function openChartInTab(c, newTab = false) {
   writeFormFields(rowToFields(c));
   currentChartId = c.id ?? null;
   currentTransitJD = null; chartExpanded = false; layout2TlState = 0; tlYearScale = false;
-  if (!computeAndRenderNatal()) return;
   const t = tabs[activeTab];
   delete t.kind;             // вкладка-палитра становится вкладкой кейса
-  t.type    = t.type ?? 'natal';
+  t.type    = c.case_type ?? 'natal';   // до расчёта: от типа зависит система домов
+  t.outcome = c.outcome ?? null;
+  if (!computeAndRenderNatal()) return;
   t.chartId = c.id ?? null;
   t.fields  = readFormFields();
   t.header  = readHeader();
@@ -3063,12 +3082,14 @@ function showSaveConfirm(msg, isError = false) {
   _saveConfirmTimer = setTimeout(() => el.classList.remove('show'), 3000);
 }
 
-document.getElementById('saveBtn').addEventListener('click', async () => {
-  if (!currentUser) { openModal(); return; }
+// Сохранить текущую карту (из формы) в Supabase. extra — колонки миграций
+// (case_type / question / folder / outcome); при их отсутствии в схеме
+// повторяем вставку без них (толерантность до миграции).
+async function saveCurrentChartToDb(extra = {}) {
   const name = document.getElementById('chartName').value.trim()
              || document.getElementById('birthPlace').value
              || tr('chartFallback');
-  const { data, error } = await sb.from('charts').insert({
+  const baseRow = {
     user_id:    currentUser.id,
     name,
     birth_date: document.getElementById('birthDate').value  || null,
@@ -3078,19 +3099,42 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     lon:        parseFloat(document.getElementById('lonVal').value)  || null,
     utc_offset: parseFloat(document.getElementById('utcOff').value)  || null,
     timezone:   detectedTimezone ?? null,
-  }).select().single();
-  if (error) { showSaveConfirm(tr('saveError'), true); return; }
-  showSaveConfirm(tr('saved'));
+  };
+  let res = await sb.from('charts').insert({ ...baseRow, ...extra }).select().single();
+  if (res.error && Object.keys(extra).length) {
+    console.warn('charts insert with extras failed, retrying base row:', res.error.message);
+    res = await sb.from('charts').insert(baseRow).select().single();
+  }
+  if (res.error) return res;
+  const data = res.data;
   // Сохранённая карта сразу становится «открытой» — заметки доступны без переоткрытия
   currentChartId = data.id;
-  // Привязать id к активной вкладке (была несохранённой)
   if (activeTab >= 0 && tabs[activeTab]) { tabs[activeTab].chartId = data.id; persistTabs(); }
   const newHash = `#chart/${data.id}`;
   if (window.location.hash !== newHash) {
     history.pushState({ chartId: data.id }, '', newHash);
   }
-  // Если активен таб «Заметки» с подсказкой «Сохраните карту» — обновить его
   if (rightPanelTab === 'notes') openNotesTab();
+  return res;
+}
+
+// Доп-колонки для сохранения по типу кейса
+function caseExtraColumns(t) {
+  const type = t?.type ?? 'natal';
+  const extra = { case_type: type };
+  if (type === 'horary') {
+    extra.question = document.getElementById('chartName').value.trim() || null;
+    extra.folder   = tr('horaryFolder');
+    if (t?.outcome) extra.outcome = t.outcome;
+  }
+  return extra;
+}
+
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  if (!currentUser) { openModal(); return; }
+  const { error } = await saveCurrentChartToDb(caseExtraColumns(tabs[activeTab]));
+  if (error) { showSaveConfirm(tr('saveError'), true); return; }
+  showSaveConfirm(tr('saved'));
 });
 
 // ── Notes ─────────────────────────────────────────────────────────────────────
@@ -3901,9 +3945,10 @@ function closeTab(i) {
 }
 
 // Создать новую вкладку из текущей формы и построить карту
-function openNewTabFromForm(chartId) {
+function openNewTabFromForm(chartId, caseType = 'natal', outcome = null) {
   if (!dashboardOpen) snapshotActiveTab();
-  const t = { uid: ++_tabUid, chartId: chartId ?? null, fields: null, header: null, st: null, type: 'natal' };
+  const t = { uid: ++_tabUid, chartId: chartId ?? null, fields: null, header: null, st: null,
+              type: caseType, outcome };
   tabs.push(t);
   activeTab = tabs.length - 1;
   dashboardOpen = false;
@@ -4074,6 +4119,14 @@ function computeIntoPaletteTab() {
   updateHashForActiveTab(true);
   persistTabs();
   renderTabBar();
+  // Хорары автосохраняются в папку «Хорары» (толерантно к отсутствию колонок)
+  if (t.type === 'horary' && currentUser) {
+    saveCurrentChartToDb(caseExtraColumns(t)).then(({ error }) => {
+      if (error) { showSaveConfirm(tr('saveError'), true); return; }
+      showSaveConfirm(tr('saved'));
+      loadHomeCharts();   // папка/список на главной и в палитре
+    });
+  }
 }
 
 document.getElementById('palette-cmds').addEventListener('click', e => {
@@ -4181,9 +4234,9 @@ function stateToView(s) {
 function tabToStorage(t, live) {
   if (t.kind === 'palette') return { kind: 'palette' };
   if (live) {
-    return { chartId: currentChartId ?? null, fields: readFormFields(), header: readHeader(), view: stateToView(captureState()), type: t.type ?? 'natal' };
+    return { chartId: currentChartId ?? null, fields: readFormFields(), header: readHeader(), view: stateToView(captureState()), type: t.type ?? 'natal', outcome: t.outcome ?? null };
   }
-  return { chartId: t.chartId ?? null, fields: t.fields, header: t.header, view: t.st ? stateToView(t.st) : (t.view || null), type: t.type ?? 'natal' };
+  return { chartId: t.chartId ?? null, fields: t.fields, header: t.header, view: t.st ? stateToView(t.st) : (t.view || null), type: t.type ?? 'natal', outcome: t.outcome ?? null };
 }
 
 function persistTabs() {
@@ -4212,6 +4265,7 @@ function restoreTabs() {
         st: null,                 // ленивая — построим при первом показе
         view: d.view || null,
         type: d.type ?? 'natal',
+        outcome: d.outcome ?? null,
       });
   activeTab = (typeof data.activeTab === 'number' && data.activeTab < tabs.length) ? data.activeTab : 0;
   dashboardOpen = data.dashboardOpen !== false;   // по умолчанию показываем дашборд
@@ -4262,7 +4316,29 @@ function applyCaseType(type) {
   if (el) el.textContent = CASE_TYPE_LABELS[type] || '';
   // Пресет хорара: без таймлайна, режимов и контроллера времени (всё anchored)
   document.getElementById('layout-v2')?.classList.toggle('case-horary', type === 'horary');
+  applyOutcomeChips();
 }
+
+// ── Исход хорара: сбылся / нет / частично (charts.outcome) ────────────────────
+function applyOutcomeChips() {
+  const cur = tabs[activeTab]?.outcome ?? null;
+  document.querySelectorAll('#v2-outcome .outcome-chip').forEach(b =>
+    b.classList.toggle('active', b.dataset.outcome === cur));
+}
+document.getElementById('v2-outcome')?.addEventListener('click', e => {
+  const btn = e.target.closest('.outcome-chip');
+  const t = tabs[activeTab];
+  if (!btn || !t) return;
+  t.outcome = t.outcome === btn.dataset.outcome ? null : btn.dataset.outcome;
+  applyOutcomeChips();
+  persistTabs();
+  if (t.chartId && currentUser) {
+    sb.from('charts').update({ outcome: t.outcome }).eq('id', t.chartId)
+      .then(({ error }) => { if (error) console.warn('outcome:', error.message); });
+    const row = _homeCharts.find(x => x.id === t.chartId);
+    if (row) row.outcome = t.outcome;
+  }
+});
 
 // ── Правая группа панелей: виджеты-табы (см. WORKSPACE_CONCEPT.md §6, §13).
 // Состав группы (rightPanelTabs) и активный виджет (rightPanelTab) — часть

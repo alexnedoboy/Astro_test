@@ -943,6 +943,12 @@
   #layout-v2.case-horary #v2-panel-nav { display: none; }
   #layout-v2.case-horary #v2-top { flex: 1 1 auto; }
 
+  /* Блок хорара под картой: градусная линейка + таблица достоинств */
+  #horary-block { display: none; flex: 0 0 auto; padding: 0 16px 12px; overflow-y: auto; }
+  #layout-v2.case-horary #horary-block { display: block; }
+  #horary-ruler { max-width: 720px; margin: 0 auto; }
+  #horary-dig-table { max-width: 720px; margin: 6px auto 0; }
+
   /* Исход хорара (сбылся / нет / частично) */
   #v2-outcome { display: none; gap: 4px; margin-top: 7px; flex-wrap: wrap; }
   #layout-v2.case-horary #v2-outcome { display: flex; }
@@ -1135,25 +1141,28 @@
   #right-info-content.rp-dignities #info-table,
   #right-info-content.rp-dignities #aspect-grid { display: none; }
   #right-info-content.rp-dignities #dignities-view { display: block; }
-  /* Таблица достоинств */
+  /* Таблицы достоинств (виджет и хорар-блок) */
   #dig-daynight { font-size: 0.76em; color: var(--tx-7); padding: 8px 10px 2px; }
-  #dig-table { width: 100%; border-collapse: collapse; font-size: 0.8em; }
-  #dig-table th {
+  .dig-table { width: 100%; border-collapse: collapse; font-size: 0.8em; }
+  .dig-table th {
     font-weight: 500; color: var(--tx-7); padding: 5px 2px;
     text-align: center; border-bottom: 1px solid var(--bd-light);
     font-size: 0.9em;
   }
-  #dig-table td {
+  .dig-table td {
     padding: 5px 2px; text-align: center; color: var(--tx-6);
     border-bottom: 1px solid var(--bd-light);
   }
-  #dig-table td.dig-planet { text-align: left; padding-left: 10px; font-size: 1.15em; color: var(--tx-2); }
-  #dig-table td.dig-pos    { color: var(--tx-4); white-space: nowrap; }
-  #dig-table .dig-own      { color: var(--tx); font-weight: 700; }
-  #dig-table td.dig-score  { font-weight: 600; }
-  #dig-table .dig-score-pos { color: var(--ok); }
-  #dig-table .dig-score-neg { color: var(--danger); }
-  #dig-table .dig-peregrine { font-size: 0.78em; font-weight: 400; color: var(--tx-7); font-style: italic; }
+  .dig-table td.dig-planet { text-align: left; padding-left: 10px; font-size: 1.15em; color: var(--tx-2); }
+  .dig-table td.dig-pos    { color: var(--tx-4); white-space: nowrap; }
+  .dig-table td.dig-label  { text-align: left; padding-left: 10px; font-size: 0.92em; color: var(--tx-6); white-space: nowrap; }
+  .dig-table th.dig-planet-col { font-size: 1.1em; color: var(--tx-3); font-weight: 400; }
+  .dig-table .dig-own      { color: var(--tx); font-weight: 700; }
+  .dig-table td.dig-hit    { background: #E7E4F6; }
+  .dig-table td.dig-score  { font-weight: 600; }
+  .dig-table .dig-score-pos { color: var(--ok); }
+  .dig-table .dig-score-neg { color: var(--danger); }
+  .dig-table .dig-peregrine { font-size: 0.78em; font-weight: 400; color: var(--tx-7); font-style: italic; }
   #v2-aspect-panel.rp-show-notes #right-info-content { display: none !important; }
   #v2-aspect-panel.rp-show-notes #v2-notes-view { display: flex; }
   /* Кнопки шапки группы: + (добавить виджет) и ☰ (меню панели) */
@@ -1975,6 +1984,7 @@
       <div id="chart-dropdown"></div>
       <button id="v2-chart-expand-btn" title="Развернуть карту">⤢</button>
       <div id="chart-block"></div>
+      <div id="horary-block"></div>
     </div>
     <div id="v2-aspect-panel">
       <div class="panel-head">
@@ -2179,6 +2189,8 @@ const STRINGS = {
     horaryQuestionLabel:'Вопрос', horaryQuestionPh:'Текст вопроса…',
     horaryDateLabel:'Дата вопроса', horaryPlaceLabel:'Место (астролог)',
     horaryFolder:'Хорары', outcomeYes:'Сбылся', outcomeNo:'Нет', outcomePartial:'Частично',
+    digRowDom:'Обитель', digRowExalt:'Экзальтация', digRowTrip:'Триплицитет', digRowTerm:'Терм',
+    digRowFace:'Фас', digRowDetr:'Изгнание', digRowFall:'Падение', digRowScore:'Балл',
     noTransits:'Нет активных транзитов в этом периоде.',
     computingDots:'вычисление…', noFastTransits:'нет быстрых транзитов',
     noChartData:'Нет данных карты', computingForecast:'Вычисление…',
@@ -2270,6 +2282,8 @@ const STRINGS = {
     horaryQuestionLabel:'Question', horaryQuestionPh:'Question text…',
     horaryDateLabel:'Date of question', horaryPlaceLabel:'Place (astrologer)',
     horaryFolder:'Хорары', outcomeYes:'Fulfilled', outcomeNo:'No', outcomePartial:'Partially',
+    digRowDom:'Domicile', digRowExalt:'Exaltation', digRowTrip:'Triplicity', digRowTerm:'Term',
+    digRowFace:'Face', digRowDetr:'Detriment', digRowFall:'Fall', digRowScore:'Score',
     noTransits:'No active transits in this period.',
     computingDots:'computing…', noFastTransits:'no fast transits',
     noChartData:'No chart data', computingForecast:'Computing…',
@@ -3864,6 +3878,7 @@ function paintActiveChart() {
   applyRightPanelTab();
   applyChartModeTabs();
   switchToMode(currentMode);
+  renderHoraryBlock();
   if (currentCaseType === 'horary') return;   // пресет хорара — без таймлайна
   if (cachedTimeline) {
     const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
@@ -4738,6 +4753,7 @@ function computeAndRenderNatal() {
     syncV2ModeButtons();
     syncV2DateLabel();
     setInfoTableMode('natal');
+    renderHoraryBlock();
     if (caseType !== 'horary') computeAndRenderTimeline(natalData.planets);
     setStatus('');
     return true;
@@ -5396,7 +5412,7 @@ function computeDignities(id, lon, isDay) {
   if (id === term) score += 2;
   if (id === face) score += 1;
   const peregrine = id !== domicile && exalt !== id && id !== trip && id !== term && id !== face;
-  return { sign, inDeg, domicile, exalt, trip, term, face, score, peregrine };
+  return { sign, inDeg, domicile, detriment, exalt, fall, trip, term, face, score, peregrine };
 }
 
 function renderDignities() {
@@ -5414,6 +5430,7 @@ function renderDignities() {
 
   const table = document.createElement('table');
   table.id = 'dig-table';
+  table.className = 'dig-table';
   const cols = ['', '', tr('digColDom'), tr('digColExalt'), tr('digColTrip'), tr('digColTerm'), tr('digColFace'), 'Σ'];
   const thead = document.createElement('tr');
   for (const c of cols) {
@@ -5453,6 +5470,110 @@ function renderDignities() {
     table.appendChild(row);
   }
   view.appendChild(table);
+}
+
+// ── Блок хорара под картой: градусная линейка + таблица достоинств ────────────
+// Линейка: планеты по градусу внутри знака на одной шкале 0–30° (знак игнорируется)
+// — виден порядок схождения аспектов. Семёрка сверху, высшие снизу.
+function buildDegreeRuler(planets) {
+  const W = 720, H = 140, X0 = 26, X1 = 694;
+  const pxDeg = (X1 - X0) / 30;
+  const LINE_Y = 70;
+  const svg = el('svg', { id: 'horary-ruler', viewBox: `0 0 ${W} ${H}`, width: '100%', style: 'display:block' });
+  svg.appendChild(ln(X0, LINE_Y, X1, LINE_Y, { stroke: '#aaa', 'stroke-width': 1 }));
+  for (let d = 0; d <= 30; d++) {
+    const x = X0 + d * pxDeg;
+    const big = d % 5 === 0;
+    svg.appendChild(ln(x, LINE_Y - (big ? 5 : 2.5), x, LINE_Y + (big ? 5 : 2.5),
+      { stroke: '#aaa', 'stroke-width': big ? 1 : 0.6 }));
+    if (big) svg.appendChild(txt(x, LINE_Y + 18, String(d),
+      { 'font-size': 10, fill: '#999', 'text-anchor': 'middle' }));
+  }
+  const row = (list, above) => {
+    const items = list.map(p => {
+      const lon = ((p.longitude % 360) + 360) % 360;
+      const sign = Math.floor(lon / 30);
+      return { p, sign, inDeg: lon - sign * 30 };
+    }).sort((a, b) => a.inDeg - b.inDeg);
+    let lastX = -Infinity;
+    for (const it of items) {
+      const exact = X0 + it.inDeg * pxDeg;
+      const x = Math.max(exact, lastX + 17);   // расталкивание при скоплении
+      lastX = x;
+      // засечка на точном градусе
+      svg.appendChild(ln(exact, LINE_Y - (above ? 8 : 0), exact, LINE_Y + (above ? 0 : 8),
+        { stroke: '#777', 'stroke-width': 1 }));
+      const gy = above ? 27 : LINE_Y + 44;
+      const sy = above ? 48 : LINE_Y + 63;
+      svg.appendChild(txt(x, gy, it.p.glyph,
+        { 'font-size': 17, fill: '#333', 'text-anchor': 'middle', 'dominant-baseline': 'central' }));
+      svg.appendChild(txt(x, sy, SIGNS[it.sign],
+        { 'font-size': 11, fill: SIGN_ELEM_COLORS[it.sign], 'text-anchor': 'middle', 'dominant-baseline': 'central' }));
+    }
+  };
+  row(planets.filter(p => p.id <= 6), true);
+  row(planets.filter(p => [7, 8, 9].includes(p.id)), false);
+  return svg;
+}
+
+// Транспонированная таблица достоинств: колонки — семёрка, строки — достоинства.
+// В ячейке — управитель данного достоинства в позиции планеты; подсветка — планета
+// в собственном достоинстве / слабости.
+function buildHoraryDigTable(planets, cusps) {
+  const sun = planets.find(p => p.id === 0);
+  const isDay = sun ? findHouse(sun.longitude, cusps) >= 7 : true;
+  const seven = planets.filter(p => p.id <= 6);
+  const digs  = seven.map(p => computeDignities(p.id, p.longitude, isDay));
+  const table = document.createElement('table');
+  table.id = 'horary-dig-table';
+  table.className = 'dig-table';
+  const head = document.createElement('tr');
+  head.appendChild(document.createElement('th'));
+  for (const p of seven) {
+    const th = document.createElement('th');
+    th.className = 'dig-planet-col';
+    th.textContent = p.glyph;
+    head.appendChild(th);
+  }
+  table.appendChild(head);
+  const addRow = (label, cellFn) => {
+    const trEl = document.createElement('tr');
+    const lbl = document.createElement('td');
+    lbl.className = 'dig-label';
+    lbl.textContent = label;
+    trEl.appendChild(lbl);
+    seven.forEach((p, i) => trEl.appendChild(cellFn(p, digs[i])));
+    table.appendChild(trEl);
+  };
+  const rulerCell = (ruler, ownId) => {
+    const td = document.createElement('td');
+    td.textContent = ruler != null ? digGlyph(ruler) : '—';
+    if (ruler != null && ruler === ownId) td.classList.add('dig-hit', 'dig-own');
+    return td;
+  };
+  addRow(tr('digRowDom'),   (p, d) => rulerCell(d.domicile, p.id));
+  addRow(tr('digRowExalt'), (p, d) => rulerCell(d.exalt, p.id));
+  addRow(tr('digRowTrip'),  (p, d) => rulerCell(d.trip, p.id));
+  addRow(tr('digRowTerm'),  (p, d) => rulerCell(d.term, p.id));
+  addRow(tr('digRowFace'),  (p, d) => rulerCell(d.face, p.id));
+  addRow(tr('digRowDetr'),  (p, d) => rulerCell(d.detriment, p.id));
+  addRow(tr('digRowFall'),  (p, d) => rulerCell(d.fall, p.id));
+  addRow(tr('digRowScore'), (p, d) => {
+    const td = document.createElement('td');
+    td.className = 'dig-score ' + (d.score > 0 ? 'dig-score-pos' : d.score < 0 ? 'dig-score-neg' : '');
+    td.textContent = d.score > 0 ? `+${d.score}` : String(d.score);
+    return td;
+  });
+  return table;
+}
+
+function renderHoraryBlock() {
+  const wrap = document.getElementById('horary-block');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (currentCaseType !== 'horary' || !natalData) return;
+  wrap.appendChild(buildDegreeRuler(natalData.planets));
+  wrap.appendChild(buildHoraryDigTable(natalData.planets, natalData.cusps));
 }
 
 function findGridAspect(lon1, lon2, id1, id2, orbMode) {

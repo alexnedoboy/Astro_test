@@ -1134,13 +1134,33 @@
   }
   .panel-tab.active::before,
   .panel-tab.active + .panel-tab::before { background: transparent; }
-  #right-info-content #dignities-view { display: none; }
+  #right-info-content #dignities-view,
+  #right-info-content #aspflow-view { display: none; }
   #right-info-content.rp-aspects #info-table { display: none; }
   #right-info-content.rp-grades  #aspect-grid { display: none; }
   #right-info-content.rp-aspects #aspect-grid { margin-top: 0; }
   #right-info-content.rp-dignities #info-table,
-  #right-info-content.rp-dignities #aspect-grid { display: none; }
+  #right-info-content.rp-dignities #aspect-grid,
+  #right-info-content.rp-aspflow #info-table,
+  #right-info-content.rp-aspflow #aspect-grid { display: none; }
   #right-info-content.rp-dignities #dignities-view { display: block; }
+  #right-info-content.rp-aspflow #aspflow-view { display: block; }
+  /* Виджет «Аспекты ±» */
+  #aspflow-view { padding: 6px 10px 12px; }
+  .af-section { font-size: 0.74em; font-weight: 600; color: var(--tx-6); margin: 10px 0 3px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .af-row {
+    display: flex; align-items: baseline; gap: 7px;
+    padding: 4px 2px; font-size: 0.86em;
+    border-bottom: 1px solid var(--bd-light);
+  }
+  .af-row.af-past { opacity: 0.55; }
+  .af-glyphs { flex: 0 0 auto; font-size: 1.05em; white-space: nowrap; }
+  .af-meta { margin-left: auto; flex: 0 0 auto; font-size: 0.82em; color: var(--tx-6); white-space: nowrap; }
+  .af-voc {
+    margin-top: 4px; padding: 5px 8px; font-size: 0.82em;
+    color: var(--danger); background: var(--danger-bg, #fbeaea); border-radius: 5px;
+  }
+  .af-empty { font-size: 0.82em; color: var(--tx-7); padding: 10px 2px; }
   /* Таблицы достоинств (виджет и хорар-блок) */
   #dig-daynight { font-size: 0.76em; color: var(--tx-7); padding: 8px 10px 2px; }
   .dig-table { width: 100%; border-collapse: collapse; font-size: 0.8em; }
@@ -2001,6 +2021,7 @@
         </table>
         <div id="aspect-grid"></div>
         <div id="dignities-view"></div>
+        <div id="aspflow-view"></div>
       </div>
       <div id="v2-notes-view">
         <div id="notes-msg"></div>
@@ -2191,6 +2212,8 @@ const STRINGS = {
     horaryFolder:'Хорары', outcomeYes:'Сбылся', outcomeNo:'Нет', outcomePartial:'Частично',
     digRowDom:'Обитель', digRowExalt:'Экзальтация', digRowTrip:'Триплицитет', digRowTerm:'Терм',
     digRowFace:'Фас', digRowDetr:'Изгнание', digRowFall:'Падение', digRowScore:'Балл',
+    panelTabAspFlow:'Аспекты ±', afMoonPast:'Луна — прошлые', afMoonFuture:'Луна — будущие',
+    afInOrb:'В орбе сейчас', afVoc:'Луна без курса до', afApplying:'аппликация', afSeparating:'сепарация',
     noTransits:'Нет активных транзитов в этом периоде.',
     computingDots:'вычисление…', noFastTransits:'нет быстрых транзитов',
     noChartData:'Нет данных карты', computingForecast:'Вычисление…',
@@ -2284,6 +2307,8 @@ const STRINGS = {
     horaryFolder:'Хорары', outcomeYes:'Fulfilled', outcomeNo:'No', outcomePartial:'Partially',
     digRowDom:'Domicile', digRowExalt:'Exaltation', digRowTrip:'Triplicity', digRowTerm:'Term',
     digRowFace:'Face', digRowDetr:'Detriment', digRowFall:'Fall', digRowScore:'Score',
+    panelTabAspFlow:'Aspects ±', afMoonPast:'Moon — past', afMoonFuture:'Moon — future',
+    afInOrb:'In orb now', afVoc:'Moon void of course until', afApplying:'applying', afSeparating:'separating',
     noTransits:'No active transits in this period.',
     computingDots:'computing…', noFastTransits:'no fast transits',
     noChartData:'No chart data', computingForecast:'Computing…',
@@ -4127,6 +4152,12 @@ function computeIntoPaletteTab() {
   if (!computeAndRenderNatal()) return;
   delete t.kind;
   t.chartId = null;
+  // Пресет хорара предзагружает свои виджеты (WORKSPACE_CONCEPT §7)
+  if (t.type === 'horary') {
+    rightPanelTabs = ['grades', 'aspects', 'dignities', 'aspflow', 'notes'];
+    rightPanelTab  = 'aspflow';
+    applyRightPanelTab();
+  }
   t.fields  = readFormFields();
   t.header  = readHeader();
   t.st      = captureState();
@@ -4363,6 +4394,7 @@ const RP_WIDGETS = {
   grades:    { i18n: 'panelTabGrades'     },
   aspects:   { i18n: 'panelTabAspects'    },
   dignities: { i18n: 'panelTabDignities'  },
+  aspflow:   { i18n: 'panelTabAspFlow'    },
   notes:     { i18n: 'panelTabNotes'      },
 };
 const RP_DEFAULT_TABS = ['grades', 'aspects', 'notes'];
@@ -4393,10 +4425,11 @@ function applyRightPanelTab() {
   const showNotes = rightPanelTab === 'notes';
   panel?.classList.toggle('rp-show-notes', showNotes);
   if (content && !showNotes) {
-    content.classList.remove('rp-grades', 'rp-aspects', 'rp-dignities');
+    content.classList.remove('rp-grades', 'rp-aspects', 'rp-dignities', 'rp-aspflow');
     content.classList.add('rp-' + (RP_WIDGETS[rightPanelTab] ? rightPanelTab : 'grades'));
   }
   if (rightPanelTab === 'dignities') renderDignities();
+  if (rightPanelTab === 'aspflow') renderAspFlow();
   const addBtn = document.getElementById('rp-add-btn');
   if (addBtn) addBtn.style.display =
     Object.keys(RP_WIDGETS).some(id => !rightPanelTabs.includes(id)) ? '' : 'none';
@@ -5574,6 +5607,155 @@ function renderHoraryBlock() {
   if (currentCaseType !== 'horary' || !natalData) return;
   wrap.appendChild(buildDegreeRuler(natalData.planets));
   wrap.appendChild(buildHoraryDigTable(natalData.planets, natalData.cusps));
+}
+
+// ── Виджет «Аспекты ±»: прошлые/будущие аспекты Луны + аспекты в орбе ─────────
+// Луна: точные аспекты внутри её текущего знака — сепарации (до момента карты)
+// и аппликации (до выхода из знака). Если аппликаций нет — Луна без курса.
+// Планеты: пары в орбе ≤3° на момент карты, с пометкой аппликация/сепарация.
+
+const AF_TARGET_IDS = [0, 2, 3, 4, 5, 6, 7, 8, 9];   // без Луны, узлов, Лилит, Хирона
+
+function fmtJdLocal(jd, utcOff) {
+  const d = new Date((jd + (utcOff ?? 0) / 24 - 2440587.5) * 86400000);
+  return String(d.getUTCDate()).padStart(2, '0') + '.'
+       + String(d.getUTCMonth() + 1).padStart(2, '0') + ' '
+       + String(d.getUTCHours()).padStart(2, '0') + ':'
+       + String(d.getUTCMinutes()).padStart(2, '0');
+}
+
+// Точные аспекты Луны к планетам в пределах её текущего знака.
+// Часовой скан jdIn..jdOut: для 60/90/120 — смена знака (angDiff−угол),
+// для ☌/☍ — локальный экстремум angDiff с параболическим уточнением.
+// Возвращает { events: [{asp, target, jd, applying}], jdOut, voc }
+function computeMoonFlow(jd0) {
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const lonAt = (id, jd) => ((swe.calc_ut(jd, id, flags)[0] % 360) + 360) % 360;
+  const STEP = 1 / 24;
+  const sign0 = Math.floor(lonAt(1, jd0) / 30);
+  let jdIn = jd0, jdOut = jd0;
+  while (jd0 - jdIn < 3.2 && Math.floor(lonAt(1, jdIn - STEP) / 30) === sign0) jdIn -= STEP;
+  while (jdOut - jd0 < 3.2 && Math.floor(lonAt(1, jdOut + STEP) / 30) === sign0) jdOut += STEP;
+
+  const jds = [];
+  for (let jd = jdIn; jd <= jdOut + 1e-9; jd += STEP) jds.push(jd);
+  const moonLons = jds.map(jd => lonAt(1, jd));
+
+  const events = [];
+  for (const tid of AF_TARGET_IDS) {
+    const target = PLANETS.find(p => p.id === tid);
+    const tLons  = jds.map(jd => lonAt(tid, jd));
+    const diffs  = jds.map((_, i) => angDiff(moonLons[i], tLons[i]));
+    for (const asp of T_ASPECTS) {
+      if (asp.angle > 0 && asp.angle < 180) {
+        for (let i = 1; i < jds.length; i++) {
+          const v1 = diffs[i - 1] - asp.angle, v2 = diffs[i] - asp.angle;
+          if (v1 !== 0 && Math.sign(v1) !== Math.sign(v2) && Math.abs(v2 - v1) < 15) {
+            const jd = jds[i - 1] + STEP * (v1 / (v1 - v2));
+            events.push({ asp, target, jd, applying: jd > jd0 });
+          }
+        }
+      } else {
+        // ☌ — минимум angDiff около 0; ☍ — максимум около 180
+        const wantMin = asp.angle === 0;
+        for (let i = 1; i < jds.length - 1; i++) {
+          const a = diffs[i - 1], b = diffs[i], c = diffs[i + 1];
+          const isExt = wantMin
+            ? (b <= a && b <= c && b < 0.6)
+            : (b >= a && b >= c && b > 179.4);
+          if (isExt) {
+            const denom = a - 2 * b + c;
+            const shift = Math.abs(denom) > 1e-9 ? (STEP / 2) * (a - c) / denom : 0;
+            const jd = jds[i] + Math.max(-STEP, Math.min(STEP, shift));
+            events.push({ asp, target, jd, applying: jd > jd0 });
+          }
+        }
+      }
+    }
+  }
+  const applying = events.filter(e => e.applying);
+  return { events: events.sort((a, b) => a.jd - b.jd), jdOut, voc: applying.length === 0 };
+}
+
+// Пары планет в орбе ≤3° на момент карты (Луна — в потоке выше)
+function computeInOrbAspects(planets) {
+  const ps = planets.filter(p => AF_TARGET_IDS.includes(p.id));
+  const out = [];
+  for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
+    const a = ps[i], b = ps[j];
+    const s = ((a.longitude - b.longitude + 540) % 360) - 180;
+    const u = Math.abs(s);
+    for (const asp of T_ASPECTS) {
+      const orb = u - asp.angle;
+      if (Math.abs(orb) > 3) continue;
+      // d|s|/dt = sign(s)·(va−vb); аппликация — орбис сокращается
+      const du = Math.sign(s || 1) * ((a.speed ?? 0) - (b.speed ?? 0));
+      out.push({ a, b, asp, orb: Math.abs(orb), applying: orb * du < 0 });
+    }
+  }
+  return out.sort((x, y) => x.orb - y.orb);
+}
+
+function renderAspFlow() {
+  const view = document.getElementById('aspflow-view');
+  if (!view) return;
+  view.innerHTML = '';
+  if (!natalData || !swe) return;
+  const utcOff = natalData.utcOff ?? 0;
+  const moonGlyph = PLANETS.find(p => p.id === 1).glyph;
+
+  const section = label => {
+    const d = document.createElement('div');
+    d.className = 'af-section';
+    d.textContent = label;
+    view.appendChild(d);
+  };
+  const row = (text, color, meta, past) => {
+    const r = document.createElement('div');
+    r.className = 'af-row' + (past ? ' af-past' : '');
+    const g = document.createElement('span');
+    g.className = 'af-glyphs';
+    g.textContent = text;
+    if (color) g.style.color = color;
+    const m = document.createElement('span');
+    m.className = 'af-meta';
+    m.textContent = meta;
+    r.append(g, m);
+    view.appendChild(r);
+  };
+  const emptyNote = () => {
+    const d = document.createElement('div');
+    d.className = 'af-empty';
+    d.textContent = '—';
+    view.appendChild(d);
+  };
+
+  const { events, jdOut, voc } = computeMoonFlow(natalData.birthJD);
+  const past = events.filter(e => !e.applying);
+  const fut  = events.filter(e => e.applying);
+
+  section(tr('afMoonPast'));
+  if (!past.length) emptyNote();
+  for (const e of past)
+    row(`${moonGlyph} ${e.asp.symbol} ${e.target.glyph}`, e.asp.color, fmtJdLocal(e.jd, utcOff), true);
+
+  section(tr('afMoonFuture'));
+  if (!fut.length) emptyNote();
+  for (const e of fut)
+    row(`${moonGlyph} ${e.asp.symbol} ${e.target.glyph}`, e.asp.color, fmtJdLocal(e.jd, utcOff), false);
+  if (voc) {
+    const d = document.createElement('div');
+    d.className = 'af-voc';
+    d.textContent = `${tr('afVoc')} ${fmtJdLocal(jdOut, utcOff)}`;
+    view.appendChild(d);
+  }
+
+  section(tr('afInOrb'));
+  const inOrb = computeInOrbAspects(natalData.planets);
+  if (!inOrb.length) emptyNote();
+  for (const it of inOrb.slice(0, 16))
+    row(`${it.a.glyph} ${it.asp.symbol} ${it.b.glyph}`, it.asp.color,
+        `${fmtOrb(it.orb)} · ${tr(it.applying ? 'afApplying' : 'afSeparating')}`, false);
 }
 
 function findGridAspect(lon1, lon2, id1, id2, orbMode) {

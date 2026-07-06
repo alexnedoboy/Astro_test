@@ -953,6 +953,21 @@
      Раскладка — обычная V2 (карта сверху, таймлайн снизу). */
   #layout-v2.case-horary #v2-top { flex: 1 1 auto; min-height: 0; }
   #layout-v2.case-horary #v2-bottom { flex: 0 0 auto; }
+
+  /* Панель снимков элекции — в левой зоне, под контроллером T (только элекция) */
+  #v2-snap-panel { display: none; flex-direction: column; min-height: 0; margin-top: 10px; }
+  #layout-v2.case-election #v2-snap-panel { display: flex; }
+  #v2-snap-head { display: flex; align-items: center; gap: 4px; padding: 0 2px 5px; flex-shrink: 0; }
+  #v2-snap-title { flex: 1; font-size: 0.58em; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tx-7); }
+  #v2-snap-add {
+    width: 20px; height: 20px; flex-shrink: 0; line-height: 1;
+    background: none; border: 1px solid var(--bd-light); border-radius: 4px;
+    cursor: pointer; font-size: 1em; color: var(--tx-5);
+    display: flex; align-items: center; justify-content: center; padding: 0;
+  }
+  #v2-snap-add:hover { background: var(--bg-hover); color: var(--tx-2); }
+  #v2-snap-list { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; min-height: 0; }
+  #v2-snap-empty { font-size: 0.6em; color: var(--tx-8); text-align: center; padding: 4px 2px; line-height: 1.4; }
   #horary-bottom {
     display: none;
     background: var(--bg-panel-info);
@@ -2098,6 +2113,13 @@
         </div>
         <button class="v2-nav-btn v2-today-btn" data-nav="today">↺</button>
       </div>
+      <div id="v2-snap-panel">
+        <div id="v2-snap-head">
+          <span id="v2-snap-title" data-i18n="snapshotsTitle">Снимки</span>
+          <button id="v2-snap-add" type="button" title="Сохранить момент">+</button>
+        </div>
+        <div id="v2-snap-list"></div>
+      </div>
       <div class="v2-ctrl-spacer"></div>
     </div>
     <div id="v2-chart-area">
@@ -2339,6 +2361,7 @@ const STRINGS = {
     horaryDateLabel:'Дата вопроса', horaryPlaceLabel:'Место (астролог)',
     electionWhatLabel:'Что подбираем', electionWhatPh:'Напр.: подписание договора…',
     electionMomentLabel:'Момент', electionPlaceLabel:'Место', electionFolder:'Электив',
+    snapshotsTitle:'Снимки', snapEmpty:'Крутите момент и нажмите + чтобы сохранить', delete:'Удалить',
     horaryFolder:'Хорары', outcomeYes:'Сбылся', outcomeNo:'Нет', outcomePartial:'Частично',
     digRowDom:'Обитель', digRowExalt:'Экзальтация', digRowTrip:'Триплицитет', digRowTerm:'Терм',
     digRowFace:'Фас', digRowDetr:'Изгнание', digRowFall:'Падение', digRowScore:'Балл',
@@ -2435,6 +2458,7 @@ const STRINGS = {
     horaryDateLabel:'Date of question', horaryPlaceLabel:'Place (astrologer)',
     electionWhatLabel:'What to elect', electionWhatPh:'e.g. signing a contract…',
     electionMomentLabel:'Moment', electionPlaceLabel:'Place', electionFolder:'Election',
+    snapshotsTitle:'Snapshots', snapEmpty:'Crank the moment and press + to save', delete:'Delete',
     horaryFolder:'Хорары', outcomeYes:'Fulfilled', outcomeNo:'No', outcomePartial:'Partially',
     digRowDom:'Domicile', digRowExalt:'Exaltation', digRowTrip:'Triplicity', digRowTerm:'Term',
     digRowFace:'Face', digRowDetr:'Detriment', digRowFall:'Fall', digRowScore:'Score',
@@ -4059,7 +4083,7 @@ function paintActiveChart() {
   switchToMode(currentMode);
   renderHoraryBlock();
   if (currentCaseType === 'horary') { skyTlHost = null; return; }   // пресет хорара — без таймлайна
-  if (currentCaseType === 'election') { renderElectionTimeline(); return; }
+  if (currentCaseType === 'election') { renderElectionTimeline(); _electionSnapActive = null; renderElectionSnaps(); return; }
   skyTlHost = null;   // натал/прогностика — таймлайн к наталу, не source=sky
   if (cachedTimeline) {
     const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
@@ -4442,9 +4466,9 @@ function stateToView(s) {
 function tabToStorage(t, live) {
   if (t.kind === 'palette') return { kind: 'palette' };
   if (live) {
-    return { chartId: currentChartId ?? null, fields: readFormFields(), header: readHeader(), view: stateToView(captureState()), type: t.type ?? 'natal', outcome: t.outcome ?? null };
+    return { chartId: currentChartId ?? null, fields: readFormFields(), header: readHeader(), view: stateToView(captureState()), type: t.type ?? 'natal', outcome: t.outcome ?? null, snapshots: t.snapshots ?? [] };
   }
-  return { chartId: t.chartId ?? null, fields: t.fields, header: t.header, view: t.st ? stateToView(t.st) : (t.view || null), type: t.type ?? 'natal', outcome: t.outcome ?? null };
+  return { chartId: t.chartId ?? null, fields: t.fields, header: t.header, view: t.st ? stateToView(t.st) : (t.view || null), type: t.type ?? 'natal', outcome: t.outcome ?? null, snapshots: t.snapshots ?? [] };
 }
 
 function persistTabs() {
@@ -4474,6 +4498,7 @@ function restoreTabs() {
         view: d.view || null,
         type: d.type ?? 'natal',
         outcome: d.outcome ?? null,
+        snapshots: Array.isArray(d.snapshots) ? d.snapshots : [],
       });
   activeTab = (typeof data.activeTab === 'number' && data.activeTab < tabs.length) ? data.activeTab : 0;
   dashboardOpen = data.dashboardOpen !== false;   // по умолчанию показываем дашборд
@@ -4633,6 +4658,80 @@ function applyElectionRpPreset() {
   rightPanelTabs = ['grades', 'aspects', 'dignities'];
   rightPanelTab  = 'aspects';
   applyRightPanelTab();
+}
+
+// ── Снимки элекции (варианты): закреплённые значения T на вкладке-кейсе ────────
+// Снимок = момент (jd). Живёт на tabs[activeTab].snapshots, персист в localStorage
+// (Supabase-персист — отдельная фаза). Прыжок = applyNatalJD → двигает и карту,
+// и курсор таймлайна (единый сеттер T).
+let _electionSnapActive = null;   // id снимка, на котором сейчас стоит момент
+let _electionJumping = false;     // прыжок по снимку (не сбрасывать подсветку)
+
+function electionSnaps() {
+  const t = tabs[activeTab];
+  if (!t) return [];
+  return (t.snapshots ||= []);
+}
+
+function addElectionSnapshot() {
+  if (currentCaseType !== 'election' || !natalData) return;
+  const id = 's' + Date.now();
+  electionSnaps().push({ id, jd: natalData.birthJD });
+  _electionSnapActive = id;
+  renderElectionSnaps();
+  persistTabs();
+}
+
+function jumpElectionSnapshot(snap) {
+  _electionSnapActive = snap.id;
+  _electionJumping = true;
+  applyNatalJD(snap.jd);
+  _electionJumping = false;
+  renderElectionSnaps();
+}
+
+function deleteElectionSnapshot(id) {
+  const t = tabs[activeTab];
+  if (!t) return;
+  t.snapshots = (t.snapshots || []).filter(s => s.id !== id);
+  if (_electionSnapActive === id) _electionSnapActive = null;
+  renderElectionSnaps();
+  persistTabs();
+}
+
+function renderElectionSnaps() {
+  const list = document.getElementById('v2-snap-list');
+  if (!list) return;
+  list.replaceChildren();
+  const snaps = (tabs[activeTab]?.snapshots) || [];
+  if (!snaps.length) {
+    const empty = document.createElement('div');
+    empty.id = 'v2-snap-empty';
+    empty.textContent = tr('snapEmpty');
+    list.appendChild(empty);
+    return;
+  }
+  for (const snap of snaps) {
+    const parts = fmtSkySnapParts(snap.jd);
+    const item = document.createElement('div');
+    item.className = 'sky-snap-item' + (snap.id === _electionSnapActive ? ' active' : '');
+    item.title = `${parts.date} ${parts.time}`;
+    item.addEventListener('click', () => jumpElectionSnapshot(snap));
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'sky-snap-date';
+    dateSpan.textContent = parts.date;
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'sky-snap-time';
+    timeSpan.textContent = parts.time;
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'sky-snap-del';
+    del.textContent = '✕';
+    del.title = tr('delete');
+    del.addEventListener('click', e => { e.stopPropagation(); deleteElectionSnapshot(snap.id); });
+    item.append(dateSpan, timeSpan, del);
+    list.appendChild(item);
+  }
 }
 
 // Дропдауны шапки: «+» — добавить отсутствующий виджет, «☰» — чеклист состава
@@ -4958,7 +5057,7 @@ function computeAndRenderNatal() {
     syncV2DateLabel();
     setInfoTableMode('natal');
     renderHoraryBlock();
-    if (caseType === 'election') renderElectionTimeline();
+    if (caseType === 'election') { renderElectionTimeline(); _electionSnapActive = null; renderElectionSnaps(); }
     else if (caseType !== 'horary') computeAndRenderTimeline(natalData.planets);
     setStatus('');
     return true;
@@ -6021,7 +6120,11 @@ function applyNatalJD(jd) {
   buildAspectGrid(addSouthNode(planets, cusps));
   syncV2DateLabel();
   // Элекция: карта — это T, поэтому курсор таймлайна неба следует за моментом.
-  if (currentCaseType === 'election') syncSkyTimelineCursor();
+  if (currentCaseType === 'election') {
+    syncSkyTimelineCursor();
+    // ушли с сохранённого снимка вручную (контроллер/таймлайн) — снять подсветку
+    if (!_electionJumping && _electionSnapActive !== null) { _electionSnapActive = null; renderElectionSnaps(); }
+  }
 }
 
 function applyNavigatedJD(jd, unit = null) {
@@ -8967,6 +9070,8 @@ document.getElementById('tab-add-btn').addEventListener('click', () => {
   // Новая пустая вкладка с палитрой (создать или открыть кейс)
   openPaletteTab();
 });
+
+document.getElementById('v2-snap-add').addEventListener('click', addElectionSnapshot);
 
 document.getElementById('v2-edit-btn').addEventListener('click', enterEditMode);
 

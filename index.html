@@ -948,14 +948,11 @@
   #layout-v2.case-horary #v2-timeline-wrap,
   #layout-v2.case-horary #chart-mode-tabs,
   #layout-v2.case-horary #v2-panel-nav,
-  #layout-v2.case-election #v2-tl-tab,
-  #layout-v2.case-election #v2-timeline-wrap,
   #layout-v2.case-election #chart-mode-tabs { display: none; }
-  /* Элекция сохраняет контроллер T: он двигает сам момент (карта driven) */
-  #layout-v2.case-horary #v2-top,
-  #layout-v2.case-election #v2-top { flex: 1 1 auto; min-height: 0; }
-  #layout-v2.case-horary #v2-bottom,
-  #layout-v2.case-election #v2-bottom { flex: 0 0 auto; }
+  /* Элекция: контроллер T двигает момент (карта driven), таймлайн — source=sky.
+     Раскладка — обычная V2 (карта сверху, таймлайн снизу). */
+  #layout-v2.case-horary #v2-top { flex: 1 1 auto; min-height: 0; }
+  #layout-v2.case-horary #v2-bottom { flex: 0 0 auto; }
   #horary-bottom {
     display: none;
     background: var(--bg-panel-info);
@@ -4061,7 +4058,9 @@ function paintActiveChart() {
   applyChartModeTabs();
   switchToMode(currentMode);
   renderHoraryBlock();
-  if (currentCaseType === 'horary') return;   // пресет хорара — без таймлайна
+  if (currentCaseType === 'horary') { skyTlHost = null; return; }   // пресет хорара — без таймлайна
+  if (currentCaseType === 'election') { renderElectionTimeline(); return; }
+  skyTlHost = null;   // натал/прогностика — таймлайн к наталу, не source=sky
   if (cachedTimeline) {
     const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
     requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
@@ -4959,7 +4958,8 @@ function computeAndRenderNatal() {
     syncV2DateLabel();
     setInfoTableMode('natal');
     renderHoraryBlock();
-    if (caseType !== 'horary' && caseType !== 'election') computeAndRenderTimeline(natalData.planets);
+    if (caseType === 'election') renderElectionTimeline();
+    else if (caseType !== 'horary') computeAndRenderTimeline(natalData.planets);
     setStatus('');
     return true;
   } catch (e) { setStatus(tr('error') + e.message); return false; }
@@ -6020,6 +6020,8 @@ function applyNatalJD(jd) {
   buildInfoTable(planets, cusps);
   buildAspectGrid(addSouthNode(planets, cusps));
   syncV2DateLabel();
+  // Элекция: карта — это T, поэтому курсор таймлайна неба следует за моментом.
+  if (currentCaseType === 'election') syncSkyTimelineCursor();
 }
 
 function applyNavigatedJD(jd, unit = null) {
@@ -8982,7 +8984,10 @@ document.getElementById('v2-tl-toggle').addEventListener('click', () => {
   layout2TlState = (layout2TlState + 1) % 2;
   v2.classList.add(V2_TL_STATES[layout2TlState]);
   document.getElementById('v2-tl-toggle').textContent = V2_TL_LABELS[layout2TlState];
-  if (cachedTimeline) {
+  if (currentCaseType === 'election' && skyCachedTimeline) {
+    requestAnimationFrame(() => requestAnimationFrame(() =>
+      renderSkyTimeline({ ...skyCachedTimeline, jdCursor: tlHostJD() })));
+  } else if (cachedTimeline) {
     const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
     requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
   }
@@ -9016,6 +9021,20 @@ let skySnapshots = [];     // session election variants: { id, jd, label }
 let skySnapActiveId = null; // id снимка, на который сейчас установлено T (null = ушли вручную)
 let skyScale = '1Y';       // '1M' | '1Y' | '2Y' | '10Y'
 let skyCachedTimeline = null;
+// Хост таймлайна неба: куда рисовать и как читать/двигать T.
+// null = классический режим «Небо» (#sky-timeline-content, T = skyJD).
+// election = вкладка элекции (#right-timeline-content, T = момент карты).
+let skyTlHost = null;
+function tlHostContentEl() {
+  return document.getElementById(skyTlHost ? skyTlHost.contentId : 'sky-timeline-content');
+}
+function tlHostJD() {
+  return skyTlHost ? skyTlHost.getJD() : (skyJD ?? computeJDNow());
+}
+function tlHostSetJD(jd) {
+  if (skyTlHost) { skyTlHost.setJD(jd); return; }
+  renderSkyAt(jd); syncSkyDateLabel(); clearSkySnapActive();
+}
 let skyLayoutActive = false;
 let skyTlHidden = false;
 let skyMoonOn = false;          // Moon band visible in sky timeline (off by default)
@@ -9027,6 +9046,7 @@ let skyTlVariant = 'A';         // 'A' — строки по медленной 
 function enterSkyMode() {
   if (!swe) return;
   skyLayoutActive = true;
+  skyTlHost = null;          // классический режим: таймлайн рисует в #sky-timeline-content
   skyJD = computeJDNow();
   hideHome();
   document.getElementById('sky-layout').classList.add('sky-visible');
@@ -9543,7 +9563,7 @@ function computeSkyTlLayout(periods, moonPeriods, density) {
 function renderSkyTimeline({ periods, moonPeriods = [], density = null, jdStart, jdEnd, jdToday,
                              jdCoreStart = null, jdCoreEnd = null, jdCursor = null }) {
   const ctx = skyTlCtx;
-  const tl = document.getElementById('sky-timeline-content');
+  const tl = tlHostContentEl();
   const layout = computeSkyTlLayout(periods, moonPeriods, density);
   const { rows, DENSITY_H, densityY, hasMoon, moonY, moonH, moonPeriods: moonPs, TL_H, variantB, variantC } = layout;
 
@@ -9857,7 +9877,7 @@ function renderSkyTimeline({ periods, moonPeriods = [], density = null, jdStart,
 }
 
 function computeAndRenderSkyTimeline(centerJD) {
-  const container = document.getElementById('sky-timeline-content');
+  const container = tlHostContentEl();
   container.innerHTML = `<div class="tl-status">Вычисление аспектов…</div>`;
   setTimeout(() => {
     try {
@@ -9899,14 +9919,28 @@ function computeAndRenderSkyTimeline(centerJD) {
   }, 30);
 }
 
+// Таймлайн элекции = таймлайн неба (взаимные аспекты движущегося неба),
+// но рисует в общий #right-timeline-content и двигает сам момент карты.
+function renderElectionTimeline() {
+  if (!natalData) return;
+  skyTlHost = {
+    contentId: 'right-timeline-content',
+    getJD: () => natalData?.birthJD ?? computeJDNow(),
+    setJD: jd => applyNatalJD(jd),
+  };
+  skyCachedTimeline = null;
+  computeAndRenderSkyTimeline(natalData.birthJD);
+}
+
 function syncSkyTimelineCursor() {
-  if (!skyCachedTimeline || !skyJD) return;
+  if (!skyCachedTimeline) return;
+  const jd = tlHostJD();
   const { jdStart, jdEnd } = skyCachedTimeline;
-  if (skyJD >= jdStart && skyJD <= jdEnd) {
-    renderSkyTimeline({ ...skyCachedTimeline, jdCursor: skyJD });
+  if (jd >= jdStart && jd <= jdEnd) {
+    renderSkyTimeline({ ...skyCachedTimeline, jdCursor: jd });
   } else {
     skyCachedTimeline = null;
-    computeAndRenderSkyTimeline(skyJD);
+    computeAndRenderSkyTimeline(jd);
   }
 }
 
@@ -9915,8 +9949,8 @@ const skyTlCtx = {
   isYearScale:  () => skyScale === '10Y',
   is2YScale:    () => skyScale === '2Y',
   isMonthScale: () => skyScale === '1M',
-  onNavigate:   jd => { renderSkyAt(jd); syncSkyDateLabel(); syncSkyTimelineCursor(); clearSkySnapActive(); },
-  onBarClick:   jd => { renderSkyAt(jd); syncSkyDateLabel(); syncSkyTimelineCursor(); clearSkySnapActive(); },
+  onNavigate:   jd => { tlHostSetJD(jd); syncSkyTimelineCursor(); },
+  onBarClick:   jd => { tlHostSetJD(jd); syncSkyTimelineCursor(); },
   onShift: days => {
     const newCenter = (skyCachedTimeline?.center ?? computeJDNow()) + days;
     skyCachedTimeline = null;
@@ -9928,7 +9962,7 @@ const skyTlCtx = {
     skyCachedTimeline = null;
     computeAndRenderSkyTimeline(swe.julday(yr, 7, 2, 0));
   },
-  onRerender: () => { if (skyCachedTimeline) renderSkyTimeline({ ...skyCachedTimeline, jdCursor: skyJD }); },
+  onRerender: () => { if (skyCachedTimeline) renderSkyTimeline({ ...skyCachedTimeline, jdCursor: tlHostJD() }); },
 };
 
 // ══ Home sky widget — живая карта неба на главной ═════════════════════════════

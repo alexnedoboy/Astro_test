@@ -950,8 +950,8 @@
   #layout-v2.case-horary #v2-panel-nav,
   #layout-v2.case-election #v2-tl-tab,
   #layout-v2.case-election #v2-timeline-wrap,
-  #layout-v2.case-election #chart-mode-tabs,
-  #layout-v2.case-election #v2-panel-nav { display: none; }
+  #layout-v2.case-election #chart-mode-tabs { display: none; }
+  /* Элекция сохраняет контроллер T: он двигает сам момент (карта driven) */
   #layout-v2.case-horary #v2-top,
   #layout-v2.case-election #v2-top { flex: 1 1 auto; min-height: 0; }
   #layout-v2.case-horary #v2-bottom,
@@ -8826,7 +8826,9 @@ document.getElementById('v2-control-panel').addEventListener('click', e => {
   if (navBtn) {
     const nav = navBtn.dataset.nav;
     if (nav === 'today') {
-      if (currentMode === 'natal') {
+      if (currentCaseType === 'election') {
+        applyNatalJD(computeJDNow());   // элекция: ↺ = вернуться к «сейчас»
+      } else if (currentMode === 'natal') {
         if (natalData?.originalBirthJD != null) applyNatalJD(natalData.originalBirthJD);
       } else {
       currentTransitJD = null;

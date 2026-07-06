@@ -947,9 +947,15 @@
   #layout-v2.case-horary #v2-tl-tab,
   #layout-v2.case-horary #v2-timeline-wrap,
   #layout-v2.case-horary #chart-mode-tabs,
-  #layout-v2.case-horary #v2-panel-nav { display: none; }
-  #layout-v2.case-horary #v2-top { flex: 1 1 auto; min-height: 0; }
-  #layout-v2.case-horary #v2-bottom { flex: 0 0 auto; }
+  #layout-v2.case-horary #v2-panel-nav,
+  #layout-v2.case-election #v2-tl-tab,
+  #layout-v2.case-election #v2-timeline-wrap,
+  #layout-v2.case-election #chart-mode-tabs,
+  #layout-v2.case-election #v2-panel-nav { display: none; }
+  #layout-v2.case-horary #v2-top,
+  #layout-v2.case-election #v2-top { flex: 1 1 auto; min-height: 0; }
+  #layout-v2.case-horary #v2-bottom,
+  #layout-v2.case-election #v2-bottom { flex: 0 0 auto; }
   #horary-bottom {
     display: none;
     background: var(--bg-panel-info);
@@ -2173,8 +2179,8 @@
       <button class="palette-cmd" data-cmd="horary">
         <span class="palette-cmd-glyph">?</span><span data-i18n="paletteCmdHorary">Хорар</span>
       </button>
-      <button class="palette-cmd disabled" data-cmd="election">
-        <span class="palette-cmd-glyph">⏱&#xFE0E;</span><span data-i18n="paletteCmdElection">Элекция</span><span class="palette-soon" data-i18n="paletteSoon">скоро</span>
+      <button class="palette-cmd" data-cmd="election">
+        <span class="palette-cmd-glyph">⏱&#xFE0E;</span><span data-i18n="paletteCmdElection">Элекция</span>
       </button>
     </div>
     <input id="palette-search" data-i18n-placeholder="paletteSearchPh" placeholder="Открыть карту…" autocomplete="off">
@@ -2334,6 +2340,8 @@ const STRINGS = {
     digPeregrine:'перегрин',
     horaryQuestionLabel:'Вопрос', horaryQuestionPh:'Текст вопроса…',
     horaryDateLabel:'Дата вопроса', horaryPlaceLabel:'Место (астролог)',
+    electionWhatLabel:'Что подбираем', electionWhatPh:'Напр.: подписание договора…',
+    electionMomentLabel:'Момент', electionPlaceLabel:'Место', electionFolder:'Электив',
     horaryFolder:'Хорары', outcomeYes:'Сбылся', outcomeNo:'Нет', outcomePartial:'Частично',
     digRowDom:'Обитель', digRowExalt:'Экзальтация', digRowTrip:'Триплицитет', digRowTerm:'Терм',
     digRowFace:'Фас', digRowDetr:'Изгнание', digRowFall:'Падение', digRowScore:'Балл',
@@ -2428,6 +2436,8 @@ const STRINGS = {
     digPeregrine:'peregrine',
     horaryQuestionLabel:'Question', horaryQuestionPh:'Question text…',
     horaryDateLabel:'Date of question', horaryPlaceLabel:'Place (astrologer)',
+    electionWhatLabel:'What to elect', electionWhatPh:'e.g. signing a contract…',
+    electionMomentLabel:'Moment', electionPlaceLabel:'Place', electionFolder:'Election',
     horaryFolder:'Хорары', outcomeYes:'Fulfilled', outcomeNo:'No', outcomePartial:'Partially',
     digRowDom:'Domicile', digRowExalt:'Exaltation', digRowTrip:'Triplicity', digRowTerm:'Term',
     digRowFace:'Face', digRowDetr:'Detriment', digRowFall:'Fall', digRowScore:'Score',
@@ -3164,6 +3174,7 @@ function openChartInTab(c, newTab = false) {
   t.outcome = c.outcome ?? null;
   if (!computeAndRenderNatal()) return;
   if (t.type === 'horary') applyHoraryRpPreset();
+  else if (t.type === 'election') applyElectionRpPreset();
   t.chartId = c.id ?? null;
   t.fields  = readFormFields();
   t.header  = readHeader();
@@ -4153,6 +4164,7 @@ function openNewTabFromForm(chartId, caseType = 'natal', outcome = null) {
     return false;
   }
   if (caseType === 'horary') applyHoraryRpPreset();
+  else if (caseType === 'election') applyElectionRpPreset();
   t.fields  = readFormFields();
   t.header  = readHeader();
   t.chartId = currentChartId ?? null;
@@ -4303,6 +4315,7 @@ function computeIntoPaletteTab() {
   delete t.kind;
   t.chartId = null;
   if (t.type === 'horary') applyHoraryRpPreset();
+  else if (t.type === 'election') applyElectionRpPreset();
   t.fields  = readFormFields();
   t.header  = readHeader();
   t.st      = captureState();
@@ -4332,6 +4345,11 @@ document.getElementById('palette-cmds').addEventListener('click', e => {
     setFormMode('horary');
     openNewChartModal();
     prefillHoraryForm();
+  } else if (btn.dataset.cmd === 'election') {
+    _paletteCtorType = 'election';
+    setFormMode('election');
+    openNewChartModal();
+    prefillHoraryForm();   // момент = сейчас, место = место астролога (skyPlace)
   }
 });
 document.getElementById('palette-search').addEventListener('input', () => {
@@ -4507,6 +4525,8 @@ function applyCaseType(type) {
   if (el) el.textContent = CASE_TYPE_LABELS[type] || '';
   // Пресет хорара: без таймлайна, режимов и контроллера времени (всё anchored)
   document.getElementById('layout-v2')?.classList.toggle('case-horary', type === 'horary');
+  // Пресет элекции: карта момента (самосущая). Таймлайн source=sky и контроллер T — фаза 2.
+  document.getElementById('layout-v2')?.classList.toggle('case-election', type === 'election');
   applyOutcomeChips();
 }
 
@@ -4607,6 +4627,12 @@ document.getElementById('rp-tabs')?.addEventListener('click', e => {
 function applyHoraryRpPreset() {
   rightPanelTabs = ['grades', 'aspects', 'dignities', 'aspflow'];
   rightPanelTab  = 'aspflow';
+  applyRightPanelTab();
+}
+
+function applyElectionRpPreset() {
+  rightPanelTabs = ['grades', 'aspects', 'dignities'];
+  rightPanelTab  = 'aspects';
   applyRightPanelTab();
 }
 
@@ -4786,8 +4812,9 @@ document.getElementById('cancelEditBtn').addEventListener('click', () => {
 
 // ── Режим формы: натал / хорар (подмена лейблов, реюз одной формы) ────────────
 const FORM_LABEL_I18N = {
-  natal:  { name: 'nameLabel', namePh: 'namePlaceholder', date: 'birthDateLabel', place: 'birthPlaceLabel' },
-  horary: { name: 'horaryQuestionLabel', namePh: 'horaryQuestionPh', date: 'horaryDateLabel', place: 'horaryPlaceLabel' },
+  natal:    { name: 'nameLabel', namePh: 'namePlaceholder', date: 'birthDateLabel', place: 'birthPlaceLabel' },
+  horary:   { name: 'horaryQuestionLabel', namePh: 'horaryQuestionPh', date: 'horaryDateLabel', place: 'horaryPlaceLabel' },
+  election: { name: 'electionWhatLabel', namePh: 'electionWhatPh', date: 'electionMomentLabel', place: 'electionPlaceLabel' },
 };
 function setFormMode(mode) {
   const m = FORM_LABEL_I18N[mode] || FORM_LABEL_I18N.natal;
@@ -4795,9 +4822,9 @@ function setFormMode(mode) {
     const el = document.querySelector(sel);
     if (el) { el.setAttribute('data-i18n', key); el.textContent = tr(key); }
   };
-  set('#form-wrap label[data-i18n="nameLabel"], #form-wrap label[data-i18n="horaryQuestionLabel"]', m.name);
-  set('#form-wrap label[data-i18n="birthDateLabel"], #form-wrap label[data-i18n="horaryDateLabel"]', m.date);
-  set('#form-wrap label[data-i18n="birthPlaceLabel"], #form-wrap label[data-i18n="horaryPlaceLabel"]', m.place);
+  set('#form-wrap label[data-i18n="nameLabel"], #form-wrap label[data-i18n="horaryQuestionLabel"], #form-wrap label[data-i18n="electionWhatLabel"]', m.name);
+  set('#form-wrap label[data-i18n="birthDateLabel"], #form-wrap label[data-i18n="horaryDateLabel"], #form-wrap label[data-i18n="electionMomentLabel"]', m.date);
+  set('#form-wrap label[data-i18n="birthPlaceLabel"], #form-wrap label[data-i18n="horaryPlaceLabel"], #form-wrap label[data-i18n="electionPlaceLabel"]', m.place);
   const nameInp = document.getElementById('chartName');
   nameInp.setAttribute('data-i18n-placeholder', m.namePh);
   nameInp.placeholder = tr(m.namePh);
@@ -4932,7 +4959,7 @@ function computeAndRenderNatal() {
     syncV2DateLabel();
     setInfoTableMode('natal');
     renderHoraryBlock();
-    if (caseType !== 'horary') computeAndRenderTimeline(natalData.planets);
+    if (caseType !== 'horary' && caseType !== 'election') computeAndRenderTimeline(natalData.planets);
     setStatus('');
     return true;
   } catch (e) { setStatus(tr('error') + e.message); return false; }

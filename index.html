@@ -240,6 +240,11 @@
   .icon-btn:hover { background: var(--bg-hover); }
   .back-btn { font-size: 1.2em; color: var(--accent); }
 
+  /* Кнопка заметок в хедере — рядом с настройками, только при открытой карте */
+  #notesToggleBtn { display: none; font-size: 1.05em; }
+  body.home-off #notesToggleBtn { display: flex; }
+  #notesToggleBtn.active { background: var(--bg-active); color: var(--tx); }
+
   /* ── Settings dropdown ─────────────────────────────────── */
   .settings-btn { font-size: 1.05em; }
   #settings-dropdown {
@@ -1190,8 +1195,8 @@
   .dig-table .dig-score-pos { color: var(--ok); }
   .dig-table .dig-score-neg { color: var(--danger); }
   .dig-table .dig-peregrine { font-size: 0.78em; font-weight: 400; color: var(--tx-7); font-style: italic; }
-  #v2-aspect-panel.rp-show-notes #right-info-content { display: none !important; }
-  #v2-aspect-panel.rp-show-notes #v2-notes-view { display: flex; }
+  /* Заметки: выдвижная панель поверх правой панели (карту не перекрывает) */
+  #v2-aspect-panel.notes-open #v2-notes-view { transform: translateX(0); }
   /* Кнопки шапки группы: + (добавить виджет) и ☰ (меню панели) */
   .panel-head-actions {
     display: flex; align-items: center; gap: 2px;
@@ -1231,10 +1236,41 @@
   .rp-dd-item.disabled { opacity: 0.45; cursor: default; }
   .rp-dd-check { width: 12px; flex: 0 0 auto; text-align: center; color: var(--tx-4); }
 
-  /* ── Заметки (виджет-таб правой группы) ───────────────────────────────────── */
+  /* ── Заметки (выдвижная панель) ───────────────────────────────────────────── */
   #v2-notes-view {
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 100%;
+    z-index: 40;
+    background: var(--bg-panel-info);
+    border-radius: var(--panel-radius);
+    display: flex; flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.18s ease;
+    box-shadow: -4px 0 18px rgba(0,0,0,0.10);
+  }
+  #notes-panel-head {
+    flex: 0 0 var(--tab-h);
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 4px 0 12px;
+    border-bottom: 1px solid var(--bd-light);
+  }
+  #notes-panel-title {
+    flex: 1; min-width: 0;
+    font-size: 0.82em; font-weight: 600; color: var(--tx-3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #notes-panel-close {
+    flex: 0 0 auto;
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; border-radius: 5px;
+    font-size: 1em; color: var(--tx-5); cursor: pointer;
+  }
+  #notes-panel-close:hover { background: var(--bg-hover); color: var(--tx-2); }
+  #notes-inner {
     flex: 1; min-height: 0;
-    display: none; flex-direction: column;
+    display: flex; flex-direction: column;
     overflow-y: auto;
     padding: 8px 10px 12px;
   }
@@ -1673,6 +1709,36 @@
   .sky-navmode-btn.active { background: var(--bg-active); color: var(--tx); font-weight: 600; border-color: var(--bd); }
   .sky-navmode-btn:hover:not(.active) { background: var(--bg-hover); }
 
+  /* Панель снимков (варианты элекции): закладки контроллера времени */
+  #sky-snap-panel { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  #sky-snap-head { display: flex; align-items: center; gap: 4px; padding: 1px 2px 3px; flex-shrink: 0; }
+  #sky-snap-title { flex: 1; font-size: 0.6em; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--tx-6); }
+  #sky-snap-add {
+    width: 20px; height: 20px; flex-shrink: 0; line-height: 1;
+    background: none; border: 1px solid var(--bd-light); border-radius: 4px;
+    cursor: pointer; font-size: 1em; color: var(--tx-5);
+  }
+  #sky-snap-add:hover { background: var(--bg-hover); color: var(--tx-2); }
+  #sky-snap-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; min-height: 0; }
+  #sky-snap-empty { font-size: 0.6em; color: var(--tx-8); text-align: center; padding: 3px 2px; line-height: 1.35; }
+  .sky-snap-item { display: flex; align-items: stretch; gap: 2px; }
+  .sky-snap-jump {
+    flex: 1; min-width: 0; text-align: left; line-height: 1.2;
+    display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap;
+    background: none; border: 1px solid var(--bd-light); border-radius: 4px;
+    cursor: pointer; padding: 3px 5px; color: var(--tx-4);
+  }
+  .sky-snap-jump .sky-snap-date { font-size: 0.66em; font-weight: 600; }
+  .sky-snap-jump .sky-snap-time { font-size: 0.6em; color: var(--tx-7); }
+  .sky-snap-jump:hover { background: var(--bg-hover); color: var(--tx); }
+  .sky-snap-jump.active { background: var(--bg-active); border-color: var(--bd); color: var(--tx); }
+  .sky-snap-jump.active .sky-snap-time { color: var(--tx-4); }
+  .sky-snap-del {
+    width: 16px; flex-shrink: 0; background: none; border: none;
+    cursor: pointer; font-size: 0.72em; color: var(--tx-8);
+  }
+  .sky-snap-del:hover { color: var(--danger); }
+
   #sky-chart-area {
     flex: 1; min-width: 0;
     height: calc(74vh - 16px);
@@ -1845,6 +1911,7 @@
     <button id="tab-add-btn" title="Новая карта">+</button>
   </div>
   <div id="header-right">
+    <button id="notesToggleBtn" class="icon-btn" data-i18n-title="panelTabNotes" title="Заметки">🗒&#xFE0E;</button>
     <button id="settingsBtn" class="icon-btn settings-btn" data-i18n-title="settings" title="Настройки">⚙&#xFE0E;</button>
   </div>
 </div>
@@ -2030,6 +2097,11 @@
         <div id="aspflow-view"></div>
       </div>
       <div id="v2-notes-view">
+        <div id="notes-panel-head">
+          <span id="notes-panel-title" data-i18n="panelTabNotes">Заметки</span>
+          <button id="notes-panel-close" title="Закрыть">✕</button>
+        </div>
+        <div id="notes-inner">
         <div id="notes-msg"></div>
         <div id="notes-list-screen">
           <div id="notes-list"></div>
@@ -2044,6 +2116,7 @@
           </div>
           <textarea id="note-body" spellcheck="false"></textarea>
           <div id="note-preview"></div>
+        </div>
         </div>
       </div>
     </div>
@@ -2110,6 +2183,14 @@
         <button class="v2-nav-btn" data-skynav="next-small">▶</button>
       </div>
       <button class="v2-nav-btn v2-today-btn" data-skynav="today">↺</button>
+      <div class="v2-ctrl-sep"></div>
+      <div id="sky-snap-panel">
+        <div id="sky-snap-head">
+          <span id="sky-snap-title">Снимки</span>
+          <button id="sky-snap-add" type="button" title="Сохранить текущий момент">+</button>
+        </div>
+        <div id="sky-snap-list"></div>
+      </div>
       <div class="v2-ctrl-spacer"></div>
       <div style="display:flex;flex-shrink:0;border-top:1px solid var(--bd-light);margin:0 -4px -6px">
         <button class="v2-icon-btn" id="sky-settings-btn" title="Настройки" style="flex:1;width:auto;height:34px;font-size:1.05em;color:var(--tx-5);border-radius:0 0 0 4px">⚙︎</button>
@@ -3159,7 +3240,7 @@ async function saveCurrentChartToDb(extra = {}) {
   if (window.location.hash !== newHash) {
     history.pushState({ chartId: data.id }, '', newHash);
   }
-  if (rightPanelTab === 'notes') openNotesTab();
+  if (notesPanelOpen) openNotesTab();
   return res;
 }
 
@@ -3183,7 +3264,8 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
 });
 
 // ── Notes ─────────────────────────────────────────────────────────────────────
-// Заметки к карте: таб «Заметки» в правой панели, список + markdown-редактор.
+// Заметки к карте: выдвижная панель (иконка в хедере), список + markdown-редактор.
+// Панель слайдится поверх правой панели, карту не перекрывает.
 // Хранение — таблица `notes` в Supabase (только для сохранённых карт).
 
 let notesCache    = null;   // массив заметок карты notesChartId (null = не загружены)
@@ -3191,8 +3273,29 @@ let notesChartId  = null;   // chart id, которому принадлежит
 let currentNoteId = null;   // заметка, открытая в редакторе
 let _noteSaveTimer = null;
 let _noteDirty     = false;
+let notesPanelOpen = false; // выдвижная панель заметок открыта
 
 const notesView = document.getElementById('v2-notes-view');
+
+function openNotesPanel() {
+  notesPanelOpen = true;
+  document.getElementById('v2-aspect-panel')?.classList.add('notes-open');
+  document.getElementById('notesToggleBtn')?.classList.add('active');
+  openNotesTab();
+}
+function closeNotesPanel() {
+  flushNoteSave();
+  notesPanelOpen = false;
+  document.getElementById('v2-aspect-panel')?.classList.remove('notes-open');
+  document.getElementById('notesToggleBtn')?.classList.remove('active');
+}
+function toggleNotesPanel() {
+  if (notesPanelOpen) closeNotesPanel();
+  else openNotesPanel();
+}
+
+document.getElementById('notesToggleBtn')?.addEventListener('click', toggleNotesPanel);
+document.getElementById('notes-panel-close')?.addEventListener('click', closeNotesPanel);
 
 function noteById(id) { return notesCache?.find(n => n.id === id); }
 
@@ -3962,6 +4065,7 @@ function showTab(i) {
     rebuildTabFromFields(t);   // ленивая вкладка после перезагрузки
   }
   if (notesChartId !== currentChartId) resetNotesState();
+  if (notesPanelOpen) openNotesTab();   // панель открыта — перегрузить заметки новой карты
   updateHashForActiveTab(false);
   renderTabBar();
   persistTabs();
@@ -4031,6 +4135,7 @@ function goDashboard(push = true) {
   document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', ...V2_TL_STATES);
   layout2Active = false;
   hidePaletteView();
+  closeNotesPanel();
   resetNotesState();
   showHome();
   if (push) history.pushState('', document.title, window.location.pathname + window.location.search);
@@ -4040,6 +4145,7 @@ function goDashboard(push = true) {
 
 // Полный выход на дашборд без вкладок
 function fullExitToHome(push = true) {
+  closeNotesPanel();
   resetNotesState();
   hidePaletteView();
   currentChartId = null;
@@ -4397,9 +4503,8 @@ const RP_WIDGETS = {
   aspects:   { i18n: 'panelTabAspects'    },
   dignities: { i18n: 'panelTabDignities'  },
   aspflow:   { i18n: 'panelTabAspFlow'    },
-  notes:     { i18n: 'panelTabNotes'      },
 };
-const RP_DEFAULT_TABS = ['grades', 'aspects', 'notes'];
+const RP_DEFAULT_TABS = ['grades', 'aspects'];
 let rightPanelTabs = [...RP_DEFAULT_TABS];
 let rightPanelTab  = 'grades';
 
@@ -4422,11 +4527,8 @@ function applyRightPanelTab() {
       tabsEl.appendChild(b);
     }
   }
-  const panel     = document.getElementById('v2-aspect-panel');
   const content   = document.getElementById('right-info-content');
-  const showNotes = rightPanelTab === 'notes';
-  panel?.classList.toggle('rp-show-notes', showNotes);
-  if (content && !showNotes) {
+  if (content) {
     content.classList.remove('rp-grades', 'rp-aspects', 'rp-dignities', 'rp-aspflow');
     content.classList.add('rp-' + (RP_WIDGETS[rightPanelTab] ? rightPanelTab : 'grades'));
   }
@@ -4435,12 +4537,10 @@ function applyRightPanelTab() {
   const addBtn = document.getElementById('rp-add-btn');
   if (addBtn) addBtn.style.display =
     Object.keys(RP_WIDGETS).some(id => !rightPanelTabs.includes(id)) ? '' : 'none';
-  if (showNotes) openNotesTab();
 }
 
 function setRightPanelTab(tab) {
   if (!RP_WIDGETS[tab] || !rightPanelTabs.includes(tab)) return;
-  if (rightPanelTab === 'notes' && tab !== 'notes') flushNoteSave();
   rightPanelTab = tab;
   applyRightPanelTab();
   persistTabs();
@@ -4452,7 +4552,6 @@ function toggleRpWidget(id) {
   const i = rightPanelTabs.indexOf(id);
   if (i >= 0) {
     if (rightPanelTabs.length === 1) return;
-    if (rightPanelTab === 'notes' && id === 'notes') flushNoteSave();
     rightPanelTabs.splice(i, 1);
   } else {
     rightPanelTabs.push(id);
@@ -4469,7 +4568,7 @@ document.getElementById('rp-tabs')?.addEventListener('click', e => {
 
 // Пресет хорара: предзагружены все виджеты, активны «События» (WORKSPACE_CONCEPT §7)
 function applyHoraryRpPreset() {
-  rightPanelTabs = ['grades', 'aspects', 'dignities', 'aspflow', 'notes'];
+  rightPanelTabs = ['grades', 'aspects', 'dignities', 'aspflow'];
   rightPanelTab  = 'aspflow';
   applyRightPanelTab();
 }
@@ -8847,6 +8946,8 @@ document.getElementById('v2-chart-expand-btn').addEventListener('click', () => {
 
 let skyJD = null;          // current JD in sky mode (null = now)
 let skyNavMode = 'date';   // 'date' | 'time'
+let skySnapshots = [];     // session election variants: { id, jd, label }
+let skySnapActiveId = null; // id снимка, на который сейчас установлено T (null = ушли вручную)
 let skyScale = '1Y';       // '1M' | '1Y' | '2Y' | '10Y'
 let skyCachedTimeline = null;
 let skyLayoutActive = false;
@@ -8869,6 +8970,7 @@ function enterSkyMode() {
   syncSkyModePlaceBtn();
   renderSkyAt(skyJD);
   syncSkyDateLabel();
+  renderSkySnapshots();
   skyCachedTimeline = null;
   computeAndRenderSkyTimeline(skyJD);
 }
@@ -9071,6 +9173,85 @@ function navigateSkyBy(unit, delta) {
   renderSkyAt(newJD);
   syncSkyDateLabel();
   syncSkyTimelineCursor();
+  clearSkySnapActive();
+}
+
+// ── Снимки (варианты элекции) ─────────────────────────────────────────────────
+// Снимок = закреплённое значение T (§17). Прыжок = единый сеттер T: колесо,
+// красная линия таймлайна и лейбл даты подтягиваются через syncSkyTimelineCursor.
+
+function fmtSkySnapParts(jd) {
+  const d = new Date((jd - 2440587.5) * 86400000);
+  const p = n => String(n).padStart(2, '0');
+  return {
+    date: `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`,
+    time: `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`,
+  };
+}
+
+function addSkySnapshot() {
+  const jd = skyJD ?? computeJDNow();
+  const id = 's' + Date.now();
+  skySnapshots.push({ id, jd });
+  skySnapActiveId = id;
+  renderSkySnapshots();
+}
+
+function jumpToSkySnapshot(snap) {
+  skySnapActiveId = snap.id;
+  renderSkyAt(snap.jd);
+  syncSkyDateLabel();
+  syncSkyTimelineCursor();
+  renderSkySnapshots();
+}
+
+function deleteSkySnapshot(id) {
+  skySnapshots = skySnapshots.filter(s => s.id !== id);
+  if (skySnapActiveId === id) skySnapActiveId = null;
+  renderSkySnapshots();
+}
+
+// Ушли с сохранённого момента вручную (стрелки/таймлайн/сегодня) — снять подсветку.
+function clearSkySnapActive() {
+  if (skySnapActiveId !== null) { skySnapActiveId = null; renderSkySnapshots(); }
+}
+
+function renderSkySnapshots() {
+  const list = document.getElementById('sky-snap-list');
+  if (!list) return;
+  list.replaceChildren();
+  if (!skySnapshots.length) {
+    const empty = document.createElement('div');
+    empty.id = 'sky-snap-empty';
+    empty.textContent = 'Крутите карту и нажмите + чтобы сохранить момент';
+    list.appendChild(empty);
+    return;
+  }
+  for (const snap of skySnapshots) {
+    const row = document.createElement('div');
+    row.className = 'sky-snap-item';
+    const jump = document.createElement('button');
+    jump.type = 'button';
+    jump.className = 'sky-snap-jump' + (snap.id === skySnapActiveId ? ' active' : '');
+    const parts = fmtSkySnapParts(snap.jd);
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'sky-snap-date';
+    dateSpan.textContent = parts.date;
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'sky-snap-time';
+    timeSpan.textContent = parts.time;
+    jump.append(dateSpan, timeSpan);
+    jump.title = `${parts.date} ${parts.time}`;
+    jump.addEventListener('click', () => jumpToSkySnapshot(snap));
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'sky-snap-del';
+    del.textContent = '✕';
+    del.title = 'Удалить';
+    del.addEventListener('click', () => deleteSkySnapshot(snap.id));
+    row.append(jump, del);
+    list.appendChild(row);
+  }
 }
 
 // ── Timeline (sky / mundane — собственные принципы, не натальные) ──────────────
@@ -9672,8 +9853,8 @@ const skyTlCtx = {
   isYearScale:  () => skyScale === '10Y',
   is2YScale:    () => skyScale === '2Y',
   isMonthScale: () => skyScale === '1M',
-  onNavigate:   jd => { renderSkyAt(jd); syncSkyDateLabel(); syncSkyTimelineCursor(); },
-  onBarClick:   jd => { renderSkyAt(jd); syncSkyDateLabel(); syncSkyTimelineCursor(); },
+  onNavigate:   jd => { renderSkyAt(jd); syncSkyDateLabel(); syncSkyTimelineCursor(); clearSkySnapActive(); },
+  onBarClick:   jd => { renderSkyAt(jd); syncSkyDateLabel(); syncSkyTimelineCursor(); clearSkySnapActive(); },
   onShift: days => {
     const newCenter = (skyCachedTimeline?.center ?? computeJDNow()) + days;
     skyCachedTimeline = null;
@@ -10035,6 +10216,7 @@ function renderHomeEvents() {
 
 document.getElementById('sky-exit-btn').addEventListener('click', exitSkyMode);
 document.getElementById('sky-logo').addEventListener('click', exitSkyMode);
+document.getElementById('sky-snap-add').addEventListener('click', addSkySnapshot);
 
 document.getElementById('sky-settings-btn').addEventListener('click', e => {
   openSettingsDropdown(e.currentTarget, e);
@@ -10073,6 +10255,7 @@ document.querySelectorAll('[data-skynav]').forEach(btn => {
       skyJD = computeJDNow();
       renderSkyAt(skyJD);
       syncSkyDateLabel();
+      clearSkySnapActive();
       skyCachedTimeline = null;
       computeAndRenderSkyTimeline(skyJD);
       return;

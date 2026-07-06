@@ -83,15 +83,23 @@
 - Реестр `RP_WIDGETS`: `grades` (таблица планет) / `aspects` (сетка) / `dignities` (достоинства:
   транспонированная таблица `buildDignityTable`, планеты — колонки) / `aspflow` («События»:
   прошлые/будущие события септенера — ингрессы, станции R/D, точные аспекты в окнах текущих
-  знаков; `computeHoraryEvents` + `renderAspFlow`, кэш `_evCache`) / `notes` (заметки).
-- В дефолтном составе: grades/aspects/notes; dignities и aspflow — через `+` (у хорара — все).
+  знаков; `computeHoraryEvents` + `renderAspFlow`, кэш `_evCache`).
+- В дефолтном составе: grades/aspects; dignities и aspflow — через `+` (у хорара — все).
 - Табы группы сжимаются с многоточием при нехватке ширины; ☰ и `+` всегда видимы.
 - Состав группы `rightPanelTabs` + активный `rightPanelTab` — в `context.ui`, персист per-case.
 - Табы `#rp-tabs` рендерятся динамически (`applyRightPanelTab`). Шапка: `+` (добавить виджет)
   и `☰` (чеклист состава, последний не убирается), дропдаун `#rp-dropdown`.
-- Заметки (`#v2-notes-view`) живут внутри панели, показ через класс `rp-show-notes`;
-  правого drawer-а больше нет.
 - Контроллер времени — `#v2-panel-nav` в левой панели, под карточкой данных.
+
+### Заметки (`#v2-notes-view`)
+- Отдельная **выдвижная панель**, а не таб правой группы. Иконка-переключатель
+  `#notesToggleBtn` — в хедере рядом с настройками (видна при `body.home-off`).
+- `position:absolute` внутри `#v2-aspect-panel`; слайдится из-за правого края по классу
+  `notes-open` на панели, шириной 100% панели — занимает место правой панели, карту не
+  перекрывает. Шапка `#notes-panel-head` с заголовком и `#notes-panel-close` (✕).
+- `openNotesPanel` / `closeNotesPanel` / `toggleNotesPanel`, флаг `notesPanelOpen`.
+  Панель закрывается при выходе на дашборд; при смене вкладки перегружает заметки
+  текущей карты (`openNotesTab`). Список + markdown-редактор — как раньше.
 
 ### Скрытый код (`#forecast-layout`)
 Вкладка «Прогноз» скрыта (`display:none !important`), код сохранён для будущего использования.

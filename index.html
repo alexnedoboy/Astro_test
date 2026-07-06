@@ -1642,8 +1642,11 @@
     position: fixed;
     top: var(--hdr-h); left: var(--sidebar-w); right: 0; bottom: 0;
     flex-direction: column;
+    gap: var(--gutter);
+    padding: var(--gutter);
+    box-sizing: border-box;
     overflow: hidden;
-    background: var(--bg-page);
+    background: var(--bg-app);
     z-index: 100;
   }
   #sky-layout.sky-visible { display: flex; }
@@ -1654,34 +1657,61 @@
   #sky-top {
     flex: 0 0 74vh;
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 8px;
+    align-items: stretch;
+    gap: var(--gutter);
+    padding: 0;
     box-sizing: border-box;
     overflow: hidden;
   }
+  /* Левая колонна — прозрачный стек отдельных панелей-плашек (как в V2). */
   #sky-control-panel {
-    flex: 0 0 116px;
-    align-self: flex-start;
-    height: calc(74vh - 16px);
+    flex: 0 0 140px;
+    align-self: stretch;
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    background: var(--bg);
-    border-radius: 8px;
-    padding: 6px 4px;
+    gap: var(--gutter);
+    background: none;
+    border-radius: 0;
+    padding: 0;
     box-sizing: border-box;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: hidden;
   }
-  #sky-title-label {
-    text-align: center;
-    font-size: 0.68em;
-    font-weight: 600;
-    color: var(--tx-4);
-    padding: 2px 2px;
+  /* Единый шаблон панели: плашка со скруглением, шапка с заголовком + действия. */
+  .sky-panel {
+    background: var(--bg-panel-control);
+    border-radius: var(--panel-radius);
+    padding: 8px 8px 9px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     flex-shrink: 0;
-    line-height: 1.3;
+  }
+  .sky-panel-head {
+    display: flex; align-items: center; gap: 3px;
+    margin-bottom: 7px; flex-shrink: 0;
+  }
+  .sky-panel-head img { width: 18px; height: 18px; object-fit: contain; cursor: pointer; flex-shrink: 0; }
+  .sky-panel-title {
+    flex: 1; min-width: 0;
+    font-size: 0.58em; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--tx-7);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sky-panel-act {
+    width: 20px; height: 20px; flex: 0 0 auto; line-height: 1;
+    background: none; border: none; border-radius: 4px;
+    cursor: pointer; font-size: 0.95em; color: var(--tx-6);
+    display: flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .sky-panel-act:hover { background: var(--bg-hover); color: var(--tx-2); }
+  #sky-title-label {
+    font-size: 0.82em;
+    font-weight: 600;
+    color: var(--tx);
+    line-height: 1.25;
+    flex-shrink: 0;
+    margin-bottom: 5px;
   }
   #sky-place {
     flex-shrink: 0; max-width: 100%; box-sizing: border-box;
@@ -1696,11 +1726,11 @@
   #sky-geo-dd .geo-item { padding: 6px 8px; font-size: 0.78em; }
   #sky-nav-date-lbl {
     width: 100%; background: none; border: none; outline: none;
-    color: var(--tx-6); font-size: 0.7em; padding: 2px 4px;
+    color: var(--tx-2); font-size: 0.8em; font-weight: 600; padding: 0 2px 7px;
     display: flex; align-items: center; justify-content: center;
     line-height: 1.3; text-align: center; flex-shrink: 0;
   }
-  .sky-navmode-row { display: flex; gap: 2px; flex-shrink: 0; }
+  .sky-navmode-row { display: flex; gap: 2px; flex-shrink: 0; margin-bottom: 5px; }
   .sky-navmode-btn {
     flex: 1; height: 24px;
     background: none; border: 1px solid var(--bd-light); border-radius: 4px;
@@ -1709,57 +1739,55 @@
   .sky-navmode-btn.active { background: var(--bg-active); color: var(--tx); font-weight: 600; border-color: var(--bd); }
   .sky-navmode-btn:hover:not(.active) { background: var(--bg-hover); }
 
-  /* Панель снимков (варианты элекции): закладки контроллера времени */
-  #sky-snap-panel { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; }
-  #sky-snap-head { display: flex; align-items: center; gap: 4px; padding: 1px 2px 3px; flex-shrink: 0; }
-  #sky-snap-title { flex: 1; font-size: 0.6em; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--tx-6); }
-  #sky-snap-add {
-    width: 20px; height: 20px; flex-shrink: 0; line-height: 1;
-    background: none; border: 1px solid var(--bd-light); border-radius: 4px;
-    cursor: pointer; font-size: 1em; color: var(--tx-5);
+  /* Панель снимков (варианты элекции): закладки контроллера времени. */
+  #sky-snap-panel { flex: 1 1 auto; }
+  #sky-snap-list { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; min-height: 0; }
+  #sky-snap-empty { font-size: 0.62em; color: var(--tx-8); text-align: center; padding: 4px 2px; line-height: 1.4; }
+  .sky-snap-item {
+    position: relative;
+    display: flex; flex-direction: column; gap: 1px;
+    padding: 5px 16px 5px 8px;
+    border: 1px solid var(--bd-light); border-radius: 6px;
+    background: var(--bg); cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
   }
-  #sky-snap-add:hover { background: var(--bg-hover); color: var(--tx-2); }
-  #sky-snap-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; min-height: 0; }
-  #sky-snap-empty { font-size: 0.6em; color: var(--tx-8); text-align: center; padding: 3px 2px; line-height: 1.35; }
-  .sky-snap-item { display: flex; align-items: stretch; gap: 2px; }
-  .sky-snap-jump {
-    flex: 1; min-width: 0; text-align: left; line-height: 1.2;
-    display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap;
-    background: none; border: 1px solid var(--bd-light); border-radius: 4px;
-    cursor: pointer; padding: 3px 5px; color: var(--tx-4);
-  }
-  .sky-snap-jump .sky-snap-date { font-size: 0.66em; font-weight: 600; }
-  .sky-snap-jump .sky-snap-time { font-size: 0.6em; color: var(--tx-7); }
-  .sky-snap-jump:hover { background: var(--bg-hover); color: var(--tx); }
-  .sky-snap-jump.active { background: var(--bg-active); border-color: var(--bd); color: var(--tx); }
-  .sky-snap-jump.active .sky-snap-time { color: var(--tx-4); }
+  .sky-snap-item:hover { background: var(--bg-hover); border-color: var(--bd); }
+  .sky-snap-item.active { background: var(--link-bg); border-color: var(--accent); }
+  .sky-snap-item .sky-snap-date { font-size: 0.7em; font-weight: 600; color: var(--tx-2); line-height: 1.2; }
+  .sky-snap-item .sky-snap-time { font-size: 0.62em; color: var(--tx-6); line-height: 1.15; }
+  .sky-snap-item.active .sky-snap-date { color: var(--tx); }
   .sky-snap-del {
-    width: 16px; flex-shrink: 0; background: none; border: none;
-    cursor: pointer; font-size: 0.72em; color: var(--tx-8);
+    position: absolute; top: 50%; right: 3px; transform: translateY(-50%);
+    width: 16px; height: 16px; padding: 0; line-height: 1;
+    background: none; border: none; border-radius: 3px; cursor: pointer;
+    font-size: 0.72em; color: var(--tx-8); opacity: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.12s;
   }
-  .sky-snap-del:hover { color: var(--danger); }
+  .sky-snap-item:hover .sky-snap-del { opacity: 1; }
+  .sky-snap-del:hover { color: var(--danger); background: var(--bg-active); }
 
   #sky-chart-area {
     flex: 1; min-width: 0;
-    height: calc(74vh - 16px);
-    background: var(--bg);
-    border-radius: 8px;
+    background: var(--bg-panel-chart);
+    border-radius: var(--panel-radius);
     overflow: hidden;
     display: flex; align-items: center; justify-content: center;
+    padding: 8px; box-sizing: border-box;
   }
   #sky-chart-block { width: 100%; height: 100%; }
   #sky-chart-block svg { width: 100%; height: 100%; display: block; }
 
   #sky-aspect-panel {
-    flex: 0 0 220px;
-    height: calc(74vh - 16px);
-    background: var(--bg);
-    border-radius: 8px;
-    overflow: auto;
-    padding: 6px;
+    flex: 0 0 230px;
+    background: var(--bg-panel-info);
+    border-radius: var(--panel-radius);
+    overflow: hidden;
+    padding: 8px;
     box-sizing: border-box;
+    display: flex; flex-direction: column;
   }
-  #sky-aspect-grid { font-size: 0.68em; }
+  #sky-aspect-grid { flex: 1; min-height: 0; overflow: auto; font-size: 0.68em; }
   #sky-aspect-grid table { border-collapse: collapse; }
   #sky-aspect-grid th.ag-hdr { font-family: 'HamburgSymbols', monospace; padding: 1px 2px; }
   #sky-aspect-grid td { text-align: center; padding: 1px 2px; min-width: 24px; }
@@ -1769,14 +1797,15 @@
   #sky-bottom {
     flex: 1; min-height: 0;
     overflow: hidden;
-    padding: 0 8px 8px;
+    padding: 0;
     box-sizing: border-box;
     position: relative;
   }
   #sky-tl-tab {
-    position: absolute; top: 0; left: 8px;
+    position: absolute; top: 0; left: 0;
     z-index: 20; display: flex;
-    background: var(--bg); overflow: hidden;
+    background: var(--bg-panel-tl); overflow: hidden;
+    border-top-left-radius: var(--panel-radius);
   }
   #sky-tl-toggle {
     width: 24px; height: 28px;
@@ -1790,7 +1819,7 @@
     height: 100%;
     overflow: hidden;
     display: flex; flex-direction: column;
-    background: var(--bg); border-radius: 8px;
+    background: var(--bg-panel-tl); border-radius: var(--panel-radius);
   }
   #sky-timeline-content {
     flex: 1; min-height: 0;
@@ -2156,51 +2185,59 @@
 <div id="sky-layout">
   <div id="sky-top">
     <div id="sky-control-panel">
-      <img src="Aspectus%20logo.png" id="sky-logo" alt="Aspectus" style="display:block;width:52px;height:52px;margin:2px auto 4px;object-fit:contain;flex-shrink:0;cursor:pointer">
-      <div id="sky-title-label">Актуальные<br>аспекты</div>
-      <button id="sky-place" type="button">📍</button>
-      <div id="sky-geo">
-        <input type="text" id="skyPlaceInput" data-i18n-placeholder="cityPlaceholder" placeholder="Начните вводить город…" autocomplete="off">
-        <div id="sky-geo-dd"></div>
+      <!-- Панель данных -->
+      <div id="sky-data-panel" class="sky-panel">
+        <div class="sky-panel-head">
+          <img src="Aspectus%20logo.png" id="sky-logo" alt="Aspectus" title="На главную">
+          <span class="sky-panel-title">Данные</span>
+          <button class="sky-panel-act" id="sky-settings-btn" type="button" title="Настройки">⚙︎</button>
+          <button class="sky-panel-act" id="sky-exit-btn" type="button" title="На главную">↩</button>
+        </div>
+        <div id="sky-title-label">Актуальные аспекты</div>
+        <button id="sky-place" type="button">📍</button>
+        <div id="sky-geo">
+          <input type="text" id="skyPlaceInput" data-i18n-placeholder="cityPlaceholder" placeholder="Начните вводить город…" autocomplete="off">
+          <div id="sky-geo-dd"></div>
+        </div>
       </div>
-      <div class="v2-ctrl-sep"></div>
-      <div id="sky-nav-date-lbl"><span id="sky-nav-date-text">—</span></div>
-      <div class="sky-navmode-row">
-        <button class="sky-navmode-btn active" data-skymode="date">Дата</button>
-        <button class="sky-navmode-btn" data-skymode="time">Время</button>
+      <!-- Панель момента (контроллер времени) -->
+      <div id="sky-time-panel" class="sky-panel">
+        <div class="sky-panel-head">
+          <span class="sky-panel-title">Момент</span>
+          <button class="sky-panel-act" data-skynav="today" type="button" title="Сейчас">↺</button>
+        </div>
+        <div id="sky-nav-date-lbl"><span id="sky-nav-date-text">—</span></div>
+        <div class="sky-navmode-row">
+          <button class="sky-navmode-btn active" data-skymode="date">Дата</button>
+          <button class="sky-navmode-btn" data-skymode="time">Время</button>
+        </div>
+        <div class="v2-nav-row">
+          <button class="v2-nav-btn" data-skynav="prev-big">◀◀◀</button>
+          <button class="v2-nav-btn" data-skynav="next-big">▶▶▶</button>
+        </div>
+        <div class="v2-nav-row">
+          <button class="v2-nav-btn" data-skynav="prev-mid">◀◀</button>
+          <button class="v2-nav-btn" data-skynav="next-mid">▶▶</button>
+        </div>
+        <div class="v2-nav-row">
+          <button class="v2-nav-btn" data-skynav="prev-small">◀</button>
+          <button class="v2-nav-btn" data-skynav="next-small">▶</button>
+        </div>
       </div>
-      <div class="v2-ctrl-sep"></div>
-      <div class="v2-nav-row">
-        <button class="v2-nav-btn" data-skynav="prev-big">◀◀◀</button>
-        <button class="v2-nav-btn" data-skynav="next-big">▶▶▶</button>
-      </div>
-      <div class="v2-nav-row">
-        <button class="v2-nav-btn" data-skynav="prev-mid">◀◀</button>
-        <button class="v2-nav-btn" data-skynav="next-mid">▶▶</button>
-      </div>
-      <div class="v2-nav-row">
-        <button class="v2-nav-btn" data-skynav="prev-small">◀</button>
-        <button class="v2-nav-btn" data-skynav="next-small">▶</button>
-      </div>
-      <button class="v2-nav-btn v2-today-btn" data-skynav="today">↺</button>
-      <div class="v2-ctrl-sep"></div>
-      <div id="sky-snap-panel">
-        <div id="sky-snap-head">
-          <span id="sky-snap-title">Снимки</span>
-          <button id="sky-snap-add" type="button" title="Сохранить текущий момент">+</button>
+      <!-- Панель снимков -->
+      <div id="sky-snap-panel" class="sky-panel">
+        <div class="sky-panel-head">
+          <span class="sky-panel-title">Снимки</span>
+          <button class="sky-panel-act" id="sky-snap-add" type="button" title="Сохранить текущий момент">+</button>
         </div>
         <div id="sky-snap-list"></div>
-      </div>
-      <div class="v2-ctrl-spacer"></div>
-      <div style="display:flex;flex-shrink:0;border-top:1px solid var(--bd-light);margin:0 -4px -6px">
-        <button class="v2-icon-btn" id="sky-settings-btn" title="Настройки" style="flex:1;width:auto;height:34px;font-size:1.05em;color:var(--tx-5);border-radius:0 0 0 4px">⚙︎</button>
-        <button class="v2-icon-btn" id="sky-exit-btn" title="На главную" style="flex:1;width:auto;height:34px;font-size:1.15em;color:var(--tx-5);border-left:1px solid var(--bd-light);border-radius:0 0 4px 0">↩</button>
       </div>
     </div>
     <div id="sky-chart-area">
       <div id="sky-chart-block"></div>
     </div>
     <div id="sky-aspect-panel">
+      <div class="sky-panel-head"><span class="sky-panel-title">Аспекты</span></div>
       <div id="sky-aspect-grid"></div>
     </div>
   </div>
@@ -9228,29 +9265,25 @@ function renderSkySnapshots() {
     return;
   }
   for (const snap of skySnapshots) {
-    const row = document.createElement('div');
-    row.className = 'sky-snap-item';
-    const jump = document.createElement('button');
-    jump.type = 'button';
-    jump.className = 'sky-snap-jump' + (snap.id === skySnapActiveId ? ' active' : '');
     const parts = fmtSkySnapParts(snap.jd);
+    const item = document.createElement('div');
+    item.className = 'sky-snap-item' + (snap.id === skySnapActiveId ? ' active' : '');
+    item.title = `${parts.date} ${parts.time}`;
+    item.addEventListener('click', () => jumpToSkySnapshot(snap));
     const dateSpan = document.createElement('span');
     dateSpan.className = 'sky-snap-date';
     dateSpan.textContent = parts.date;
     const timeSpan = document.createElement('span');
     timeSpan.className = 'sky-snap-time';
     timeSpan.textContent = parts.time;
-    jump.append(dateSpan, timeSpan);
-    jump.title = `${parts.date} ${parts.time}`;
-    jump.addEventListener('click', () => jumpToSkySnapshot(snap));
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'sky-snap-del';
     del.textContent = '✕';
     del.title = 'Удалить';
-    del.addEventListener('click', () => deleteSkySnapshot(snap.id));
-    row.append(jump, del);
-    list.appendChild(row);
+    del.addEventListener('click', e => { e.stopPropagation(); deleteSkySnapshot(snap.id); });
+    item.append(dateSpan, timeSpan, del);
+    list.appendChild(item);
   }
 }
 
@@ -9457,8 +9490,8 @@ function computeSkyTlLayout(periods, moonPeriods, density) {
     });
   }
 
-  // Полоса плотности
-  const DENSITY_H = density && density.length ? 30 : 0;
+  // Полоса плотности («волны» аспектов) убрана из отображения.
+  const DENSITY_H = 0;
 
   // Лунная секция (в B — без полоски-тумблера слева, тумблер в шапке)
   const hasMoon = moonPeriods && moonPeriods.length > 0;

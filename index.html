@@ -1412,9 +1412,8 @@
     gap: 1px;
     padding: 8px 8px 9px;
   }
-  /* Дата/Время — переключатель шага контроллера (только элекция) */
-  #v2-navmode-row { display: none; gap: 2px; margin-bottom: 4px; }
-  #layout-v2.case-election #v2-navmode-row { display: flex; }
+  /* Дата/Время — переключатель шага контроллера (везде, где есть контроллер) */
+  #v2-navmode-row { display: flex; gap: 2px; margin-bottom: 4px; }
   .v2-navmode-btn {
     flex: 1; height: 22px;
     background: none; border: 1px solid var(--bd-light); border-radius: 4px;
@@ -6157,7 +6156,8 @@ function applyNatalJD(jd) {
   const mc  = ((ascmc[1] % 360) + 360) % 360;
   planets.forEach(p => { p.house = findHouse(p.longitude, cusps); });
   natalData = { ...natalData, planets, cusps, asc, mc, birthJD: jd, lat, lon, originalBirthJD };
-  const localMs = (jd - 2440587.5) * 86400000 + (natalData.utcOff ?? 0) * 3600000;
+  // округляем до минуты — снимаем артефакт округления JD (11:30 не как 11:29)
+  const localMs = Math.round(((jd - 2440587.5) * 86400000 + (natalData.utcOff ?? 0) * 3600000) / 60000) * 60000;
   const nd = new Date(localMs);
   const fmtD = String(nd.getUTCDate()).padStart(2, '0') + '.' +
                String(nd.getUTCMonth() + 1).padStart(2, '0') + '.' +
@@ -8939,10 +8939,7 @@ function syncV2DateLabel() {
       inp.value = d.getUTCFullYear() + '-' +
         String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
         String(d.getUTCDate()).padStart(2, '0');
-      txt.textContent =
-        String(d.getUTCDate()).padStart(2, '0') + '.' +
-        String(d.getUTCMonth() + 1).padStart(2, '0') + '.' +
-        d.getUTCFullYear();
+      txt.textContent = fmtNavDateTime(baseJD, natalData?.utcOff ?? 0);
     }
     const atOrigin = natalData?.originalBirthJD == null || Math.abs((natalData?.birthJD ?? 0) - (natalData?.originalBirthJD ?? 0)) < 0.001;
     lbl.classList.toggle('v2-date-active', !atOrigin);
@@ -8960,13 +8957,18 @@ function syncV2DateLabel() {
     txt.textContent = tr('today');
     lbl.classList.remove('v2-date-active');
   } else {
-    const d = new Date((currentTransitJD - 2440587.5) * 86400000);
-    txt.textContent =
-      String(d.getUTCDate()).padStart(2, '0') + '.' +
-      String(d.getUTCMonth() + 1).padStart(2, '0') + '.' +
-      d.getUTCFullYear();
+    txt.textContent = fmtNavDateTime(currentTransitJD, natalData?.utcOff ?? 0);
     lbl.classList.add('v2-date-active');
   }
+}
+
+// Подпись контроллера: локальные дата и время «DD.MM.YYYY HH:MM» (с учётом utcOff).
+// Округляем до минуты — снимаем артефакт округления JD (10:30 не показывается как 10:29).
+function fmtNavDateTime(jd, utcOff = 0) {
+  const ms = Math.round(((jd - 2440587.5) * 86400000 + utcOff * 3600000) / 60000) * 60000;
+  const d = new Date(ms);
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 }
 
 document.getElementById('chart-mode-tabs').addEventListener('click', e => {

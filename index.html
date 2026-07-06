@@ -954,8 +954,8 @@
   #layout-v2.case-horary #v2-top { flex: 1 1 auto; min-height: 0; }
   #layout-v2.case-horary #v2-bottom { flex: 0 0 auto; }
 
-  /* Панель снимков элекции — в левой зоне, под контроллером T (только элекция) */
-  #v2-snap-panel { display: none; flex-direction: column; min-height: 0; margin-top: 10px; }
+  /* Панель снимков элекции — отдельная плашка под контроллером T (только элекция) */
+  #v2-snap-panel { display: none; flex-direction: column; min-height: 0; padding: 8px 8px 9px; }
   #layout-v2.case-election #v2-snap-panel { display: flex; }
   #v2-snap-head { display: flex; align-items: center; gap: 4px; padding: 0 2px 5px; flex-shrink: 0; }
   #v2-snap-title { flex: 1; font-size: 0.58em; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tx-7); }
@@ -1362,22 +1362,37 @@
   #note-preview code { background: var(--bg-row-alt); border-radius: 3px; padding: 0 3px; font-size: 0.92em; }
   #note-preview hr { border: none; border-top: 1px solid var(--bd-light); margin: 10px 0; }
   #note-preview a { color: var(--link); }
+  /* Левая колонна — прозрачный стек отдельных панелей-плашек (Данные/Момент/Снимки) */
   #v2-control-panel {
     flex: 0 0 13%;
-    min-width: 130px;
+    min-width: 134px;
     z-index: 10;
-    background: var(--bg-panel-control);
-    border-radius: var(--panel-radius);
+    background: none;
+    border-radius: 0;
     display: flex;
     flex-direction: column;
-    padding: 8px 6px;
+    gap: var(--gutter);
+    padding: 0;
     box-sizing: border-box;
     overflow: hidden;
+  }
+  /* каждая смысловая группа — отдельная плашка */
+  #v2-panel-head, #v2-panel-nav, #v2-snap-panel {
+    background: var(--bg-panel-control);
+    border-radius: var(--panel-radius);
+    box-sizing: border-box;
+  }
+  /* заголовок плашки (Момент/Снимки) */
+  .v2-panel-cap {
+    font-size: 0.58em; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--tx-7);
+    padding: 0 2px 5px; flex-shrink: 0;
   }
   /* группы панели */
   #v2-panel-head {
     display: flex; flex-direction: column; flex-shrink: 0;
     pointer-events: auto;
+    padding: 8px 8px 9px;
   }
   #v2-panel-modes {
     position: absolute;
@@ -1392,11 +1407,21 @@
   }
   #v2-panel-nav {
     display: flex;
-    margin-top: 10px;
     flex-direction: column; flex-shrink: 0;
     pointer-events: auto;
     gap: 1px;
+    padding: 8px 8px 9px;
   }
+  /* Дата/Время — переключатель шага контроллера (только элекция) */
+  #v2-navmode-row { display: none; gap: 2px; margin-bottom: 4px; }
+  #layout-v2.case-election #v2-navmode-row { display: flex; }
+  .v2-navmode-btn {
+    flex: 1; height: 22px;
+    background: none; border: 1px solid var(--bd-light); border-radius: 4px;
+    cursor: pointer; font-size: 0.68em; color: var(--tx-5);
+  }
+  .v2-navmode-btn.active { background: var(--bg-active); color: var(--tx); font-weight: 600; border-color: var(--bd); }
+  .v2-navmode-btn:hover:not(.active) { background: var(--bg-hover); }
   #v2-logo { display: none; }
   #v2-chart-info {
     flex-shrink: 0;
@@ -1624,6 +1649,9 @@
       top: 9px; bottom: 9px; left: 0; right: auto; height: auto; width: 1px;
     }
 
+    /* на мобильном плашки-заголовки скрыты, стек управляется нижней навигацией */
+    .v2-panel-cap { display: none; }
+    #v2-navmode-row { order: 0; flex: 0 0 100%; }
     /* 3b — навигация: дата на всю ширину, 7 кнопок одним рядом ◀◀◀ ◀◀ ◀ ↺ ▶ ▶▶ ▶▶▶ */
     #v2-panel-nav {
       display: flex; flex-wrap: wrap; gap: 4px; flex: 0 0 auto;
@@ -2095,6 +2123,11 @@
       </div>
       <div class="v2-ctrl-sep"></div>
       <div id="v2-panel-nav">
+        <div class="v2-panel-cap" data-i18n="momentTitle">Момент</div>
+        <div id="v2-navmode-row">
+          <button class="v2-navmode-btn active" data-v2navmode="date" data-i18n="navModeDate">Дата</button>
+          <button class="v2-navmode-btn" data-v2navmode="time" data-i18n="navModeTime">Время</button>
+        </div>
         <button id="v2-nav-date-lbl" style="display:none">
           <span id="v2-nav-date-text"></span>
           <input type="date" id="nav-date-input" tabindex="-1">
@@ -2362,6 +2395,7 @@ const STRINGS = {
     electionWhatLabel:'Что подбираем', electionWhatPh:'Напр.: подписание договора…',
     electionMomentLabel:'Момент', electionPlaceLabel:'Место', electionFolder:'Электив',
     snapshotsTitle:'Снимки', snapEmpty:'Крутите момент и нажмите + чтобы сохранить', delete:'Удалить',
+    momentTitle:'Момент', navModeDate:'Дата', navModeTime:'Время',
     horaryFolder:'Хорары', outcomeYes:'Сбылся', outcomeNo:'Нет', outcomePartial:'Частично',
     digRowDom:'Обитель', digRowExalt:'Экзальтация', digRowTrip:'Триплицитет', digRowTerm:'Терм',
     digRowFace:'Фас', digRowDetr:'Изгнание', digRowFall:'Падение', digRowScore:'Балл',
@@ -2459,6 +2493,7 @@ const STRINGS = {
     electionWhatLabel:'What to elect', electionWhatPh:'e.g. signing a contract…',
     electionMomentLabel:'Moment', electionPlaceLabel:'Place', electionFolder:'Election',
     snapshotsTitle:'Snapshots', snapEmpty:'Crank the moment and press + to save', delete:'Delete',
+    momentTitle:'Moment', navModeDate:'Date', navModeTime:'Time',
     horaryFolder:'Хорары', outcomeYes:'Fulfilled', outcomeNo:'No', outcomePartial:'Partially',
     digRowDom:'Domicile', digRowExalt:'Exaltation', digRowTrip:'Triplicity', digRowTerm:'Term',
     digRowFace:'Face', digRowDetr:'Detriment', digRowFall:'Fall', digRowScore:'Score',
@@ -3161,7 +3196,7 @@ function loadChartFromDB(c) {
   if (ex >= 0) { switchTab(ex); markChartOpened(c); return; }
   markChartOpened(c);
   writeFormFields(rowToFields(c));
-  openNewTabFromForm(c.id ?? null, c.case_type ?? 'natal', c.outcome ?? null);
+  openNewTabFromForm(c.id ?? null, c.case_type ?? 'natal', c.outcome ?? null, c.snapshots ?? null);
 }
 
 // Отметка «последнего открытия» для сортировки базы (ошибки игнорируем —
@@ -3193,6 +3228,7 @@ function openChartInTab(c, newTab = false) {
   delete t.kind;             // вкладка-палитра становится вкладкой кейса
   t.type    = c.case_type ?? 'natal';   // до расчёта: от типа зависит система домов
   t.outcome = c.outcome ?? null;
+  t.snapshots = Array.isArray(c.snapshots) ? c.snapshots : [];   // варианты элекции
   if (!computeAndRenderNatal()) return;
   if (t.type === 'horary') applyHoraryRpPreset();
   else if (t.type === 'election') applyElectionRpPreset();
@@ -3321,6 +3357,10 @@ function caseExtraColumns(t) {
     extra.question = document.getElementById('chartName').value.trim() || null;
     extra.folder   = tr('horaryFolder');
     if (t?.outcome) extra.outcome = t.outcome;
+  } else if (type === 'election') {
+    extra.question = document.getElementById('chartName').value.trim() || null;  // что подбираем
+    extra.folder   = tr('electionFolder');
+    extra.snapshots = t?.snapshots ?? [];   // варианты (jsonb)
   }
   return extra;
 }
@@ -4166,10 +4206,10 @@ function closeTab(i) {
 }
 
 // Создать новую вкладку из текущей формы и построить карту
-function openNewTabFromForm(chartId, caseType = 'natal', outcome = null) {
+function openNewTabFromForm(chartId, caseType = 'natal', outcome = null, snapshots = null) {
   if (!dashboardOpen) snapshotActiveTab();
   const t = { uid: ++_tabUid, chartId: chartId ?? null, fields: null, header: null, st: null,
-              type: caseType, outcome };
+              type: caseType, outcome, snapshots: Array.isArray(snapshots) ? snapshots : [] };
   tabs.push(t);
   activeTab = tabs.length - 1;
   dashboardOpen = false;
@@ -4346,8 +4386,8 @@ function computeIntoPaletteTab() {
   updateHashForActiveTab(true);
   persistTabs();
   renderTabBar();
-  // Хорары автосохраняются в папку «Хорары» (толерантно к отсутствию колонок)
-  if (t.type === 'horary' && currentUser) {
+  // Хорары и элекции автосохраняются в свою папку (толерантно к отсутствию колонок)
+  if ((t.type === 'horary' || t.type === 'election') && currentUser) {
     saveCurrentChartToDb(caseExtraColumns(t)).then(({ error }) => {
       if (error) { showSaveConfirm(tr('saveError'), true); return; }
       showSaveConfirm(tr('saved'));
@@ -4673,6 +4713,14 @@ function electionSnaps() {
   return (t.snapshots ||= []);
 }
 
+// Синхронизация снимков в Supabase (только если элекция уже сохранена).
+// Толерантно к отсутствию колонки snapshots — просто молчит.
+function persistElectionSnapshotsToDb(t) {
+  if (!t?.chartId || !currentUser) return;
+  sb.from('charts').update({ snapshots: t.snapshots ?? [] }).eq('id', t.chartId)
+    .then(({ error }) => { if (error) console.warn('snapshots update:', error.message); });
+}
+
 function addElectionSnapshot() {
   if (currentCaseType !== 'election' || !natalData) return;
   const id = 's' + Date.now();
@@ -4680,6 +4728,7 @@ function addElectionSnapshot() {
   _electionSnapActive = id;
   renderElectionSnaps();
   persistTabs();
+  persistElectionSnapshotsToDb(tabs[activeTab]);
 }
 
 function jumpElectionSnapshot(snap) {
@@ -4697,6 +4746,7 @@ function deleteElectionSnapshot(id) {
   if (_electionSnapActive === id) _electionSnapActive = null;
   renderElectionSnaps();
   persistTabs();
+  persistElectionSnapshotsToDb(t);
 }
 
 function renderElectionSnaps() {
@@ -6162,9 +6212,11 @@ function navigateDateBy(unit, delta) {
     if (!natalData) return;
     const baseJD = natalData.birthJD;
     let newJD;
-    if (unit === 'day') {
-      newJD = baseJD + delta;
-    } else {
+    if (unit === 'hour')        newJD = baseJD + delta / 24;
+    else if (unit === 'minute') newJD = baseJD + delta / 1440;
+    else if (unit === 'second') newJD = baseJD + delta / 86400;
+    else if (unit === 'day')    newJD = baseJD + delta;
+    else {
       const d = new Date((baseJD - 2440587.5) * 86400000);
       if (unit === 'month') d.setUTCMonth(d.getUTCMonth() + delta);
       else d.setUTCFullYear(d.getUTCFullYear() + delta);
@@ -8944,7 +8996,12 @@ document.getElementById('v2-control-panel').addEventListener('click', e => {
       syncV2DateLabel();
       }
     } else {
-      const unitMap = {
+      // В режиме «Время» те же три пары стрелок шагают час/минута/секунда
+      const unitMap = v2NavMode === 'time' ? {
+        'prev-year': ['hour', -1], 'next-year': ['hour', +1],
+        'prev-month': ['minute', -1], 'next-month': ['minute', +1],
+        'prev-day': ['second', -1], 'next-day': ['second', +1],
+      } : {
         'prev-day': ['day', -1], 'next-day': ['day', +1],
         'prev-month': ['month', -1], 'next-month': ['month', +1],
         'prev-year': ['year', -1], 'next-year': ['year', +1],
@@ -9072,6 +9129,15 @@ document.getElementById('tab-add-btn').addEventListener('click', () => {
 });
 
 document.getElementById('v2-snap-add').addEventListener('click', addElectionSnapshot);
+
+// Переключатель шага контроллера: Дата (год/мес/день) ↔ Время (час/мин/сек)
+let v2NavMode = 'date';
+document.querySelectorAll('.v2-navmode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    v2NavMode = btn.dataset.v2navmode;
+    document.querySelectorAll('.v2-navmode-btn').forEach(b => b.classList.toggle('active', b === btn));
+  });
+});
 
 document.getElementById('v2-edit-btn').addEventListener('click', enterEditMode);
 

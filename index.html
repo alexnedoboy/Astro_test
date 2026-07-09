@@ -9617,9 +9617,11 @@ function computeSkyMutualAspects(jdStart, jdEnd, scale) {
   const allLons = {};
   for (const p of PLANETS) {
     if (p.id === 1) continue;
+    if (!safeCalcUt(jdStart, p.id, flags)) continue;   // тело вне эпохи (Хирон < 1800) — пропуск
     allLons[p.id] = new Float64Array(DAYS);
     for (let i = 0; i < DAYS; i++) {
-      allLons[p.id][i] = ((swe.calc_ut(jdStart + i, p.id, flags)[0] % 360) + 360) % 360;
+      const r = safeCalcUt(jdStart + i, p.id, flags);
+      allLons[p.id][i] = r ? (((r[0] % 360) + 360) % 360) : (allLons[p.id][i - 1] ?? 0);
     }
   }
 
@@ -9632,6 +9634,7 @@ function computeSkyMutualAspects(jdStart, jdEnd, scale) {
       const p1 = PLANETS[pi], p2 = PLANETS[pj];
       if (!skyPairIncluded(p1.id, p2.id, scale)) continue;
       const lons1 = allLons[p1.id], lons2 = allLons[p2.id];
+      if (!lons1 || !lons2) continue;   // одно из тел недоступно на эту эпоху
       const orb = Math.max(getTransitOrb(p1.id), getTransitOrb(p2.id));
       const aspects = (p1.id === 10 || p1.id === 12 || p2.id === 10 || p2.id === 12)
         ? T_ASPECTS.filter(a => a.angle === 0)
@@ -9669,8 +9672,12 @@ function computeSkyMoonAspects(jdStart, jdEnd) {
   const periods = [];
   for (const pid of partners) {
     const pObj = PLANETS.find(p => p.id === pid);
+    if (!safeCalcUt(jdStart, pid, flags)) continue;   // Хирон < 1800 — пропуск
     const lon2 = new Float64Array(N);
-    for (let i = 0; i < N; i++) lon2[i] = ((swe.calc_ut(idxToJD(i), pid, flags)[0] % 360) + 360) % 360;
+    for (let i = 0; i < N; i++) {
+      const r = safeCalcUt(idxToJD(i), pid, flags);
+      lon2[i] = r ? (((r[0] % 360) + 360) % 360) : (lon2[i - 1] ?? 0);
+    }
     const aspects = (pid === 10 || pid === 12) ? T_ASPECTS.filter(a => a.angle === 0) : T_ASPECTS;
     for (const per of scanAspectPeriods(moonLon, lon2, N, idxToJD, aspects, MOON_ORB)) {
       periods.push({ anchorId: 1, mover: pObj, asp: per.asp,

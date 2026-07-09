@@ -6167,9 +6167,10 @@ function applyNatalJD(jd) {
   const { lat, lon, originalBirthJD } = natalData;
   const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
   const planets = PLANETS.map(p => {
-    const r = swe.calc_ut(jd, p.id, flags);
+    const r = safeCalcUt(jd, p.id, flags);   // Хирон < 1800 недоступен — пропуск
+    if (!r) return null;
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
-  });
+  }).filter(Boolean);
   const hRes = swe.houses(jd, lat, lon, 'P');
   const cusps = Array.from(hRes.cusps).slice(1, 13);
   const ascmc = Array.from(hRes.ascmc);
@@ -6427,9 +6428,10 @@ function showTransitNow() {
   );
   const flags  = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
   const transit = PLANETS.map(p => {
-    const r = swe.calc_ut(jdNow, p.id, flags);
+    const r = safeCalcUt(jdNow, p.id, flags);
+    if (!r) return null;
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
-  });
+  }).filter(Boolean);
   renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
   updateSecondColumn(transit);
   setInfoTableMode('biwheel');
@@ -6689,9 +6691,10 @@ function renderBiwheelAt(jd) {
   if (!natalData || !swe) return;
   const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
   const transit = PLANETS.map(p => {
-    const r = swe.calc_ut(jd, p.id, flags);
+    const r = safeCalcUt(jd, p.id, flags);   // Хирон < 1800 недоступен — пропуск
+    if (!r) return null;
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
-  });
+  }).filter(Boolean);
   renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
   updateSecondColumn(transit);
   setInfoTableMode('biwheel');
@@ -7314,15 +7317,17 @@ function computeTransits(natalPlanets, jdWindowStart, jdWindowEnd, angleTargets 
   const DAYS    = Math.ceil(jdEnd - jdStart) + 2;
 
   // Mars is timeline-worthy only against angular cusps (fast elsewhere)
-  const transitIds = angleTargets.length ? [...SLOW_IDS, 4] : SLOW_IDS;
+  // Тела, недоступные на эту эпоху (Хирон < 1800), отбрасываем целиком.
+  const transitIds = (angleTargets.length ? [...SLOW_IDS, 4] : SLOW_IDS)
+    .filter(id => safeCalcUt(jdStart, id, flags));
 
   // Precompute slow planet longitudes for every day
   const slowLons = {};
   for (const id of transitIds) {
     slowLons[id] = new Float64Array(DAYS);
     for (let i = 0; i < DAYS; i++) {
-      const r = swe.calc_ut(jdStart + i, id, flags);
-      slowLons[id][i] = ((r[0] % 360) + 360) % 360;
+      const r = safeCalcUt(jdStart + i, id, flags);
+      slowLons[id][i] = r ? (((r[0] % 360) + 360) % 360) : slowLons[id][i - 1] ?? 0;
     }
   }
 
@@ -9272,9 +9277,10 @@ function renderSkyAt(jd) {
   if (!swe) return;
   const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
   const planets = PLANETS.map(p => {
-    const r = swe.calc_ut(jd, p.id, flags);
+    const r = safeCalcUt(jd, p.id, flags);   // Хирон вне диапазона — пропуск
+    if (!r) return null;
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
-  });
+  }).filter(Boolean);
   skyJD = jd;
   renderSkyWheel(planets);
   buildSkyAspectGrid(planets);

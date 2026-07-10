@@ -78,6 +78,41 @@
 - Панель режимов и таймлайн выключены; правая группа предзагружает все виджеты,
   активен «События» (`applyHoraryRpPreset`).
 
+### Синастрия (`case_type = 'synastry'`)
+- **Композитный** кейс (WORKSPACE_CONCEPT §3/§9): своей сердцевины нет, ядро строки `charts`
+  пустое; субъекты хранятся в jsonb-колонке `refs = { a, b }`, где каждый субъект — snapshot
+  полей (`chartId`, `name`, `birth_date`, `birth_time`, `city`, `lat`, `lon`, `utc_offset`, `timezone`).
+  `chartId` — ссылка на библиотечную карту (при выборе из сохранённых), `null` при ручном вводе.
+- Конструктор — отдельная модалка `#syn-form` (два слота A/B), запускается из палитры
+  (`openSynForm`). Каждый слот: поиск по `_homeCharts` (`synPickFiltered`, только `case_type='natal'`)
+  **или** ручной ввод; место — автокомплит `geoSearch` + timeapi → utc (`synApplyGeo`). Wiring — `wireSynForm`.
+- **Табы панели карты** (`#chart-mode-tabs`, синастрия-ветка `applyChartModeTabs`): «Карта А /
+  Карта Б / Синастрия». Вид — глобал `synView` (`'a'|'b'|'both'`, дефолт `both`), персист в
+  `context.ui`/view. Переключение — `switchSynView` → `renderSynastry` (диспетчер): `both` —
+  совмещённое биколесо (`renderSynastryBiwheel`), `a`/`b` — одиночное натальное колесо субъекта
+  (`renderSynastrySingle`).
+- Совмещённое биколесо: A внутри (дом-каркас), B снаружи (куспиды короткими линиями, синие точки),
+  кросс-аспекты A↔B. `renderSynastryBiwheel` — зеркало `renderBiwheelDirected`, переиспользует
+  `drawDirectedCusps`/`drawTransitAspects`/`drawBiwheelPlanets`. Инфо-таблица — `biwheel-houses`
+  (обе колонки планет и домов); правая сетка — кросс-аспекты `buildAspectGrid(A, B, 'natal')`.
+- **Панель данных** — две карточки субъектов (`#v2-syn-subjects`), визуально как обычная карточка
+  кейса: имя + ✎ (правка) + 💾 (сохранить), дата+GMT, место, чип типа. Правка субъекта — через
+  общий `#form-wrap` в режиме editing (`editSynSubject` → `_synEditSlot`; `finishSynSubjectEdit`
+  пишет `t.refs[slot]`, `recomputeSynastry` + перерисовка + `updateSynastryRefs` если сохранён).
+- Данные `A` — в `natalData`, данные `B` — в глобале `synastryB`. Обе карты считает чистая
+  `computeChartData(fields, houseSys)` (вынесена из `computeAndRenderNatal`). Пересчёт из `refs` —
+  `paintSynastryFromRefs` (общая точка для создания, загрузки `openSynastryTab`, восстановления
+  `rebuildTabFromFields`). `captureState`/`applyState` несут `synastryB`; `paintActiveChart` при
+  `synastry` рисует биколесо.
+- Пресет: класс `case-synastry` скрывает таймлайн и контроллер времени (как хорар), но табы
+  панели карты остаются (переключатель вида A/Б/синастрия, см. выше). Правая группа — `grades` +
+  `aspects` (`applySynastryRpPreset`).
+- Автосохранение в папку «Синастрии» при логине (`saveSynastryToDb`, `caseExtraColumns` → пустое ядро
+  + `name='A × B'`/`folder`/`refs`); миграция — `supabase_synastry.sql` (`refs jsonb`); код толерантен
+  к отсутствию колонки (retry без `refs`).
+- Follow-up: перечитывание субъектов по `chartId`, тонкие синастрические орбисы,
+  композит/мидпойнт-виджеты.
+
 ### Правая группа виджетов (`#v2-aspect-panel`)
 Группа переключаемых виджетов-табов (см. WORKSPACE_CONCEPT.md §6, §13):
 - Реестр `RP_WIDGETS`: `grades` (таблица планет) / `aspects` (сетка) / `dignities` (достоинства:

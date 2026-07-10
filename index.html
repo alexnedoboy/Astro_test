@@ -628,6 +628,44 @@
   body.home-off #page-body:has(#form-wrap.modal) { display: block !important; }
   body.home-dash #form-wrap:not(.editing):not(.modal) { display: none; }
 
+  /* ── Конструктор синастрии (модалка над #edit-backdrop) ──── */
+  #syn-form {
+    display: none; position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+    width: calc(100% - 32px); max-width: 760px; z-index: 500;
+    background: var(--bg); border: 1px solid var(--bd);
+    border-radius: 0 0 12px 12px; padding: 16px;
+    max-height: 92vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+  }
+  #syn-form.open { display: block; }
+  #syn-form-head { font-size: 1.05em; font-weight: 700; margin-bottom: 12px; color: var(--tx-2); }
+  #syn-slots { display: flex; gap: 16px; flex-wrap: wrap; }
+  .syn-slot {
+    flex: 1 1 300px; min-width: 260px;
+    border: 1px solid var(--bd-light); border-radius: 8px; padding: 12px;
+  }
+  .syn-slot-role {
+    font-size: 0.64em; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--tx-6); margin-bottom: 8px;
+  }
+  .syn-pick-wrap { position: relative; margin-bottom: 12px; }
+  .syn-place-field { position: relative; }
+  .syn-pick-dd, .syn-geo-dd {
+    display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 10;
+    background: var(--bg); border: 1px solid var(--bd); border-radius: 8px;
+    margin-top: 3px; max-height: 220px; overflow-y: auto; box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  }
+  .syn-pick-item, .syn-geo-dd .geo-item { padding: 7px 9px; cursor: pointer; font-size: 0.8em; }
+  .syn-pick-item:hover, .syn-geo-dd .geo-item:hover { background: var(--bg-hover-2); }
+  .syn-pick-item-name { color: var(--tx-2); }
+  .syn-pick-item-meta { color: var(--tx-6); font-size: 0.88em; }
+  #syn-status { font-size: 0.78em; color: var(--danger); margin-top: 8px; min-height: 1em; }
+  #syn-cancel-btn {
+    flex: 0 0 auto; background: var(--bg-hover);
+    color: var(--tx-3); border: 1px solid var(--bd-input);
+  }
+  /* Модалка синастрии должна всплывать поверх открытой карты / дашборда */
+  body.home-off #page-body:has(#syn-form.open) { display: block !important; }
+
   /* ── Auth modal ─────────────────────────────────────────── */
   #modal-overlay {
     display: none; position: fixed; inset: 0; z-index: 1000;
@@ -948,11 +986,48 @@
   #layout-v2.case-horary #v2-timeline-wrap,
   #layout-v2.case-horary #chart-mode-tabs,
   #layout-v2.case-horary #v2-panel-nav,
+  #layout-v2.case-synastry #v2-tl-tab,
+  #layout-v2.case-synastry #v2-timeline-wrap,
+  #layout-v2.case-synastry #v2-panel-nav,
   #layout-v2.case-election #chart-mode-tabs { display: none; }
   /* Элекция: контроллер T двигает момент (карта driven), таймлайн — source=sky.
      Раскладка — обычная V2 (карта сверху, таймлайн снизу). */
-  #layout-v2.case-horary #v2-top { flex: 1 1 auto; min-height: 0; }
-  #layout-v2.case-horary #v2-bottom { flex: 0 0 auto; }
+  #layout-v2.case-horary #v2-top,
+  #layout-v2.case-synastry #v2-top { flex: 1 1 auto; min-height: 0; }
+  #layout-v2.case-horary #v2-bottom,
+  #layout-v2.case-synastry #v2-bottom { flex: 0 0 auto; }
+
+  /* Пресет синастрии: две ОТДЕЛЬНЫЕ плашки данных (по одной на карту) вместо
+     одиночной; таймлайн/контроллер выключены, но табы карт остаются (§6). */
+  #v2-syn-subjects { display: none; flex-direction: column; gap: var(--gutter); }
+  #layout-v2.case-synastry #v2-syn-subjects { display: flex; }
+  #layout-v2.case-synastry #v2-chart-info { display: none; }
+  .v2-syn-card {
+    display: flex; flex-direction: column; min-width: 0;
+    background: var(--bg-panel-control);
+    border-radius: var(--panel-radius);
+    padding: 8px 10px 9px;
+  }
+  body.privacy-mode .v2-syn-card { visibility: hidden; }
+  .v2-syn-card-role { font-size: 0.56em; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tx-7); margin-bottom: 1px; }
+  .v2-syn-card-top { display: flex; align-items: center; gap: 1px; min-width: 0; }
+  .v2-syn-card-name { flex: 1; min-width: 0; font-size: 0.88em; font-weight: 600; color: var(--tx); line-height: 1.2; }
+  .v2-syn-card-date { display: block; font-size: 0.7em; color: var(--tx-6); padding: 2px 0 0; line-height: 1.3; }
+  .v2-syn-card-place { display: block; font-size: 0.7em; color: var(--tx-7); line-height: 1.3; }
+  #v2-syn-case-type {
+    display: inline-block; margin-top: 2px; align-self: flex-start;
+    font-size: 0.6em; letter-spacing: 0.05em; color: var(--tx-7);
+    background: var(--bg-active); border: 1px solid var(--bd-light);
+    border-radius: 3px; padding: 1px 6px; line-height: 1.5;
+  }
+  #v2-syn-case-type:empty { display: none; }
+  #v2-syn-save-confirm { font-size: 0.62em; color: var(--ok); min-height: 0.9em; }
+  /* На десктопе шапка панели (лого/⚙/↩ скрыты) для синастрии пуста — убираем её
+     и разделитель, чтобы две плашки данных были верхними. Мобилка не затрагивается. */
+  @media (min-width: 701px) {
+    #layout-v2.case-synastry #v2-panel-head,
+    #layout-v2.case-synastry .v2-ctrl-sep { display: none; }
+  }
 
   /* Панель снимков элекции — отдельная плашка под контроллером T (только элекция) */
   #v2-snap-panel { display: none; flex-direction: column; min-height: 0; padding: 8px 8px 9px; }
@@ -2058,6 +2133,62 @@
   </div>
 </div>
 
+<!-- ── Конструктор синастрии (композитный кейс, WORKSPACE_CONCEPT §8) ────────── -->
+<div id="syn-form">
+  <div id="syn-form-head" data-i18n="synTitle">Синастрия</div>
+  <div id="syn-slots">
+    <div class="syn-slot" data-slot="a">
+      <div class="syn-slot-role" data-i18n="synSubjectA">Первый человек</div>
+      <div class="field syn-pick-wrap">
+        <input type="text" class="syn-search" data-i18n-placeholder="synPickSaved" placeholder="Выбрать из сохранённых…" autocomplete="off">
+        <div class="syn-pick-dd"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label data-i18n="nameLabel">Имя</label><input type="text" class="syn-name" autocomplete="off"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label data-i18n="birthDateLabel">Дата рождения</label><input type="date" class="syn-date" autocomplete="off"></div>
+        <div class="field"><label data-i18n="birthTimeLabel">Время (местное)</label><input type="time" class="syn-time" value="12:00" autocomplete="off"></div>
+      </div>
+      <div class="row">
+        <div class="field syn-place-field"><label data-i18n="birthPlaceLabel">Место рождения</label><input type="text" class="syn-place" autocomplete="off"><div class="syn-geo-dd"></div></div>
+      </div>
+      <div class="row">
+        <div class="field"><label data-i18n="latLabel">Широта</label><input type="number" step="0.0001" class="syn-lat"></div>
+        <div class="field"><label data-i18n="lonLabel">Долгота</label><input type="number" step="0.0001" class="syn-lon"></div>
+        <div class="field"><label data-i18n="utcOffsetLabel">UTC смещение, ч</label><input type="number" step="0.5" class="syn-utc"></div>
+      </div>
+    </div>
+    <div class="syn-slot" data-slot="b">
+      <div class="syn-slot-role" data-i18n="synSubjectB">Второй человек</div>
+      <div class="field syn-pick-wrap">
+        <input type="text" class="syn-search" data-i18n-placeholder="synPickSaved" placeholder="Выбрать из сохранённых…" autocomplete="off">
+        <div class="syn-pick-dd"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label data-i18n="nameLabel">Имя</label><input type="text" class="syn-name" autocomplete="off"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label data-i18n="birthDateLabel">Дата рождения</label><input type="date" class="syn-date" autocomplete="off"></div>
+        <div class="field"><label data-i18n="birthTimeLabel">Время (местное)</label><input type="time" class="syn-time" value="12:00" autocomplete="off"></div>
+      </div>
+      <div class="row">
+        <div class="field syn-place-field"><label data-i18n="birthPlaceLabel">Место рождения</label><input type="text" class="syn-place" autocomplete="off"><div class="syn-geo-dd"></div></div>
+      </div>
+      <div class="row">
+        <div class="field"><label data-i18n="latLabel">Широта</label><input type="number" step="0.0001" class="syn-lat"></div>
+        <div class="field"><label data-i18n="lonLabel">Долгота</label><input type="number" step="0.0001" class="syn-lon"></div>
+        <div class="field"><label data-i18n="utcOffsetLabel">UTC смещение, ч</label><input type="number" step="0.5" class="syn-utc"></div>
+      </div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button id="syn-build-btn" data-i18n="synBuild">Построить синастрию</button>
+    <button id="syn-cancel-btn" type="button" data-i18n="cancel">Отменить</button>
+  </div>
+  <div id="syn-status"></div>
+</div>
+
 <!-- ── Home dashboard ──────────────────────────────────────── -->
 <div id="home-main">
   <div id="home-left">
@@ -2119,6 +2250,31 @@
           <button class="v2-icon-btn" id="v2-settings-btn" title="Настройки">⚙︎</button>
           <button class="v2-icon-btn" id="v2-exit-btn" title="Обычный вид">↩</button>
         </div>
+      </div>
+      <!-- Синастрия: две отдельные плашки данных (по одной на карту) -->
+      <div id="v2-syn-subjects">
+        <div class="v2-syn-card" data-syn="a">
+          <span class="v2-syn-card-role" data-i18n="synSubjectA">Первый человек</span>
+          <div class="v2-syn-card-top">
+            <span class="v2-syn-card-name"></span>
+            <button class="v2-icon-btn v2-syn-edit" data-syn="a" title="Редактировать данные">✎</button>
+            <button class="v2-icon-btn v2-syn-save" data-syn="a" title="Сохранить">💾</button>
+          </div>
+          <span class="v2-syn-card-date"></span>
+          <span class="v2-syn-card-place"></span>
+        </div>
+        <div class="v2-syn-card" data-syn="b">
+          <span class="v2-syn-card-role" data-i18n="synSubjectB">Второй человек</span>
+          <div class="v2-syn-card-top">
+            <span class="v2-syn-card-name"></span>
+            <button class="v2-icon-btn v2-syn-edit" data-syn="b" title="Редактировать данные">✎</button>
+            <button class="v2-icon-btn v2-syn-save" data-syn="b" title="Сохранить">💾</button>
+          </div>
+          <span class="v2-syn-card-date"></span>
+          <span class="v2-syn-card-place"></span>
+        </div>
+        <span id="v2-syn-case-type"></span>
+        <span id="v2-syn-save-confirm"></span>
       </div>
       <div class="v2-ctrl-sep"></div>
       <div id="v2-panel-nav">
@@ -2224,8 +2380,8 @@
       <button class="palette-cmd" data-cmd="natal">
         <span class="palette-cmd-glyph">☉&#xFE0E;</span><span data-i18n="paletteCmdNatal">Новая карта</span>
       </button>
-      <button class="palette-cmd disabled" data-cmd="synastry">
-        <span class="palette-cmd-glyph">⚯&#xFE0E;</span><span data-i18n="paletteCmdSynastry">Синастрия</span><span class="palette-soon" data-i18n="paletteSoon">скоро</span>
+      <button class="palette-cmd" data-cmd="synastry">
+        <span class="palette-cmd-glyph">⚯&#xFE0E;</span><span data-i18n="paletteCmdSynastry">Синастрия</span>
       </button>
       <button class="palette-cmd" data-cmd="horary">
         <span class="palette-cmd-glyph">?</span><span data-i18n="paletteCmdHorary">Хорар</span>
@@ -2396,6 +2552,10 @@ const STRINGS = {
     snapshotsTitle:'Снимки', snapEmpty:'Крутите момент и нажмите + чтобы сохранить', delete:'Удалить',
     momentTitle:'Момент', navModeDate:'Дата', navModeTime:'Время',
     horaryFolder:'Хорары', outcomeYes:'Сбылся', outcomeNo:'Нет', outcomePartial:'Частично',
+    synastryFolder:'Синастрии', synTitle:'Синастрия', synBuild:'Построить синастрию',
+    synSubjectA:'Первый человек', synSubjectB:'Второй человек',
+    synPickSaved:'Выбрать из сохранённых…', synFillBoth:'Заполните данные обоих людей.',
+    synViewA:'Карта А', synViewB:'Карта Б', synViewBoth:'Синастрия',
     digRowDom:'Обитель', digRowExalt:'Экзальтация', digRowTrip:'Триплицитет', digRowTerm:'Терм',
     digRowFace:'Фас', digRowDetr:'Изгнание', digRowFall:'Падение', digRowScore:'Балл',
     panelTabAspFlow:'События', afPastEvents:'Прошлые события', afFutureEvents:'Будущие события',
@@ -2494,6 +2654,10 @@ const STRINGS = {
     snapshotsTitle:'Snapshots', snapEmpty:'Crank the moment and press + to save', delete:'Delete',
     momentTitle:'Moment', navModeDate:'Date', navModeTime:'Time',
     horaryFolder:'Хорары', outcomeYes:'Fulfilled', outcomeNo:'No', outcomePartial:'Partially',
+    synastryFolder:'Синастрии', synTitle:'Synastry', synBuild:'Build synastry',
+    synSubjectA:'Person A', synSubjectB:'Person B',
+    synPickSaved:'Pick from saved…', synFillBoth:'Fill in both people’s data.',
+    synViewA:'Chart A', synViewB:'Chart B', synViewBoth:'Synastry',
     digRowDom:'Domicile', digRowExalt:'Exaltation', digRowTrip:'Triplicity', digRowTerm:'Term',
     digRowFace:'Face', digRowDetr:'Detriment', digRowFall:'Fall', digRowScore:'Score',
     panelTabAspFlow:'Events', afPastEvents:'Past events', afFutureEvents:'Future events',
@@ -3193,9 +3357,35 @@ function loadChartFromDB(c) {
   // Уже открыта в одной из вкладок — просто переключиться
   const ex = tabs.findIndex(t => t.chartId && t.chartId === c.id);
   if (ex >= 0) { switchTab(ex); markChartOpened(c); return; }
+  if (c.case_type === 'synastry') { openSynastryTab(c); return; }
   markChartOpened(c);
   writeFormFields(rowToFields(c));
   openNewTabFromForm(c.id ?? null, c.case_type ?? 'natal', c.outcome ?? null, c.snapshots ?? null);
+}
+
+// Открыть сохранённую синастрию (композитный кейс) в новой вкладке из c.refs
+function openSynastryTab(c) {
+  const ex = tabs.findIndex(t => t.chartId && t.chartId === c.id);
+  if (ex >= 0) { switchTab(ex); markChartOpened(c); return; }
+  const refs = c.refs;
+  if (!refs || !refs.a || !refs.b) { console.warn('synastry: нет refs у', c.id); return; }
+  if (!swe) { _pendingChartLoad = c; return; }
+  if (!dashboardOpen) snapshotActiveTab();
+  markChartOpened(c);
+  const t = { uid: ++_tabUid, chartId: c.id ?? null, fields: null, header: null, st: null,
+              type: 'synastry', outcome: null, snapshots: [], refs };
+  tabs.push(t);
+  activeTab = tabs.length - 1;
+  dashboardOpen = false;
+  currentTransitJD = null; chartExpanded = false; layout2TlState = 0; tlYearScale = false;
+  synView = 'both';
+  if (!paintSynastryFromRefs(t)) { tabs.pop(); activeTab = tabs.length - 1; console.warn('synastry: расчёт не удался'); return; }
+  t.header = readHeader();
+  t.st     = captureState();
+  resetNotesState();
+  updateHashForActiveTab(true);
+  persistTabs();
+  renderTabBar();
 }
 
 // Отметка «последнего открытия» для сортировки базы (ошибки игнорируем —
@@ -3214,6 +3404,7 @@ function markChartOpened(c) {
 function openChartInTab(c, newTab = false) {
   const ex = tabs.findIndex(t => t.chartId && t.chartId === c.id);
   if (ex >= 0) { switchTab(ex); markChartOpened(c); return; }
+  if (c.case_type === 'synastry') { openSynastryTab(c); return; }   // композит — всегда своя вкладка
   if (newTab || dashboardOpen || activeTab < 0 || !tabs[activeTab]) {
     loadChartFromDB(c);            // нет активной вкладки или просили новую — создаём
     return;
@@ -3360,8 +3551,19 @@ function caseExtraColumns(t) {
     extra.question = document.getElementById('chartName').value.trim() || null;  // что подбираем
     extra.folder   = tr('electionFolder');
     extra.snapshots = t?.snapshots ?? [];   // варианты (jsonb)
+  } else if (type === 'synastry') {
+    // Композитный кейс: ядро пустое, имя = «A × B», субъекты в refs (jsonb)
+    extra.name   = synastryTitle(t?.refs);
+    extra.folder = tr('synastryFolder');
+    extra.refs   = t?.refs ?? null;
   }
   return extra;
+}
+
+// Заголовок синастрии: «Имя A × Имя B»
+function synastryTitle(refs) {
+  const a = refs?.a?.name || 'A', b = refs?.b?.name || 'B';
+  return `${a} × ${b}`;
 }
 
 document.getElementById('saveBtn').addEventListener('click', async () => {
@@ -3833,7 +4035,10 @@ function filterNatalPlanets(planets) {
 }
 
 let swe              = null;
-let natalData        = null;   // { planets, cusps, asc, mc }
+let natalData        = null;   // { planets, cusps, asc, mc } — субъект A (в синастрии)
+let synastryB        = null;   // данные субъекта B в синастрии (то же, что natalData)
+let synView          = 'both'; // вид карты в синастрии: 'a' | 'b' | 'both' (совмещённое биколесо)
+let _synEditSlot     = null;   // слот ('a'|'b'), редактируемый через #form-wrap, либо null
 let cachedTimeline   = null;   // transit timeline cache
 let tlPastYears      = 0;      // extra years extended into the past
 let tlFutureYears    = 0;      // extra years extended into the future
@@ -4060,6 +4265,7 @@ function readHeader() {
 function captureState() {
   return {
     subjects: [{ role: 'natal', chartId: currentChartId ?? null, data: natalData }],
+    synastryB,   // субъект B (только в синастрии; иначе null)
     layers: currentMode === 'natal' ? [] : [{ method: currentMode, driven: true }],
     T: currentTransitJD,
     ui: {
@@ -4072,6 +4278,7 @@ function captureState() {
       rightPanelTab,
       rightPanelTabs: [...rightPanelTabs],
       chartModeTabs: [...chartModeTabs],
+      synView,   // вид карты синастрии
     },
   };
 }
@@ -4080,6 +4287,7 @@ function applyState(s) {
   const layer = s.layers && s.layers[0];
   const u     = s.ui || {};
   natalData        = natal ? natal.data : null;
+  synastryB        = s.synastryB ?? null;
   currentMode      = layer ? layer.method : 'natal';
   currentTransitJD = s.T;
   cachedTimeline   = u.cachedTimeline;
@@ -4095,6 +4303,7 @@ function applyState(s) {
   rightPanelTabs   = sanitizeRpTabs(u.rightPanelTabs);
   rightPanelTab    = u.rightPanelTab || 'grades';
   chartModeTabs    = sanitizeChartModeTabs(u.chartModeTabs);
+  synView          = u.synView || 'both';
 }
 
 function snapshotActiveTab() {
@@ -4130,6 +4339,13 @@ function paintActiveChart() {
   applyLayout2Classes();
   applyRightPanelTab();
   applyChartModeTabs();
+  // Синастрия: совмещённое биколесо A+B, без слоёв/таймлайна (§6)
+  if (currentCaseType === 'synastry') {
+    fillSynSubjectCards(tabs[activeTab]?.refs);
+    renderSynastry();
+    skyTlHost = null;
+    return;
+  }
   switchToMode(currentMode);
   renderHoraryBlock();
   if (currentCaseType === 'horary') { skyTlHost = null; return; }   // пресет хорара — без таймлайна
@@ -4423,7 +4639,331 @@ document.getElementById('palette-cmds').addEventListener('click', e => {
     setFormMode('election');
     openNewChartModal();
     prefillHoraryForm();   // момент = сейчас, место = место астролога (skyPlace)
+  } else if (btn.dataset.cmd === 'synastry') {
+    openSynForm();
   }
+});
+
+// ── Конструктор синастрии: два слота субъектов (библиотека или ручной ввод) ────
+const _synSlots = { a: { chartId: null, timezone: null }, b: { chartId: null, timezone: null } };
+
+function synSlotEl(slot, sel) {
+  return document.querySelector(`#syn-form .syn-slot[data-slot="${slot}"] ${sel}`);
+}
+
+function readSynSlot(slot) {
+  return {
+    chartId:    _synSlots[slot].chartId ?? null,
+    name:       synSlotEl(slot, '.syn-name').value.trim(),
+    birth_date: synSlotEl(slot, '.syn-date').value,
+    birth_time: synSlotEl(slot, '.syn-time').value,
+    city:       synSlotEl(slot, '.syn-place').value.trim(),
+    lat:        synSlotEl(slot, '.syn-lat').value,
+    lon:        synSlotEl(slot, '.syn-lon').value,
+    utc_offset: synSlotEl(slot, '.syn-utc').value,
+    timezone:   _synSlots[slot].timezone ?? null,
+  };
+}
+
+// Субъект (refs) → поля для computeChartData
+function subjToComputeFields(s) {
+  return { birthDate: s.birth_date, birthTime: s.birth_time, lat: s.lat, lon: s.lon, utcOff: s.utc_offset };
+}
+
+function fillSynSlotFromChart(slot, c) {
+  _synSlots[slot].chartId  = c.id ?? null;
+  _synSlots[slot].timezone = c.timezone ?? null;
+  synSlotEl(slot, '.syn-name').value  = c.name ?? '';
+  synSlotEl(slot, '.syn-date').value  = c.birth_date ?? '';
+  synSlotEl(slot, '.syn-time').value  = c.birth_time ?? '12:00';
+  synSlotEl(slot, '.syn-place').value = c.city ?? '';
+  synSlotEl(slot, '.syn-lat').value   = c.lat ?? '';
+  synSlotEl(slot, '.syn-lon').value   = c.lon ?? '';
+  synSlotEl(slot, '.syn-utc').value   = c.utc_offset ?? '';
+}
+
+function setSynStatus(msg) {
+  const el = document.getElementById('syn-status');
+  if (el) el.textContent = msg || '';
+}
+
+function openSynForm() {
+  hidePaletteView();
+  const fw = document.getElementById('syn-form');
+  document.getElementById('edit-backdrop').classList.add('visible');
+  // сброс слотов
+  ['a', 'b'].forEach(slot => {
+    _synSlots[slot] = { chartId: null, timezone: null };
+    ['.syn-search', '.syn-name', '.syn-date', '.syn-place', '.syn-lat', '.syn-lon', '.syn-utc']
+      .forEach(sel => { synSlotEl(slot, sel).value = ''; });
+    synSlotEl(slot, '.syn-time').value = '12:00';
+    synSlotEl(slot, '.syn-pick-dd').style.display = 'none';
+    synSlotEl(slot, '.syn-geo-dd').style.display = 'none';
+  });
+  setSynStatus('');
+  fw.classList.add('open');
+  if (currentUser && !_homeCharts.length) loadHomeCharts();
+}
+
+function closeSynForm() {
+  document.getElementById('syn-form').classList.remove('open');
+  document.getElementById('edit-backdrop').classList.remove('visible');
+  // осиротевшую палитру (вкладку) вернуть на экран
+  if (!dashboardOpen && tabs[activeTab]?.kind === 'palette') showPaletteView();
+}
+
+// Список сохранённых карт для слота (натал/без типа — субъекты; не композиты)
+function synPickFiltered(q) {
+  const query = (q || '').trim().toLowerCase();
+  let arr = _homeCharts.filter(c => (c.case_type ?? 'natal') === 'natal' && c.birth_date);
+  if (query) arr = arr.filter(c =>
+    (c.name ?? '').toLowerCase().includes(query) || (c.city ?? '').toLowerCase().includes(query));
+  return arr
+    .sort((a, b) => (b.pinned === true) - (a.pinned === true) || homeChartTs(b) - homeChartTs(a))
+    .slice(0, 8);
+}
+
+// Автокомплит города для слота: geoSearch → выбор → lat/lon + часовой пояс → utc
+async function synApplyGeo(slot, item) {
+  const lat = parseFloat(item.lat), lon = parseFloat(item.lon);
+  synSlotEl(slot, '.syn-place').value = item.display_name.split(',').slice(0, 2).join(',').trim();
+  synSlotEl(slot, '.syn-lat').value   = lat.toFixed(4);
+  synSlotEl(slot, '.syn-lon').value   = lon.toFixed(4);
+  synSlotEl(slot, '.syn-geo-dd').style.display = 'none';
+  _synSlots[slot].chartId = null;   // ручная правка места — уже не чистая ссылка
+  try {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 6000);
+    const tz   = await fetch(`https://timeapi.io/api/timezone/coordinate?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`, { signal: ctrl.signal });
+    clearTimeout(tid);
+    const zone = (await tz.json()).timeZone;
+    if (zone) {
+      _synSlots[slot].timezone = zone;
+      const dateStr = synSlotEl(slot, '.syn-date').value;
+      const date = dateStr ? new Date(dateStr + 'T12:00:00Z') : new Date();
+      synSlotEl(slot, '.syn-utc').value = getUTCOffsetHours(zone, date);
+    }
+  } catch { /* оффлайн/таймаут — utc правит пользователь вручную */ }
+}
+
+function wireSynForm() {
+  ['a', 'b'].forEach(slot => {
+    const search = synSlotEl(slot, '.syn-search');
+    const pickDd = synSlotEl(slot, '.syn-pick-dd');
+    const place  = synSlotEl(slot, '.syn-place');
+    const geoDd  = synSlotEl(slot, '.syn-geo-dd');
+
+    // Поиск по библиотеке
+    search.addEventListener('input', () => {
+      const arr = synPickFiltered(search.value);
+      pickDd.innerHTML = '';
+      if (!search.value.trim() || !arr.length) { pickDd.style.display = 'none'; return; }
+      arr.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'syn-pick-item';
+        const dt = c.birth_date ? c.birth_date.split('-').reverse().join('.') : '';
+        div.innerHTML = `<span class="syn-pick-item-name">${escapeHtml(c.name || tr('chartFallback'))}</span> ` +
+                        `<span class="syn-pick-item-meta">${escapeHtml([dt, c.city || ''].filter(Boolean).join(' · '))}</span>`;
+        div.addEventListener('mousedown', ev => {
+          ev.preventDefault();
+          fillSynSlotFromChart(slot, c);
+          search.value = '';
+          pickDd.style.display = 'none';
+          setSynStatus('');
+        });
+        pickDd.appendChild(div);
+      });
+      pickDd.style.display = 'block';
+    });
+    search.addEventListener('blur', () => setTimeout(() => { pickDd.style.display = 'none'; }, 180));
+
+    // Автокомплит города
+    let geoTimer = null;
+    place.addEventListener('input', () => {
+      clearTimeout(geoTimer);
+      _synSlots[slot].chartId = null;   // ручной ввод — ссылка сброшена
+      const q = place.value.trim();
+      if (q.length < 2) { geoDd.style.display = 'none'; return; }
+      geoTimer = setTimeout(async () => {
+        try {
+          const items = await geoSearch(q);
+          geoDd.innerHTML = '';
+          if (!items.length) { geoDd.style.display = 'none'; return; }
+          items.forEach(item => {
+            const parts = item.display_name.split(',');
+            const div = document.createElement('div');
+            div.className = 'geo-item';
+            div.innerHTML = `<div class="geo-main">${escapeHtml(parts[0].trim())}</div><div class="geo-sub">${escapeHtml(parts.slice(1, 3).join(',').trim())}</div>`;
+            div.addEventListener('mousedown', ev => { ev.preventDefault(); synApplyGeo(slot, item); });
+            geoDd.appendChild(div);
+          });
+          geoDd.style.display = 'block';
+        } catch { geoDd.style.display = 'none'; }
+      }, 380);
+    });
+    place.addEventListener('blur', () => setTimeout(() => { geoDd.style.display = 'none'; }, 180));
+
+    // Ручная правка имени/даты сбрасывает ссылку на библиотечную карту
+    ['.syn-name', '.syn-date', '.syn-time'].forEach(sel =>
+      synSlotEl(slot, sel).addEventListener('input', () => { _synSlots[slot].chartId = null; }));
+  });
+
+  document.getElementById('syn-build-btn').addEventListener('click', computeSynastryIntoTab);
+  document.getElementById('syn-cancel-btn').addEventListener('click', closeSynForm);
+}
+wireSynForm();
+
+// Пересчитать данные обоих субъектов из refs в natalData / synastryB
+function recomputeSynastry(t) {
+  if (!swe || !t?.refs?.a || !t?.refs?.b) return false;
+  const A = computeChartData(subjToComputeFields(t.refs.a), 'P');
+  const B = computeChartData(subjToComputeFields(t.refs.b), 'P');
+  if (!A || !B) return false;
+  natalData = A; synastryB = B;
+  return true;
+}
+
+// Полная настройка+отрисовка синастрии из t.refs. Общая точка для создания
+// (конструктор), загрузки из БД и ленивого восстановления вкладки.
+function paintSynastryFromRefs(t) {
+  if (!recomputeSynastry(t)) return false;
+  cachedTimeline = null;
+  currentMode = 'natal';
+  currentChartId = t.chartId ?? null;
+  setV2ChartInfo(synastryTitle(t.refs), '', '');   // скрытая карточка — для имени вкладки
+  applyCaseType('synastry');
+  applySynastryRpPreset();
+  applyChartModeTabs();
+  applyLayout2Classes();
+  fillSynSubjectCards(t.refs);
+  renderSynastry();
+  return true;
+}
+
+// Конструктор синастрии превращает активную вкладку-палитру в кейс синастрии
+function computeSynastryIntoTab() {
+  if (!swe) return;
+  const subjA = readSynSlot('a');
+  const subjB = readSynSlot('b');
+  const t = tabs[activeTab];
+  t.type = 'synastry';
+  t.refs = { a: subjA, b: subjB };
+  currentTransitJD = null;
+  chartExpanded = false; layout2TlState = 0; tlYearScale = false;
+  synView = 'both';
+
+  if (!paintSynastryFromRefs(t)) { setSynStatus(tr('synFillBoth')); return; }
+  delete t.kind;
+  t.chartId = null;
+  currentChartId = null;
+
+  closeSynForm();
+  t.header = readHeader();
+  t.st     = captureState();
+  resetNotesState();
+  updateHashForActiveTab(true);
+  persistTabs();
+  renderTabBar();
+
+  // Автосохранение в папку «Синастрии» (толерантно к отсутствию колонок)
+  if (currentUser) saveSynastryToDb(t);
+}
+
+// Сохранить синастрию: композитная строка (пустое ядро) + refs
+async function saveSynastryToDb(t) {
+  const extra = caseExtraColumns(t);   // { case_type, name, folder, refs }
+  const baseRow = {
+    user_id: currentUser.id, name: extra.name,
+    birth_date: null, birth_time: null, city: null,
+    lat: null, lon: null, utc_offset: null, timezone: null,
+  };
+  let res = await sb.from('charts').insert({ ...baseRow, ...extra }).select().single();
+  if (res.error && extra.refs !== undefined) {
+    // колонки refs нет — сохраняем без неё (кейс живёт в рамках сессии из t.refs)
+    const { refs, ...noRefs } = extra;
+    res = await sb.from('charts').insert({ ...baseRow, ...noRefs }).select().single();
+  }
+  if (res.error) { showSynSaveConfirm(tr('saveError'), true); return; }
+  const data = res.data;
+  currentChartId = data.id;
+  t.chartId = data.id;
+  const newHash = `#chart/${data.id}`;
+  if (window.location.hash !== newHash) history.pushState({ chartId: data.id }, '', newHash);
+  persistTabs();
+  renderTabBar();
+  showSynSaveConfirm(tr('saved'));
+  loadHomeCharts();
+}
+
+// Обновить refs уже сохранённой синастрии (после правки субъекта)
+async function updateSynastryRefs(t) {
+  if (!t?.chartId || !currentUser) return;
+  const { error } = await sb.from('charts').update({ refs: t.refs, name: synastryTitle(t.refs) }).eq('id', t.chartId);
+  if (error) { console.warn('synastry refs update:', error.message); return; }
+  showSynSaveConfirm(tr('saved'));
+  loadHomeCharts();
+}
+
+// 💾 на карточке субъекта: сохранить (новую) или обновить refs (уже сохранённой)
+function saveSynastryComposite() {
+  if (!currentUser) { openModal(); return; }
+  const t = tabs[activeTab];
+  if (!t || t.type !== 'synastry') return;
+  if (t.chartId) updateSynastryRefs(t); else saveSynastryToDb(t);
+}
+
+function showSynSaveConfirm(msg, isErr) {
+  const el = document.getElementById('v2-syn-save-confirm');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.color = isErr ? 'var(--danger)' : 'var(--ok)';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.textContent = ''; }, 2500);
+}
+
+// Субъект (refs) → поля формы для writeFormFields
+function subjToFormFields(s) {
+  return { name: s.name ?? '', birthDate: s.birth_date ?? '', birthTime: s.birth_time ?? '',
+           city: s.city ?? '', lat: s.lat ?? '', lon: s.lon ?? '', utcOff: s.utc_offset ?? '', timezone: s.timezone ?? null };
+}
+
+// ✎ на карточке субъекта: правка данных через #form-wrap (как обычная карта)
+function editSynSubject(slot) {
+  const t = tabs[activeTab];
+  if (!t?.refs?.[slot]) return;
+  _synEditSlot = slot;
+  writeFormFields(subjToFormFields(t.refs[slot]));
+  setFormMode('natal');
+  document.getElementById('form-wrap').classList.add('editing');
+  document.getElementById('edit-backdrop').classList.add('visible');
+  document.getElementById('calcBtn').textContent = tr('saving');
+  document.getElementById('status').textContent = '';
+  document.getElementById('chartName').focus();
+}
+
+// Завершить правку субъекта: записать refs, пересчитать и перерисовать
+function finishSynSubjectEdit() {
+  const slot = _synEditSlot; _synEditSlot = null;
+  const t = tabs[activeTab];
+  const f = readFormFields();
+  t.refs[slot] = { chartId: null, name: f.name, birth_date: f.birthDate, birth_time: f.birthTime,
+                   city: f.city, lat: f.lat, lon: f.lon, utc_offset: f.utcOff, timezone: f.timezone };
+  exitEditMode();
+  if (!recomputeSynastry(t)) { setStatus(tr('fillAllFields')); return; }
+  setV2ChartInfo(synastryTitle(t.refs), '', '');
+  fillSynSubjectCards(t.refs);
+  renderSynastry();
+  t.header = readHeader();
+  t.st     = captureState();
+  persistTabs();
+  renderTabBar();
+  if (currentUser && t.chartId) updateSynastryRefs(t);
+}
+
+document.getElementById('v2-syn-subjects').addEventListener('click', e => {
+  const editBtn = e.target.closest('.v2-syn-edit');
+  if (editBtn) { editSynSubject(editBtn.dataset.syn); return; }
+  if (e.target.closest('.v2-syn-save')) saveSynastryComposite();
 });
 document.getElementById('palette-search').addEventListener('input', () => {
   _paletteKb = 0;
@@ -4459,6 +4999,18 @@ function updateHashForActiveTab(push = false) {
 // Ленивая вкладка (после перезагрузки): пересчитать карту из полей и применить
 // сохранённое «лёгкое» состояние вида (t.view).
 function rebuildTabFromFields(t) {
+  // Синастрия — композит: пересчёт из t.refs, а не из полей формы
+  if (t.type === 'synastry') {
+    const v = t.view || {};
+    chartExpanded  = !!v.chartExpanded;
+    layout2TlState = v.layout2TlState ?? 0;
+    currentTransitJD = null;
+    synView = v.synView || 'both';
+    paintSynastryFromRefs(t);
+    t.st = captureState();
+    t.view = null;
+    return;
+  }
   writeFormFields(t.fields);
   currentChartId = t.chartId ?? null;
   const v = t.view || {};
@@ -4510,15 +5062,16 @@ function stateToView(s) {
     rightPanelTab: u.rightPanelTab,
     rightPanelTabs: u.rightPanelTabs ? [...u.rightPanelTabs] : undefined,
     chartModeTabs: u.chartModeTabs ? [...u.chartModeTabs] : undefined,
+    synView: u.synView,
   };
 }
 
 function tabToStorage(t, live) {
   if (t.kind === 'palette') return { kind: 'palette' };
   if (live) {
-    return { chartId: currentChartId ?? null, fields: readFormFields(), header: readHeader(), view: stateToView(captureState()), type: t.type ?? 'natal', outcome: t.outcome ?? null, snapshots: t.snapshots ?? [] };
+    return { chartId: currentChartId ?? null, fields: readFormFields(), header: readHeader(), view: stateToView(captureState()), type: t.type ?? 'natal', outcome: t.outcome ?? null, snapshots: t.snapshots ?? [], refs: t.refs ?? null };
   }
-  return { chartId: t.chartId ?? null, fields: t.fields, header: t.header, view: t.st ? stateToView(t.st) : (t.view || null), type: t.type ?? 'natal', outcome: t.outcome ?? null, snapshots: t.snapshots ?? [] };
+  return { chartId: t.chartId ?? null, fields: t.fields, header: t.header, view: t.st ? stateToView(t.st) : (t.view || null), type: t.type ?? 'natal', outcome: t.outcome ?? null, snapshots: t.snapshots ?? [], refs: t.refs ?? null };
 }
 
 function persistTabs() {
@@ -4549,6 +5102,7 @@ function restoreTabs() {
         type: d.type ?? 'natal',
         outcome: d.outcome ?? null,
         snapshots: Array.isArray(d.snapshots) ? d.snapshots : [],
+        refs: d.refs ?? null,
       });
   activeTab = (typeof data.activeTab === 'number' && data.activeTab < tabs.length) ? data.activeTab : 0;
   dashboardOpen = data.dashboardOpen !== false;   // по умолчанию показываем дашборд
@@ -4601,7 +5155,26 @@ function applyCaseType(type) {
   document.getElementById('layout-v2')?.classList.toggle('case-horary', type === 'horary');
   // Пресет элекции: карта момента (самосущая). Таймлайн source=sky и контроллер T — фаза 2.
   document.getElementById('layout-v2')?.classList.toggle('case-election', type === 'election');
+  // Пресет синастрии: две карточки субъектов, без таймлайна/режимов/контроллера (§6).
+  document.getElementById('layout-v2')?.classList.toggle('case-synastry', type === 'synastry');
   applyOutcomeChips();
+}
+
+// Заполнить две карточки субъектов синастрии из refs = { a, b } (поля субъектов).
+function fillSynSubjectCards(refs) {
+  const fill = (sel, subj) => {
+    const card = document.querySelector(`#v2-syn-subjects .v2-syn-card[data-syn="${sel}"]`);
+    if (!card || !subj) return;
+    card.querySelector('.v2-syn-card-name').textContent = subj.name || tr('chartFallback');
+    const dt = subj.birth_date ? subj.birth_date.split('-').reverse().join('.') : '';
+    const off = subj.utc_offset != null && subj.utc_offset !== '' ? ` (${fmtUtcOff(parseFloat(subj.utc_offset) || 0)})` : '';
+    card.querySelector('.v2-syn-card-date').textContent = [dt, subj.birth_time || ''].filter(Boolean).join(' ') + off;
+    card.querySelector('.v2-syn-card-place').textContent = subj.city || '';
+  };
+  fill('a', refs?.a);
+  fill('b', refs?.b);
+  const ct = document.getElementById('v2-syn-case-type');
+  if (ct) ct.textContent = CASE_TYPE_LABELS.synastry || '';
 }
 
 // ── Исход хорара: сбылся / нет / частично (charts.outcome) ────────────────────
@@ -4706,6 +5279,13 @@ function applyHoraryRpPreset() {
 
 function applyElectionRpPreset() {
   rightPanelTabs = ['grades', 'aspects', 'dignities'];
+  rightPanelTab  = 'aspects';
+  applyRightPanelTab();
+}
+
+// Пресет синастрии: таблица планет + сетка кросс-аспектов A×B (WORKSPACE_CONCEPT §7)
+function applySynastryRpPreset() {
+  rightPanelTabs = ['grades', 'aspects'];
   rightPanelTab  = 'aspects';
   applyRightPanelTab();
 }
@@ -4855,10 +5435,28 @@ function sanitizeChartModeTabs(arr) {
   return Array.isArray(arr) ? CHART_MODE_ALL.filter(m => arr.includes(m)) : [...CHART_MODE_ALL];
 }
 
+const SYN_VIEW_TABS = [
+  { key: 'a',    i18n: 'synViewA' },
+  { key: 'b',    i18n: 'synViewB' },
+  { key: 'both', i18n: 'synViewBoth' },
+];
+
 function applyChartModeTabs() {
   const wrap = document.getElementById('chart-mode-tabs');
   if (!wrap) return;
   wrap.innerHTML = '';
+  // Синастрия: табы «Карта А / Карта Б / Синастрия» вместо режимов-слоёв
+  if (currentCaseType === 'synastry') {
+    for (const v of SYN_VIEW_TABS) {
+      const b = document.createElement('button');
+      b.className = 'panel-tab syn-view-tab' + (v.key === synView ? ' active' : '');
+      b.dataset.synview = v.key;
+      b.setAttribute('data-i18n', v.i18n);
+      b.textContent = tr(v.i18n);
+      wrap.appendChild(b);
+    }
+    return;
+  }
   for (const m of ['natal', ...CHART_MODE_ALL.filter(x => chartModeTabs.includes(x))]) {
     const b = document.createElement('button');
     b.className = 'panel-tab mode-tab' + (m === currentMode ? ' active' : '');
@@ -4905,7 +5503,7 @@ function renderChartMenu() {
     });
     dd.appendChild(item);
   };
-  if (currentCaseType !== 'horary') {   // у хорара слоёв нет — только настройки
+  if (currentCaseType !== 'horary' && currentCaseType !== 'synastry') {   // у хорара/синастрии слоёв нет
     for (const m of CHART_MODE_ALL)
       mkItem(tr(MODE_TAB_I18N[m]), chartModeTabs.includes(m), () => toggleChartModeTab(m));
     const sep = document.createElement('div');
@@ -4964,6 +5562,7 @@ window.addEventListener('popstate', () => {
 
 document.getElementById('cancelEditBtn').addEventListener('click', () => {
   const fw = document.getElementById('form-wrap');
+  _synEditSlot = null;   // отмена правки субъекта синастрии
   if (fw.classList.contains('modal')) closeNewChartModal();
   else exitEditMode();
 });
@@ -5050,7 +5649,10 @@ document.getElementById('newChartBtn').addEventListener('click', () => {
   setFormMode('natal');
   openNewChartModal();
 });
-document.getElementById('edit-backdrop').addEventListener('click', closeNewChartModal);
+document.getElementById('edit-backdrop').addEventListener('click', () => {
+  if (document.getElementById('syn-form').classList.contains('open')) { closeSynForm(); return; }
+  closeNewChartModal();
+});
 
 // ── Calculate ─────────────────────────────────────────────────────────────────
 
@@ -5062,43 +5664,52 @@ function safeCalcUt(jd, id, flags) {
   catch (e) { return null; }
 }
 
+// Чистый расчёт карты из набора полей (без DOM). Возвращает объект данных карты
+// либо null, если полей не хватает. fields = { birthDate, birthTime, lat, lon, utcOff }.
+// houseSys — система домов ('P' Плацидус по умолчанию, 'R' Региомонтан у хорара).
+function computeChartData(fields, houseSys = 'P') {
+  if (!swe || !fields) return null;
+  const lat    = parseFloat(fields.lat);
+  const lon    = parseFloat(fields.lon);
+  const utcOff = parseFloat(fields.utcOff) || 0;
+  if (!fields.birthDate || !fields.birthTime || isNaN(lat) || isNaN(lon)) return null;
+
+  const [y, m, d] = fields.birthDate.split('-').map(Number);
+  const [hr, mn]  = fields.birthTime.split(':').map(Number);
+  const jd        = swe.julday(y, m, d, hr + mn / 60 - utcOff);
+  const flags     = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+
+  const planets = PLANETS.map(p => {
+    const r = safeCalcUt(jd, p.id, flags);   // вне диапазона астероидных файлов (Хирон < 1800) — пропуск
+    if (!r) return null;
+    return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
+  }).filter(Boolean);
+
+  const hRes  = swe.houses(jd, lat, lon, houseSys);
+  const cusps = Array.from(hRes.cusps).slice(1, 13);
+  const ascmc = Array.from(hRes.ascmc);
+  const asc   = ((ascmc[0] % 360) + 360) % 360;
+  const mc    = ((ascmc[1] % 360) + 360) % 360;
+
+  planets.forEach(p => { p.house = findHouse(p.longitude, cusps); });
+  return { planets, cusps, asc, mc, birthJD: jd, lat, lon, originalBirthJD: jd, utcOff };
+}
+
 // Построить натальные данные из формы и отрисовать в V2.
 // Не управляет вкладками — это делают вызывающие. Возвращает true при успехе.
 function computeAndRenderNatal() {
   if (!swe) return false;
-  const dateVal = document.getElementById('birthDate').value;
-  const timeVal = document.getElementById('birthTime').value;
-  const lat     = parseFloat(document.getElementById('lat').value);
-  const lon     = parseFloat(document.getElementById('lonVal').value);
   const utcOff  = parseFloat(document.getElementById('utcOff').value) || 0;
 
-  if (!dateVal || !timeVal || isNaN(lat) || isNaN(lon)) {
-    setStatus(tr('fillAllFields')); return false;
-  }
+  const caseType = tabs[activeTab]?.type || 'natal';
   try {
-    const caseType = tabs[activeTab]?.type || 'natal';
-    const [y, m, d] = dateVal.split('-').map(Number);
-    const [hr, mn]  = timeVal.split(':').map(Number);
-    const jd        = swe.julday(y, m, d, hr + mn / 60 - utcOff);
-    const flags     = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
-
-    const planets = PLANETS.map(p => {
-      const r = safeCalcUt(jd, p.id, flags);   // вне диапазона астероидных файлов (Хирон < 1800) — пропуск
-      if (!r) return null;
-      return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
-    }).filter(Boolean);
-
     // Хорар — всегда Региомонтан; остальные типы — Плацидус
-    const hRes  = swe.houses(jd, lat, lon, caseType === 'horary' ? 'R' : 'P');
-    const cusps = Array.from(hRes.cusps).slice(1, 13);
-    const ascmc = Array.from(hRes.ascmc);
-    const asc   = ((ascmc[0] % 360) + 360) % 360;
-    const mc    = ((ascmc[1] % 360) + 360) % 360;
-
-    planets.forEach(p => { p.house = findHouse(p.longitude, cusps); });
+    const data = computeChartData(readFormFields(), caseType === 'horary' ? 'R' : 'P');
+    if (!data) { setStatus(tr('fillAllFields')); return false; }
+    const { planets, cusps, asc, mc } = data;
 
     // Save for transit tab; invalidate timeline cache and reset window
-    natalData = { planets, cusps, asc, mc, birthJD: jd, lat, lon, originalBirthJD: jd, utcOff };
+    natalData = data;
     cachedTimeline = null;
     tlPastYears = 0; tlFutureYears = 0;
     expandedRows = new Set(); fastCache = {}; hiddenTPlants = new Set(); moonBandCollapsed = false;
@@ -5136,6 +5747,7 @@ function computeAndRenderNatal() {
 document.getElementById('calcBtn').addEventListener('click', () => {
   if (!swe) return;
   if (document.getElementById('form-wrap').classList.contains('editing')) {
+    if (_synEditSlot) { finishSynSubjectEdit(); return; }   // правка субъекта синастрии
     // Редактирование открытой карты — пересобрать активную вкладку на месте
     exitEditMode();
     if (!computeAndRenderNatal()) return;
@@ -6340,6 +6952,91 @@ function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) 
 
   // 11. House labels outside ring (natal)
   drawHouseLabels(g, natalCusps, 0);
+
+  document.getElementById('chart-block').replaceChildren(svg);
+}
+
+// ── Синастрия: совмещённое биколесо двух наталов (A внутри, B снаружи) ─────────
+// A — субъект-каркас (его дома), B — наложенный. Аналог «дирекция + натал», но два
+// самостоятельных субъекта (WORKSPACE_CONCEPT §3/§6). Читает natalData (A) и synastryB (B).
+// Отрисовать текущий вид синастрии по synView ('a' | 'b' | 'both')
+function renderSynastry() {
+  if (!natalData || !synastryB) return;
+  if (synView === 'a') { renderSynastrySingle(natalData); return; }
+  if (synView === 'b') { renderSynastrySingle(synastryB); return; }
+  const A = natalData, B = synastryB;
+  renderSynastryBiwheel(A.planets, B.planets, A.cusps, B.cusps);
+  buildInfoTable(A.planets, A.cusps);   // сперва строим таблицу (создаёт вторые ячейки)
+  updateSecondColumn(B.planets);
+  updateSecondHouses(B.cusps);
+  setInfoTableMode('biwheel-houses');
+  buildAspectGrid(addSouthNode(A.planets, A.cusps), addSouthNode(B.planets), 'natal');
+}
+
+// Одиночная карта субъекта (вид «Карта А» / «Карта Б») — обычное натальное колесо
+function renderSynastrySingle(chart) {
+  renderChart(chart.planets, chart.cusps, chart.asc, chart.mc);
+  buildInfoTable(chart.planets, chart.cusps);
+  setInfoTableMode('natal');
+  buildAspectGrid(addSouthNode(chart.planets, chart.cusps));
+}
+
+// Переключение вкладок карты в синастрии
+function switchSynView(view) {
+  if (!['a', 'b', 'both'].includes(view)) return;
+  synView = view;
+  applyChartModeTabs();
+  renderSynastry();
+  if (activeTab >= 0 && tabs[activeTab]) { tabs[activeTab].st = captureState(); persistTabs(); }
+}
+
+function renderSynastryBiwheel(aPlanets, bPlanets, aCusps, bCusps) {
+  const svg = el('svg', { viewBox: VIEWBOX, width: '100%', style: 'display:block' });
+
+  const clipRect = el('rect', { width: W, height: H });
+  const clipPath = el('clipPath', { id: 'canvasClip' });
+  clipPath.appendChild(clipRect);
+  const defs = el('defs');
+  defs.appendChild(clipPath);
+  svg.appendChild(defs);
+
+  const g = el('g', { 'clip-path': 'url(#canvasClip)' });
+  svg.appendChild(g);
+
+  // 1. Background
+  g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
+
+  // 2. House axes (субъект A) — behind zodiac ring
+  drawHouseAxes(g, aCusps, 0, true);
+
+  // 3. Zodiac ring
+  drawZodiacRing(g);
+
+  // 4. Sign dividers (short, within ring) + glyphs
+  drawSignDividers(g, 0);
+  drawZodiacGlyphs(g, 0);
+
+  // 5. Divider circle между кольцами A / B
+  g.appendChild(circ(CX, CY, R_DIVIDER, { fill: 'none', stroke: COLORS.ringLine, 'stroke-width': 0.8 }));
+
+  // 6. Inner circle
+  g.appendChild(circ(CX, CY, R_BW_INNER, { fill: '#fff', stroke: COLORS.ringLine, 'stroke-width': 0.8 }));
+  drawDegreeRing(g, R_BW_INNER, CHART.BW_DEG_RING_W, CHART.BW_DEG_SIGN_EXT);
+
+  // 7. Куспиды B во внешнем кольце (та же геометрия, что у дирекций)
+  drawDirectedCusps(g, bCusps, 0);
+
+  // 8. Кросс-аспекты A↔B (включая Южные узлы)
+  drawTransitAspects(g, addSouthNode(aPlanets, aCusps), addSouthNode(bPlanets), 0);
+
+  // 9. Планеты A (внутреннее кольцо)
+  drawBiwheelPlanets(g, addSouthNode(aPlanets, aCusps), 0, R_BW_INNER, R_N_PLANET, CHART.BW_R_NATAL_GLYPH_L1);
+
+  // 10. Планеты B (внешнее кольцо) — синий цвет точек, чтобы отличать субъектов
+  drawBiwheelPlanets(g, addSouthNode(bPlanets), 0, R_DIVIDER, R_T_PLANET, CHART.BW_R_TRANSIT_GLYPH_L1, '#2277cc', '#111');
+
+  // 11. House labels (субъект A) outside ring
+  drawHouseLabels(g, aCusps, 0);
 
   document.getElementById('chart-block').replaceChildren(svg);
 }
@@ -9003,6 +9700,8 @@ function fmtNavDateTime(jd, utcOff = 0) {
 }
 
 document.getElementById('chart-mode-tabs').addEventListener('click', e => {
+  const synBtn = e.target.closest('.syn-view-tab');
+  if (synBtn) { switchSynView(synBtn.dataset.synview); return; }
   const modeBtn = e.target.closest('.mode-tab');
   if (modeBtn) switchToMode(modeBtn.dataset.mode);
 });

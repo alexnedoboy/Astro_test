@@ -4930,13 +4930,18 @@ function computeSynastryIntoTab() {
   if (currentUser) saveSynastryToDb(t);
 }
 
-// Сохранить синастрию: композитная строка (пустое ядро) + refs
+// Сохранить синастрию: композитная строка + refs (источник истины).
+// Ядро строки заполняем данными субъекта A — это fallback, удовлетворяющий
+// возможным NOT NULL на charts (как у хораров/элекций ядро заполнено из формы);
+// на рендер/загрузку не влияет — там используется refs. См. WORKSPACE_CONCEPT §9.
 async function saveSynastryToDb(t) {
   const extra = caseExtraColumns(t);   // { case_type, name, folder, refs }
+  const a = t?.refs?.a || {};
+  const num = v => (v != null && v !== '' ? parseFloat(v) : null);
   const baseRow = {
     user_id: currentUser.id, name: extra.name,
-    birth_date: null, birth_time: null, city: null,
-    lat: null, lon: null, utc_offset: null, timezone: null,
+    birth_date: a.birth_date || null, birth_time: a.birth_time || null, city: a.city || null,
+    lat: num(a.lat), lon: num(a.lon), utc_offset: num(a.utc_offset), timezone: a.timezone || null,
   };
   let res = await sb.from('charts').insert({ ...baseRow, ...extra }).select().single();
   if (res.error && extra.refs !== undefined) {
@@ -4944,7 +4949,7 @@ async function saveSynastryToDb(t) {
     const { refs, ...noRefs } = extra;
     res = await sb.from('charts').insert({ ...baseRow, ...noRefs }).select().single();
   }
-  if (res.error) { showSynSaveConfirm(tr('saveError'), true); return; }
+  if (res.error) { console.warn('synastry save:', res.error.message); showSynSaveConfirm(tr('saveError'), true); return; }
   const data = res.data;
   currentChartId = data.id;
   t.chartId = data.id;

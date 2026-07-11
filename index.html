@@ -5751,7 +5751,9 @@ function computeChartData(fields, houseSys = 'P') {
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   }).filter(Boolean);
 
-  const hRes  = swe.houses(jd, lat, lon, houseSys);
+  // ВАЖНО: swe.houses() (4 аргумента) в swisseph-wasm игнорирует параметр системы
+  // домов и всегда считает Плацидус — используем houses_ex(), которая учитывает hsys.
+  const hRes  = swe.houses_ex(jd, flags, lat, lon, houseSys);
   const cusps = Array.from(hRes.cusps).slice(1, 13);
   const ascmc = Array.from(hRes.ascmc);
   const asc   = ((ascmc[0] % 360) + 360) % 360;
@@ -6849,7 +6851,7 @@ function applyNatalJD(jd) {
     if (!r) return null;
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   }).filter(Boolean);
-  const hRes = swe.houses(jd, lat, lon, 'P');
+  const hRes = swe.houses_ex(jd, flags, lat, lon, 'P');   // houses() игнорирует hsys — см. computeChartData
   const cusps = Array.from(hRes.cusps).slice(1, 13);
   const ascmc = Array.from(hRes.ascmc);
   const asc = ((ascmc[0] % 360) + 360) % 360;

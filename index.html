@@ -134,6 +134,7 @@
     outline: none;
   }
   input:focus { border-color: var(--tx-6); }
+  input.tz-pending { opacity: 0.5; }
 
   .btn-row { display: flex; gap: 10px; margin-top: 6px; }
   button {
@@ -2819,6 +2820,10 @@ async function loadHomeCharts() {
   renderHomeGroups();
   renderHomeList();
   renderHomeEvents();
+  if (document.getElementById('left-panel').classList.contains('open')) {
+    renderLeftPanelGroups();
+    renderLeftPanelList();
+  }
 }
 
 function homeChartTs(c) {
@@ -4179,15 +4184,20 @@ document.getElementById('birthDate').addEventListener('change', applyTimezoneOff
 
 // ── Geocoding + Autocomplete ──────────────────────────────────────────────────
 
+let _geoSynced = false;   // false — координаты в полях не подтверждены под текущий текст места
+
 async function applyGeoResult(item) {
   const lat = parseFloat(item.lat), lon = parseFloat(item.lon);
   const parts = item.display_name.split(',');
   const shortName = parts.slice(0, 2).join(',').trim();
   document.getElementById('birthPlace').value = shortName;
+  _geoSynced = true;
   document.getElementById('lat').value    = lat.toFixed(4);
   document.getElementById('lonVal').value = lon.toFixed(4);
   closeGeoDropdown();
   setStatus(tr('detectingTimezone'));
+  const utcOffEl = document.getElementById('utcOff');
+  utcOffEl.classList.add('tz-pending');
   try {
     const ctrl = new AbortController();
     const tid  = setTimeout(() => ctrl.abort(), 6000);
@@ -4201,6 +4211,8 @@ async function applyGeoResult(item) {
     setStatus(`${shortName}  •  ${detectedTimezone}`);
   } catch {
     setStatus(`${shortName} (${tr('timezoneNotDetected')})`);
+  } finally {
+    utcOffEl.classList.remove('tz-pending');
   }
 }
 
@@ -4227,6 +4239,7 @@ function showGeoDropdown(items) {
 
 let _geoTimer = null;
 document.getElementById('birthPlace').addEventListener('input', () => {
+  _geoSynced = false;   // текст изменился — координаты в полях больше не гарантированно соответствуют ему
   clearTimeout(_geoTimer);
   const q = document.getElementById('birthPlace').value.trim();
   if (q.length < 2) { closeGeoDropdown(); return; }
@@ -4241,17 +4254,8 @@ document.getElementById('birthPlace').addEventListener('input', () => {
   }, 380);
 });
 
-// Hide dropdown when focus leaves input
-document.getElementById('birthPlace').addEventListener('blur', () => {
-  setTimeout(closeGeoDropdown, 180);
-});
-
-// Enter key → pick first suggestion or search manually
-document.getElementById('birthPlace').addEventListener('keydown', async e => {
-  if (e.key !== 'Enter') return;
-  e.preventDefault();
-  const first = document.querySelector('#geo-dropdown .geo-item');
-  if (first) { first.dispatchEvent(new MouseEvent('mousedown')); return; }
+// Один результат по тексту поля — общий фолбэк для Enter и для потери фокуса без выбора из списка
+async function geocodePlaceFallback() {
   const q = document.getElementById('birthPlace').value.trim();
   if (!q) return;
   setStatus(tr('searching'));
@@ -4264,6 +4268,25 @@ document.getElementById('birthPlace').addEventListener('keydown', async e => {
     if (d.length) applyGeoResult(d[0]);
     else setStatus(tr('placeNotFound'));
   } catch { setStatus(tr('geocodingError')); }
+}
+
+// Потеря фокуса без явного выбора места — координаты рискуют остаться от предыдущего
+// ввода (пример бага: текст «Прага», а lat/lon от прошлого запроса «Берлин»).
+// Досчитываем по тексту поля тем же способом, что и Enter.
+document.getElementById('birthPlace').addEventListener('blur', () => {
+  setTimeout(() => {
+    closeGeoDropdown();
+    if (!_geoSynced) geocodePlaceFallback();
+  }, 180);
+});
+
+// Enter key → pick first suggestion or search manually
+document.getElementById('birthPlace').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const first = document.querySelector('#geo-dropdown .geo-item');
+  if (first) { first.dispatchEvent(new MouseEvent('mousedown')); return; }
+  geocodePlaceFallback();
 });
 
 // ── Page mode: home ↔ chart ───────────────────────────────────────────────────
@@ -4734,6 +4757,7 @@ function subjToComputeFields(s) {
 function fillSynSlotFromChart(slot, c) {
   _synSlots[slot].chartId  = c.id ?? null;
   _synSlots[slot].timezone = c.timezone ?? null;
+  _synSlots[slot].geoSynced = true;   // место и координаты пришли из библиотеки согласованно
   synSlotEl(slot, '.syn-name').value  = c.name ?? '';
   synSlotEl(slot, '.syn-date').value  = c.birth_date ?? '';
   synSlotEl(slot, '.syn-time').value  = c.birth_time ?? '12:00';
@@ -4792,6 +4816,9 @@ async function synApplyGeo(slot, item) {
   synSlotEl(slot, '.syn-lon').value   = lon.toFixed(4);
   synSlotEl(slot, '.syn-geo-dd').style.display = 'none';
   _synSlots[slot].chartId = null;   // ручная правка места — уже не чистая ссылка
+  _synSlots[slot].geoSynced = true;
+  const utcEl = synSlotEl(slot, '.syn-utc');
+  utcEl.classList.add('tz-pending');
   try {
     const ctrl = new AbortController();
     const tid  = setTimeout(() => ctrl.abort(), 6000);
@@ -4805,6 +4832,7 @@ async function synApplyGeo(slot, item) {
       synSlotEl(slot, '.syn-utc').value = getUTCOffsetHours(zone, date);
     }
   } catch { /* оффлайн/таймаут — utc правит пользователь вручную */ }
+  finally { utcEl.classList.remove('tz-pending'); }
 }
 
 function wireSynForm() {
@@ -4843,6 +4871,7 @@ function wireSynForm() {
     place.addEventListener('input', () => {
       clearTimeout(geoTimer);
       _synSlots[slot].chartId = null;   // ручной ввод — ссылка сброшена
+      _synSlots[slot].geoSynced = false;   // текст изменился — координаты больше не гарантированно соответствуют ему
       const q = place.value.trim();
       if (q.length < 2) { geoDd.style.display = 'none'; return; }
       geoTimer = setTimeout(async () => {
@@ -4862,7 +4891,20 @@ function wireSynForm() {
         } catch { geoDd.style.display = 'none'; }
       }, 380);
     });
-    place.addEventListener('blur', () => setTimeout(() => { geoDd.style.display = 'none'; }, 180));
+    // Потеря фокуса без выбора из списка — досчитываем место по тексту поля,
+    // иначе lat/lon рискуют остаться от предыдущего запроса (см. birthPlace).
+    place.addEventListener('blur', () => {
+      setTimeout(async () => {
+        geoDd.style.display = 'none';
+        if (_synSlots[slot].geoSynced) return;
+        const q = place.value.trim();
+        if (!q) return;
+        try {
+          const items = await geoSearch(q);
+          if (items.length) synApplyGeo(slot, items[0]);
+        } catch { /* оффлайн — координаты правит пользователь вручную */ }
+      }, 180);
+    });
 
     // Ручная правка имени/даты сбрасывает ссылку на библиотечную карту
     ['.syn-name', '.syn-date', '.syn-time'].forEach(sel =>

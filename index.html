@@ -201,6 +201,20 @@
     <button id="cancelEditBtn" type="button" data-i18n="cancel">Отменить</button>
   </div>
   <div id="status">Загрузка Swiss Ephemeris…</div>
+  <script>
+  // Guard: с распилом на модули приложение не работает через file:// (CORS).
+  // Обычный (не module) скрипт — выполняется даже когда модули заблокированы.
+  if (location.protocol === 'file:') {
+    document.addEventListener('DOMContentLoaded', function () {
+      var s = document.getElementById('status');
+      if (s) s.innerHTML =
+        '⚠️ Приложение теперь состоит из нескольких файлов и не открывается двойным кликом ' +
+        'по index.html (браузер блокирует модули с диска). Запустите в папке проекта: ' +
+        '<code>python3 -m http.server 8000</code> и откройте ' +
+        '<a href="http://localhost:8000">localhost:8000</a>.';
+    });
+  }
+  </script>
   <div id="save-wrap">
     <button id="saveBtn" data-i18n="saveChartBtn">💾 Сохранить карту</button>
   </div>

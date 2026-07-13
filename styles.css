@@ -398,7 +398,7 @@
   }
   #left-panel.open { transform: translateX(0); }
 
-  /* Верхняя полоса вкладок drawer-а: Главная · Карты · Поиск (паттерн Obsidian) */
+  /* Верхняя полоса вкладок drawer-а: Главная · Карты (паттерн Obsidian) */
   #lp-top {
     flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
@@ -421,27 +421,33 @@
     overflow: hidden;
   }
 
-  /* Вкладка «Поиск» */
-  #lp-search-meta {
+  /* Аспект-поиск в табе карт: строка-индикатор, шпаргалка, кнопка «?» */
+  #lp-dsl-hint {
     flex-shrink: 0;
-    padding: 5px 10px;
+    padding: 4px 10px;
     font-size: 0.75em; color: var(--tx-7);
     border-bottom: 1px solid var(--bd-light);
     line-height: 1.45;
   }
-  #lp-search-meta:empty { display: none; }
-  #lp-search-meta code {
+  #lp-cheatsheet {
+    flex-shrink: 0;
+    padding: 6px 10px;
+    font-size: 0.74em; color: var(--tx-5);
+    border-bottom: 1px solid var(--bd-light);
+    line-height: 1.65;
+  }
+  #lp-dsl-hint code, #lp-cheatsheet code {
     font-family: inherit;
     background: var(--bg-row-alt); border-radius: 3px; padding: 0 3px;
   }
-  #lp-search-results { flex: 1; overflow-y: auto; }
-  #lp-search-results .chart-item {
-    border-radius: 0;
-    border-bottom: 1px solid var(--bd-light);
-    background: transparent;
-    padding: 7px 12px;
+  #lp-help-btn {
+    flex: 0 0 20px;
+    width: 20px; height: 20px; box-sizing: border-box;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: 1px solid var(--bd-light); border-radius: 50%;
+    font-size: 11px; color: var(--tx-7); cursor: pointer; padding: 0;
   }
-  #lp-search-results .chart-item:hover { background: var(--bg-hover); }
+  #lp-help-btn:hover { background: var(--bg-hover); color: var(--tx-3); }
   .lp-match {
     font-size: 0.78em; color: var(--tx-5);
     margin-top: 2px;
@@ -465,20 +471,20 @@
   }
   #left-panel-sort:hover { background: var(--bg-hover); }
 
-  #left-panel-search-wrap, .lp-search-wrap {
+  #left-panel-search-wrap {
     flex-shrink: 0;
     display: flex; align-items: center; gap: 4px;
     padding: 6px 8px 4px;
     border-bottom: 1px solid var(--bd-light);
   }
-  #left-panel-search, #lp-query {
+  #left-panel-search {
     flex: 1; min-width: 0; box-sizing: border-box;
     border: 1px solid var(--bd-input); border-radius: 5px;
     background: var(--bg-input);
     font: inherit; font-size: 0.8em; color: var(--tx);
     padding: 4px 8px; outline: none;
   }
-  #left-panel-search:focus, #lp-query:focus { border-color: var(--accent); }
+  #left-panel-search:focus { border-color: var(--accent); }
 
   #left-panel-groups {
     flex-shrink: 0;
@@ -739,18 +745,7 @@
   #auth-msg { font-size: 0.81em; color: var(--danger); margin-top: 12px; min-height: 14px; text-align: center; }
   #auth-msg.ok { color: var(--ok); }
 
-  /* ── Planet filter modal ────────────────────────────────── */
-  #planet-filter-overlay {
-    display: none; position: fixed; inset: 0; z-index: 1000;
-    background: rgba(0,0,0,0.42); backdrop-filter: blur(3px);
-    align-items: center; justify-content: center;
-  }
-  #planet-filter-overlay.open { display: flex; }
-  #planet-filter-modal {
-    background: var(--bg); border-radius: 14px; padding: 22px 20px 18px;
-    width: 100%; max-width: 280px; margin: 16px;
-    box-shadow: 0 24px 64px rgba(0,0,0,0.22);
-  }
+  /* ── Planet filter grid (живёт в настройках, раздел «Карта») ── */
   .pf-grid {
     display: grid; grid-template-columns: 1fr 1fr; gap: 5px 20px;
     margin: 14px 0 16px;
@@ -2046,3 +2041,7 @@
     #sm-nav { width: auto; border-right: none; border-bottom: 1px solid var(--bd-light); }
     #sm-sections { flex-direction: row; flex-wrap: wrap; }
   }
+
+  /* Широкая строка настроек: контрол под подписью на всю ширину */
+  .sm-row-wide { flex-direction: column; align-items: stretch; gap: 4px; }
+  .sm-row-wide .pf-grid { margin: 8px 0 0; }

@@ -14,6 +14,8 @@
 //     labelKey, descKey,   // ключи STRINGS (переводится через tr)
 //     onChange(v),         // применение значения (рендер/классы) — БЕЗ записи в хранилища
 //     action(),            // для type:'action' — обработчик кнопки
+//     render(),            // для type:'custom' — возвращает DOM-элемент контрола;
+//                          // wide: true кладёт контрол под подпись на всю ширину
 //   }
 // Область действия всех записей — глобальная (метод астролога). Per-case
 // оверрайды и фокус-фильтры — отдельные механизмы, не этот реестр.
@@ -161,7 +163,7 @@ function renderModal() {
 
 function rowFor(def, q) {
   const row = document.createElement('div');
-  row.className = 'sm-row';
+  row.className = 'sm-row' + (def.wide ? ' sm-row-wide' : '');
 
   const text = document.createElement('div');
   text.className = 'sm-row-text';
@@ -202,6 +204,7 @@ function controlFor(def) {
     }
     return wrap;
   }
+  if (def.type === 'custom') return def.render();
   // action
   const b = document.createElement('button');
   b.className = 'sm-action-btn';

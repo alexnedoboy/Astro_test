@@ -48,20 +48,6 @@
   </div>
 </div>
 
-<!-- ── Planet filter modal ──────────────────────────────────── -->
-<div id="planet-filter-overlay">
-  <div id="planet-filter-modal">
-    <div class="modal-hdr">
-      <span class="modal-title" data-i18n="planetVisibility">Планеты натала</span>
-      <button id="closePlanetFilter" style="background:none;border:none;font-size:1.2em;cursor:pointer;color:#bbb;padding:2px 6px;border-radius:4px">✕</button>
-    </div>
-    <div class="pf-grid" id="pf-grid"></div>
-    <div style="display:flex;justify-content:flex-end">
-      <button class="pf-reset" id="pf-reset" data-i18n="resetAll">Сбросить все</button>
-    </div>
-  </div>
-</div>
-
 <!-- ── Folder picker popover ──────────────────────────────────── -->
 <div id="folder-picker"></div>
 
@@ -87,27 +73,22 @@
 <div id="left-panel">
   <div id="lp-top">
     <button class="lp-tab-btn" id="lp-home-btn" data-i18n-title="lpHomeTitle" title="Главная">⌂</button>
-    <button class="lp-tab-btn active" data-lp-tab="lib" data-i18n-title="lpTabLibrary" title="Библиотека">▤</button>
-    <button class="lp-tab-btn" data-lp-tab="search" data-i18n-title="lpTabSearch" title="Поиск">⌕</button>
+    <button class="lp-tab-btn active" data-i18n-title="lpTabLibrary" title="Библиотека">▤</button>
   </div>
   <div class="lp-view" id="lp-view-lib">
     <div id="left-panel-search-wrap">
-      <input id="left-panel-search" type="text" placeholder="Поиск…" autocomplete="off">
+      <input id="left-panel-search" type="text" data-i18n-placeholder="lpLibSearchPh" placeholder="Имя, город или: сатурн трин луна" autocomplete="off" spellcheck="false">
+      <button id="lp-help-btn" data-i18n-title="lpHelpTitle" title="Справка по поиску">?</button>
       <select id="left-panel-sort">
         <option value="date">По дате</option>
         <option value="name">А–Я</option>
         <option value="birth">Дата рожд.</option>
       </select>
     </div>
+    <div id="lp-cheatsheet" style="display:none"></div>
+    <div id="lp-dsl-hint" style="display:none"></div>
     <div id="left-panel-groups"></div>
     <div id="left-panel-list"></div>
-  </div>
-  <div class="lp-view" id="lp-view-search" style="display:none">
-    <div class="lp-search-wrap">
-      <input id="lp-query" type="text" data-i18n-placeholder="lpQueryPh" placeholder="напр.: saturn asp pluto" autocomplete="off" spellcheck="false">
-    </div>
-    <div id="lp-search-meta"></div>
-    <div id="lp-search-results"></div>
   </div>
 </div>
 <div id="left-panel-backdrop"></div>
@@ -909,11 +890,45 @@ defineSettings([
   { id: 'elementColors', section: 'chart', type: 'toggle', default: false,
     lsKey: 'elementColors', lsKind: 'bool01', labelKey: 'elements',
     onChange: v => { elementColorsMode = v; reRenderCurrentChart(); } },
-  { id: 'natalPlanets', section: 'chart', type: 'action', labelKey: 'planetVisibility',
-    action: () => {
-      closeSettingsModal();
-      buildPlanetFilterGrid();
-      planetFilterOverlay.classList.add('open');
+  { id: 'natalPlanets', section: 'chart', type: 'custom', wide: true, labelKey: 'planetVisibility',
+    render: () => {
+      const wrap = document.createElement('div');
+      const grid = document.createElement('div');
+      grid.className = 'pf-grid';
+      PLANETS.forEach(p => {
+        const label = document.createElement('label');
+        label.className = 'pf-item';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = natalPlanetFilter.has(p.id);
+        cb.addEventListener('change', () => {
+          if (cb.checked) natalPlanetFilter.add(p.id);
+          else natalPlanetFilter.delete(p.id);
+          saveNatalFilter();
+          rerenderNatal();
+        });
+        const glyph = document.createElement('span');
+        glyph.className = 'pf-glyph';
+        glyph.textContent = p.glyph;
+        const name = document.createElement('span');
+        name.textContent = p.name;
+        label.append(cb, glyph, name);
+        grid.appendChild(label);
+      });
+      const foot = document.createElement('div');
+      foot.style.cssText = 'display:flex;justify-content:flex-end;margin-top:4px';
+      const reset = document.createElement('button');
+      reset.className = 'pf-reset';
+      reset.textContent = tr('resetAll');
+      reset.addEventListener('click', () => {
+        natalPlanetFilter = new Set(ALL_NATAL_IDS);
+        saveNatalFilter();
+        rerenderNatal();
+        refreshSettingsModal();
+      });
+      foot.appendChild(reset);
+      wrap.append(grid, foot);
+      return wrap;
     } },
   { id: 'showProgLunarPhases', section: 'timeline', type: 'toggle', default: true,
     lsKey: 'showProgLunarPhases', lsKind: 'bool01', labelKey: 'progLunarPhases',
@@ -1003,53 +1018,13 @@ document.getElementById('settings-dropdown').addEventListener('click', e => {
   }
 });
 
-// ── Planet filter modal ──────────────────────────────────────────────────────
-const planetFilterOverlay = document.getElementById('planet-filter-overlay');
-
-function buildPlanetFilterGrid() {
-  const grid = document.getElementById('pf-grid');
-  grid.innerHTML = '';
-  PLANETS.forEach(p => {
-    const label = document.createElement('label');
-    label.className = 'pf-item';
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = natalPlanetFilter.has(p.id);
-    cb.addEventListener('change', () => {
-      if (cb.checked) natalPlanetFilter.add(p.id);
-      else natalPlanetFilter.delete(p.id);
-      saveNatalFilter();
-      rerenderNatal();
-    });
-    const glyph = document.createElement('span');
-    glyph.className = 'pf-glyph';
-    glyph.textContent = p.glyph;
-    const name = document.createElement('span');
-    name.textContent = p.name;
-    label.append(cb, glyph, name);
-    grid.appendChild(label);
-  });
-}
-
+// Полная перерисовка натала (фильтр планет живёт в настройках, раздел «Карта»)
 function rerenderNatal() {
   if (!natalData) return;
   renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
   buildInfoTable(natalData.planets, natalData.cusps);
   buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps));
 }
-
-document.getElementById('closePlanetFilter').addEventListener('click', () => {
-  planetFilterOverlay.classList.remove('open');
-});
-planetFilterOverlay.addEventListener('click', e => {
-  if (e.target === planetFilterOverlay) planetFilterOverlay.classList.remove('open');
-});
-document.getElementById('pf-reset').addEventListener('click', () => {
-  natalPlanetFilter = new Set(ALL_NATAL_IDS);
-  saveNatalFilter();
-  buildPlanetFilterGrid();
-  rerenderNatal();
-});
 
 // ── Charts panel ──────────────────────────────────────────────────────────────
 
@@ -7552,6 +7527,9 @@ function renderLeftPanelGroups() {
 function renderLeftPanelList() {
   const list = document.getElementById('left-panel-list');
   list.innerHTML = '';
+  let an = lpAnalyzeQuery(_panelSearch);
+  if (an.mode === 'dsl' && !swe) an = { mode: 'loading' };
+  lpUpdateHint(an, null);
   if (!_homeCharts || !_homeCharts.length) {
     list.innerHTML = `<div class="left-panel-empty">Нет сохранённых карт</div>`;
     return;
@@ -7559,11 +7537,39 @@ function renderLeftPanelList() {
   let arr = [..._homeCharts];
   if (_panelGroup === '★') arr = arr.filter(c => c.pinned);
   else if (_panelGroup) arr = arr.filter(c => c.folder === _panelGroup);
-  const q = _panelSearch.trim().toLowerCase();
-  if (q) arr = arr.filter(c => (c.name ?? '').toLowerCase().includes(q) || (c.city ?? '').toLowerCase().includes(q));
-  if (_panelSort === 'name') arr.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'ru'));
-  else if (_panelSort === 'birth') arr.sort((a, b) => (a.birth_date ?? '').localeCompare(b.birth_date ?? ''));
-  else arr.sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || (homeChartTs(b) - homeChartTs(a)));
+
+  let matchesById = null;
+  if (an.mode === 'dsl') {
+    // Аспект-поиск: скоуп-операторы + факты; WYSIWYG-скоуп (чип папки уже применён выше)
+    arr = arr.filter(c => lpScopePass(c, an.scope) && c.birth_date && c.birth_time && c.lat != null);
+    const found = [];
+    for (const c of arr) {
+      const facts = lpGetFacts(c);
+      if (!facts) continue;
+      if (!an.orGroups) { found.push({ c, matches: [], bestOrb: 0 }); continue; }
+      for (const group of an.orGroups) {
+        const perClause = group.map(cl => lpMatchClause(facts, cl));
+        if (perClause.every(m => m.length)) {
+          const matches = perClause.flat();
+          found.push({ c, matches, bestOrb: Math.min(...matches.map(m => m.orb)) });
+          break;   // первая совпавшая OR-группа
+        }
+      }
+    }
+    found.sort((a, b) => a.bestOrb - b.bestOrb);   // точные совпадения сверху
+    lpUpdateHint(an, found.length);
+    arr = found.map(r => r.c);
+    matchesById = new Map(found.map(r => [r.c.id, r.matches]));
+  } else {
+    if (an.mode === 'name' || an.mode === 'partial') {
+      const q = _panelSearch.trim().toLowerCase();
+      if (q) arr = arr.filter(c => (c.name ?? '').toLowerCase().includes(q) || (c.city ?? '').toLowerCase().includes(q));
+    }
+    if (_panelSort === 'name') arr.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'ru'));
+    else if (_panelSort === 'birth') arr.sort((a, b) => (a.birth_date ?? '').localeCompare(b.birth_date ?? ''));
+    else arr.sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || (homeChartTs(b) - homeChartTs(a)));
+  }
+
   if (!arr.length) {
     list.innerHTML = `<div class="left-panel-empty">Ничего не найдено</div>`;
     return;
@@ -7573,17 +7579,20 @@ function renderLeftPanelList() {
     div.className = 'chart-item';
     const fmtD = c.birth_date ? c.birth_date.split('-').reverse().join('.') : '';
     const meta = [fmtD, c.city ?? ''].filter(Boolean).join(' · ');
+    const matches = matchesById?.get(c.id);
     div.innerHTML = `
       <div class="chart-item-info">
         <div class="chart-item-name">${escapeHtml(c.name ?? '')}</div>
         ${meta ? `<div class="chart-item-meta">${meta}</div>` : ''}
+        ${matches?.length ? `<div class="lp-match">${matches.map(m => `<span class="lp-fact">${m.html}</span>`).join('')}</div>` : ''}
       </div>
       ${c.pinned ? '<span style="color:var(--accent);font-size:0.8em">★</span>' : ''}`;
     // Обычный клик — открыть в текущей вкладке (replace) и закрыть панель.
+    // При аспект-поиске панель не закрываем — идём по результатам (WORKSPACE_CONCEPT §12).
     // Правый клик / долгий тап — меню с «Открыть в новой вкладке».
     div.addEventListener('click', () => {
       if (div.dataset.lpFired) { div.dataset.lpFired = ''; return; }  // был долгий тап
-      closeLeftPanel();
+      if (!matchesById) closeLeftPanel();
       openChartInTab(c, false);
     });
     attachChartCtxMenu(div, c);
@@ -7624,25 +7633,7 @@ document.getElementById('left-panel-sort').addEventListener('change', e => {
   renderLeftPanelList();
 });
 
-/* ── Левый drawer: вкладки рейки (Библиотека / Поиск) ─────────────────────── */
-
-let _lpTab = 'lib';
-
-function setLpTab(tab) {
-  _lpTab = tab;
-  document.querySelectorAll('.lp-tab-btn[data-lp-tab]').forEach(b =>
-    b.classList.toggle('active', b.dataset.lpTab === tab));
-  document.getElementById('lp-view-lib').style.display = tab === 'lib' ? '' : 'none';
-  document.getElementById('lp-view-search').style.display = tab === 'search' ? '' : 'none';
-  if (tab === 'search') {
-    lpRunSearch();
-    document.getElementById('lp-query').focus();
-  }
-}
-document.querySelectorAll('.lp-tab-btn[data-lp-tab]').forEach(b =>
-  b.addEventListener('click', () => setLpTab(b.dataset.lpTab)));
-
-/* ── Глобальный поиск по библиотеке (DSL, WORKSPACE_CONCEPT §12) ──────────── */
+/* ── Аспект-поиск в табе карт (DSL, WORKSPACE_CONCEPT §12) ────────────────── */
 
 // Токены двуязычные; матч — точный или по префиксу от 3 символов
 const LP_PLANET_TOKENS = [
@@ -7821,66 +7812,102 @@ function lpMatchClause(facts, cl) {
   }));
 }
 
-function lpRunSearch() {
-  const q = document.getElementById('lp-query').value.trim();
-  const meta = document.getElementById('lp-search-meta');
-  const list = document.getElementById('lp-search-results');
-  list.innerHTML = '';
-  if (!q) { meta.innerHTML = tr('lpSearchHint'); return; }
-  if (/^(tr|transit|prog|dir|syn|транз\w*|прог\w*|дир\w*|син\w*):/i.test(q)) {
-    meta.textContent = tr('lpSearchScopeHint');
-    return;
-  }
-  if (!swe) { meta.textContent = tr('loading'); return; }
-  const pool = (_homeCharts || []).filter(c => c.birth_date && c.birth_time && c.lat != null);
-  if (!pool.length) { meta.textContent = tr('lpNoCharts'); return; }
-  const orGroups = lpParseQuery(q);
-  if (!orGroups) {
-    meta.innerHTML = escapeHtml(tr('lpSearchBadQuery')) + tr('lpSearchHint');
-    return;
-  }
-  const results = [];
-  for (const c of pool) {
-    const facts = lpGetFacts(c);
-    if (!facts) continue;
-    for (const group of orGroups) {
-      const perClause = group.map(cl => lpMatchClause(facts, cl));
-      if (perClause.every(m => m.length)) {
-        const matches = perClause.flat();
-        results.push({ c, matches, bestOrb: Math.min(...matches.map(m => m.orb)) });
-        break;   // первая совпавшая OR-группа
-      }
-    }
-  }
-  results.sort((a, b) => a.bestOrb - b.bestOrb);
-  if (!results.length) { meta.textContent = tr('lpSearchNone'); return; }
-  meta.textContent = tr('lpSearchFound', { n: results.length });
-  for (const { c, matches } of results.slice(0, 100)) {
-    const div = document.createElement('div');
-    div.className = 'chart-item';
-    const fmtD = c.birth_date ? c.birth_date.split('-').reverse().join('.') : '';
-    const metaLine = [fmtD, c.city ?? ''].filter(Boolean).join(' · ');
-    div.innerHTML = `
-      <div class="chart-item-info">
-        <div class="chart-item-name">${escapeHtml(c.name ?? '')}</div>
-        ${metaLine ? `<div class="chart-item-meta">${metaLine}</div>` : ''}
-        <div class="lp-match">${matches.map(m => `<span class="lp-fact">${m.html}</span>`).join('')}</div>
-      </div>`;
-    // Панель НЕ закрывается — идём по результатам, просматривая карты (концепт §12)
-    div.addEventListener('click', () => {
-      if (div.dataset.lpFired) { div.dataset.lpFired = ''; return; }
-      openChartInTab(c, false);
-    });
-    attachChartCtxMenu(div, c);
-    list.appendChild(div);
-  }
+/* ── Скоуп-операторы type:/folder: и анализ строки поиска ─────────────────── */
+
+const LP_TYPE_TOKENS = {
+  natal:    ['natal', 'натал', 'наталы'],
+  horary:   ['horary', 'хорар', 'хорары'],
+  election: ['election', 'элекция', 'элекции', 'электив'],
+  synastry: ['synastry', 'синастрия', 'синастрии'],
+};
+function lpMatchType(word) {
+  for (const t in LP_TYPE_TOKENS)
+    if (LP_TYPE_TOKENS[t].some(tk => lpTokenHit(word, tk))) return t;
+  return null;
 }
 
-let _lpSearchTimer = null;
-document.getElementById('lp-query').addEventListener('input', () => {
-  clearTimeout(_lpSearchTimer);
-  _lpSearchTimer = setTimeout(lpRunSearch, 250);
-});
+// Вырезать из запроса операторы type:/тип: и folder:/папка: (и их -отрицания)
+function lpExtractScope(q) {
+  const scope = { types: [], notTypes: [], folders: [], notFolders: [], hasOps: false };
+  let rest = q.replace(/(^|\s)(-?)(?:type|тип):(\S+)/gi, (_, sp, neg, val) => {
+    scope.hasOps = true;
+    val.split(',').forEach(v => {
+      const t = lpMatchType(v.toLowerCase());
+      if (t) (neg ? scope.notTypes : scope.types).push(t);
+    });
+    return sp;
+  });
+  rest = rest.replace(/(^|\s)(-?)(?:folder|папка):("[^"]*"|\S+)/gi, (_, sp, neg, val) => {
+    scope.hasOps = true;
+    (neg ? scope.notFolders : scope.folders).push(val.replace(/^"|"$/g, '').toLowerCase());
+    return sp;
+  });
+  return { rest: rest.trim(), scope };
+}
+
+function lpScopePass(c, scope) {
+  const ct = c.case_type ?? 'natal';
+  if (scope.types.length && !scope.types.includes(ct)) return false;
+  if (scope.notTypes.includes(ct)) return false;
+  const f = (c.folder ?? '').toLowerCase();
+  if (scope.folders.length && !scope.folders.includes(f)) return false;
+  if (scope.notFolders.includes(f)) return false;
+  return true;
+}
+
+// Строка поиска → { mode: 'empty'|'name'|'dsl'|'partial'|'temporal', … }
+// 'partial' — начали с планеты или оператора, но запрос ещё не собрался
+function lpAnalyzeQuery(raw) {
+  const q = (raw ?? '').trim();
+  if (!q) return { mode: 'empty' };
+  if (/^(tr|transit|prog|dir|транз\S*|прог\S*|дир\S*):/i.test(q)) return { mode: 'temporal' };
+  const { rest, scope } = lpExtractScope(q);
+  if (!rest) return scope.hasOps ? { mode: 'dsl', orGroups: null, scope } : { mode: 'name' };
+  const orGroups = lpParseQuery(rest);
+  if (orGroups) return { mode: 'dsl', orGroups, scope };
+  if (scope.hasOps || lpMatchPlanet(rest.toLowerCase().split(/\s+/)[0]) !== null)
+    return { mode: 'partial' };
+  return { mode: 'name' };
+}
+
+/* ── Строка-индикатор и шпаргалка ─────────────────────────────────────────── */
+
+function lpDescribeClause(cl) {
+  if (cl.type === 'sign')  return `${lpGlyph(cl.p)} ${SIGNS[cl.sign]}`;
+  if (cl.type === 'house') return `${lpGlyph(cl.p)} · ${tr('lpHouseShort')} ${cl.house}`;
+  if (cl.type === 'rx')    return `${lpGlyph(cl.p)} R`;
+  return `${lpGlyph(cl.a)} ${cl.angle === -1 ? '∠' : lpAspSymbol(cl.angle)} ${lpGlyph(cl.b)}`;
+}
+function lpDescribeQuery(orGroups) {
+  return orGroups.map(g => g.map(lpDescribeClause).join(' + ')).join('  |  ');
+}
+
+function lpUpdateHint(an, found) {
+  const el = document.getElementById('lp-dsl-hint');
+  let html = '';
+  if (an.mode === 'dsl') {
+    html = '⌕ ' + (an.orGroups ? lpDescribeQuery(an.orGroups) : tr('lpScopeOnly'))
+         + (found != null ? ` · ${tr('lpSearchFound', { n: found })}` : '');
+    // Первое использование аспект-поиска — показать шпаргалку
+    if (!localStorage.getItem('lpCheatSeen')) {
+      lpToggleCheatsheet(true);
+      localStorage.setItem('lpCheatSeen', '1');
+    }
+  }
+  else if (an.mode === 'partial')  html = escapeHtml(tr('lpDslPartial'));
+  else if (an.mode === 'temporal') html = escapeHtml(tr('lpSearchScopeHint'));
+  else if (an.mode === 'loading')  html = escapeHtml(tr('loading'));
+  el.innerHTML = html;
+  el.style.display = html ? '' : 'none';
+}
+
+function lpToggleCheatsheet(force) {
+  const el = document.getElementById('lp-cheatsheet');
+  const show = force ?? (el.style.display === 'none');
+  if (show) el.innerHTML = tr('lpCheat');
+  el.style.display = show ? '' : 'none';
+}
+document.getElementById('lp-help-btn').addEventListener('click', () => lpToggleCheatsheet());
 
 document.getElementById('tab-add-btn').addEventListener('click', () => {
   // Новая пустая вкладка с палитрой (создать или открыть кейс)

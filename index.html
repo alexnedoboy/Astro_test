@@ -411,6 +411,60 @@
     overflow: hidden;
   }
   #left-panel.open { transform: translateX(0); }
+
+  /* Верхняя полоса вкладок drawer-а: Главная · Карты · Поиск (паттерн Obsidian) */
+  #lp-top {
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    gap: 6px;
+    height: var(--hdr-h);
+    border-bottom: 1px solid var(--bd-light);
+  }
+  .lp-tab-btn {
+    flex: 0 0 26px;
+    width: 26px; height: 24px; box-sizing: border-box;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; border-radius: 4px;
+    font-size: 14px; color: var(--tx-7); cursor: pointer; padding: 0;
+  }
+  .lp-tab-btn:hover { background: var(--bg-hover); color: var(--tx-3); }
+  .lp-tab-btn.active { background: var(--bg-active); color: var(--tx); }
+  .lp-view {
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Вкладка «Поиск» */
+  #lp-search-meta {
+    flex-shrink: 0;
+    padding: 5px 10px;
+    font-size: 0.75em; color: var(--tx-7);
+    border-bottom: 1px solid var(--bd-light);
+    line-height: 1.45;
+  }
+  #lp-search-meta:empty { display: none; }
+  #lp-search-meta code {
+    font-family: inherit;
+    background: var(--bg-row-alt); border-radius: 3px; padding: 0 3px;
+  }
+  #lp-search-results { flex: 1; overflow-y: auto; }
+  #lp-search-results .chart-item {
+    border-radius: 0;
+    border-bottom: 1px solid var(--bd-light);
+    background: transparent;
+    padding: 7px 12px;
+  }
+  #lp-search-results .chart-item:hover { background: var(--bg-hover); }
+  .lp-match {
+    font-size: 0.78em; color: var(--tx-5);
+    margin-top: 2px;
+    display: flex; flex-wrap: wrap; gap: 3px 8px;
+  }
+  .lp-match .lp-fact {
+    background: var(--link-bg); color: var(--link);
+    border-radius: 3px; padding: 0 4px; white-space: nowrap;
+  }
   #left-panel-backdrop {
     display: none;
     position: fixed; top: 0; left: var(--sidebar-w); right: 0; bottom: 0;
@@ -418,28 +472,6 @@
   }
   #left-panel.open + #left-panel-backdrop { display: block; }
 
-  /* ── Notes panel (slides from right) ─────────────────────────── */
-  #left-panel-head {
-    flex-shrink: 0;
-    display: flex; align-items: center; gap: 4px;
-    padding: 0 6px;
-    height: var(--hdr-h);
-    border-bottom: 1px solid var(--bd-light);
-  }
-  #left-panel-home-btn {
-    display: flex; align-items: center; gap: 4px;
-    padding: 4px 6px;
-    background: none; border: none; border-radius: 4px;
-    font: inherit; font-size: 0.78em; color: var(--tx-5);
-    cursor: pointer; white-space: nowrap;
-  }
-  #left-panel-home-btn:hover { background: var(--bg-hover); color: var(--tx-2); }
-  #left-panel-title {
-    flex: 1; min-width: 0;
-    font-size: 0.78em; font-weight: 600; color: var(--tx-3);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    text-align: center;
-  }
   #left-panel-sort {
     font: inherit; font-size: 0.75em; color: var(--tx-5);
     background: none; border: none; cursor: pointer; padding: 3px 2px;
@@ -447,19 +479,20 @@
   }
   #left-panel-sort:hover { background: var(--bg-hover); }
 
-  #left-panel-search-wrap {
+  #left-panel-search-wrap, .lp-search-wrap {
     flex-shrink: 0;
+    display: flex; align-items: center; gap: 4px;
     padding: 6px 8px 4px;
     border-bottom: 1px solid var(--bd-light);
   }
-  #left-panel-search {
-    width: 100%; box-sizing: border-box;
+  #left-panel-search, #lp-query {
+    flex: 1; min-width: 0; box-sizing: border-box;
     border: 1px solid var(--bd-input); border-radius: 5px;
     background: var(--bg-input);
     font: inherit; font-size: 0.8em; color: var(--tx);
     padding: 4px 8px; outline: none;
   }
-  #left-panel-search:focus { border-color: var(--accent); }
+  #left-panel-search:focus, #lp-query:focus { border-color: var(--accent); }
 
   #left-panel-groups {
     flex-shrink: 0;
@@ -478,7 +511,7 @@
     padding: 7px 12px;
   }
   #left-panel-list .chart-item:hover { background: var(--bg-hover); }
-  #left-panel-empty {
+  #left-panel-empty, .left-panel-empty {
     padding: 16px 12px;
     font-size: 0.82em; color: var(--tx-7);
   }
@@ -2032,20 +2065,30 @@
 
 <!-- ── Left panel ────────────────────────────────────────────── -->
 <div id="left-panel">
-  <div id="left-panel-head">
-    <button id="left-panel-home-btn">← Главная</button>
-    <span id="left-panel-title">Карты</span>
-    <select id="left-panel-sort">
-      <option value="date">По дате</option>
-      <option value="name">А–Я</option>
-      <option value="birth">Дата рожд.</option>
-    </select>
+  <div id="lp-top">
+    <button class="lp-tab-btn" id="lp-home-btn" data-i18n-title="lpHomeTitle" title="Главная">⌂</button>
+    <button class="lp-tab-btn active" data-lp-tab="lib" data-i18n-title="lpTabLibrary" title="Библиотека">▤</button>
+    <button class="lp-tab-btn" data-lp-tab="search" data-i18n-title="lpTabSearch" title="Поиск">⌕</button>
   </div>
-  <div id="left-panel-search-wrap">
-    <input id="left-panel-search" type="text" placeholder="Поиск…" autocomplete="off">
+  <div class="lp-view" id="lp-view-lib">
+    <div id="left-panel-search-wrap">
+      <input id="left-panel-search" type="text" placeholder="Поиск…" autocomplete="off">
+      <select id="left-panel-sort">
+        <option value="date">По дате</option>
+        <option value="name">А–Я</option>
+        <option value="birth">Дата рожд.</option>
+      </select>
+    </div>
+    <div id="left-panel-groups"></div>
+    <div id="left-panel-list"></div>
   </div>
-  <div id="left-panel-groups"></div>
-  <div id="left-panel-list"></div>
+  <div class="lp-view" id="lp-view-search" style="display:none">
+    <div class="lp-search-wrap">
+      <input id="lp-query" type="text" data-i18n-placeholder="lpQueryPh" placeholder="напр.: saturn asp pluto" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="lp-search-meta"></div>
+    <div id="lp-search-results"></div>
+  </div>
 </div>
 <div id="left-panel-backdrop"></div>
 <div id="chart-ctx-menu"></div>
@@ -2555,6 +2598,13 @@ const STRINGS = {
     snapshotsTitle:'Снимки', snapEmpty:'Крутите момент и нажмите + чтобы сохранить', delete:'Удалить',
     momentTitle:'Момент', navModeDate:'Дата', navModeTime:'Время',
     horaryFolder:'Хорары', outcomeYes:'Сбылся', outcomeNo:'Нет', outcomePartial:'Частично',
+    lpHomeTitle:'Главная', lpTabLibrary:'Библиотека', lpTabSearch:'Поиск',
+    lpQueryPh:'напр.: сатурн аспект плутон',
+    lpSearchHint:'Примеры: <code>венера 120 юпитер</code> · <code>saturn asp pluto</code> · <code>солнце в лев</code> · <code>луна дом 4</code> · <code>меркурий rx</code> · <code>orb&lt;2</code> · AND / OR',
+    lpSearchFound:'Найдено: {n}', lpSearchNone:'Ничего не найдено',
+    lpSearchBadQuery:'Не понял запрос. ', lpNoCharts:'Нет сохранённых карт',
+    lpSearchScopeHint:'Темпоральный поиск (tr:/prog:/dir:) появится внутри кейса — здесь ищутся натальные факты.',
+    lpHouseShort:'дом',
     synastryFolder:'Синастрии', synTitle:'Синастрия', synBuild:'Построить синастрию',
     synSubjectA:'Первый человек', synSubjectB:'Второй человек',
     synPickSaved:'Выбрать из сохранённых…', synFillBoth:'Заполните данные обоих людей.',
@@ -2659,6 +2709,13 @@ const STRINGS = {
     snapshotsTitle:'Snapshots', snapEmpty:'Crank the moment and press + to save', delete:'Delete',
     momentTitle:'Moment', navModeDate:'Date', navModeTime:'Time',
     horaryFolder:'Хорары', outcomeYes:'Fulfilled', outcomeNo:'No', outcomePartial:'Partially',
+    lpHomeTitle:'Home', lpTabLibrary:'Library', lpTabSearch:'Search',
+    lpQueryPh:'e.g.: saturn asp pluto',
+    lpSearchHint:'Examples: <code>venus 120 jupiter</code> · <code>saturn asp pluto</code> · <code>sun in leo</code> · <code>moon house 4</code> · <code>mercury rx</code> · <code>orb&lt;2</code> · AND / OR',
+    lpSearchFound:'Found: {n}', lpSearchNone:'Nothing found',
+    lpSearchBadQuery:'Could not parse the query. ', lpNoCharts:'No saved charts',
+    lpSearchScopeHint:'Temporal search (tr:/prog:/dir:) will be available inside a case — this searches natal facts.',
+    lpHouseShort:'house',
     synastryFolder:'Синастрии', synTitle:'Synastry', synBuild:'Build synastry',
     synSubjectA:'Person A', synSubjectB:'Person B',
     synPickSaved:'Pick from saved…', synFillBoth:'Fill in both people’s data.',
@@ -9952,7 +10009,7 @@ function toggleLeftPanel() {
 
 document.getElementById('panel-toggle-btn').addEventListener('click', toggleLeftPanel);
 document.getElementById('left-panel-backdrop').addEventListener('click', closeLeftPanel);
-document.getElementById('left-panel-home-btn').addEventListener('click', () => {
+document.getElementById('lp-home-btn').addEventListener('click', () => {
   closeLeftPanel();
   exitChartMode(true);
 });
@@ -9963,6 +10020,264 @@ document.getElementById('left-panel-search').addEventListener('input', e => {
 document.getElementById('left-panel-sort').addEventListener('change', e => {
   _panelSort = e.target.value;
   renderLeftPanelList();
+});
+
+/* ── Левый drawer: вкладки рейки (Библиотека / Поиск) ─────────────────────── */
+
+let _lpTab = 'lib';
+
+function setLpTab(tab) {
+  _lpTab = tab;
+  document.querySelectorAll('.lp-tab-btn[data-lp-tab]').forEach(b =>
+    b.classList.toggle('active', b.dataset.lpTab === tab));
+  document.getElementById('lp-view-lib').style.display = tab === 'lib' ? '' : 'none';
+  document.getElementById('lp-view-search').style.display = tab === 'search' ? '' : 'none';
+  if (tab === 'search') {
+    lpRunSearch();
+    document.getElementById('lp-query').focus();
+  }
+}
+document.querySelectorAll('.lp-tab-btn[data-lp-tab]').forEach(b =>
+  b.addEventListener('click', () => setLpTab(b.dataset.lpTab)));
+
+/* ── Глобальный поиск по библиотеке (DSL, WORKSPACE_CONCEPT §12) ──────────── */
+
+// Токены двуязычные; матч — точный или по префиксу от 3 символов
+const LP_PLANET_TOKENS = [
+  { id: 0,     tokens: ['sun', 'солнце', '☉'] },
+  { id: 1,     tokens: ['moon', 'луна', '☽'] },
+  { id: 2,     tokens: ['mercury', 'меркурий', '☿'] },
+  { id: 3,     tokens: ['venus', 'венера', '♀'] },
+  { id: 4,     tokens: ['mars', 'марс', '♂'] },
+  { id: 5,     tokens: ['jupiter', 'юпитер', '♃'] },
+  { id: 6,     tokens: ['saturn', 'сатурн', '♄'] },
+  { id: 7,     tokens: ['uranus', 'уран', '♅'] },
+  { id: 8,     tokens: ['neptune', 'нептун', '♆'] },
+  { id: 9,     tokens: ['pluto', 'плутон', '♇'] },
+  { id: 10,    tokens: ['node', 'узел', 'раху', '☊'] },
+  { id: 12,    tokens: ['lilith', 'лилит', '⚸'] },
+  { id: 15,    tokens: ['chiron', 'хирон', '⚷'] },
+  { id: 'asc', tokens: ['asc', 'ascendant', 'асц', 'асцендент', 'as'] },
+  { id: 'mc',  tokens: ['mc', 'midheaven', 'мц'] },
+];
+const LP_ASPECT_TOKENS = [
+  { angle: 0,   tokens: ['conjunction', 'conj', 'соединение', 'соед', '☌'] },
+  { angle: 60,  tokens: ['sextile', 'секстиль', '✶', '⚹'] },
+  { angle: 90,  tokens: ['square', 'квадрат', 'квадратура', '□'] },
+  { angle: 120, tokens: ['trine', 'трин', 'тригон', '△'] },
+  { angle: 180, tokens: ['opposition', 'opp', 'оппозиция', '☍'] },
+  { angle: -1,  tokens: ['asp', 'aspect', 'аспект'] },   // любой мажорный
+];
+const LP_SIGN_TOKENS = [
+  ['aries', 'овен'], ['taurus', 'телец'], ['gemini', 'близнецы'], ['cancer', 'рак'],
+  ['leo', 'лев'], ['virgo', 'дева'], ['libra', 'весы'], ['scorpio', 'скорпион'],
+  ['sagittarius', 'стрелец'], ['capricorn', 'козерог'], ['aquarius', 'водолей'], ['pisces', 'рыбы'],
+];
+const LP_RX_TOKENS = ['rx', 'r', 'retro', 'retrograde', 'ретро', 'ретроградный', 'р'];
+
+function lpTokenHit(word, token) {
+  return word === token || (word.length >= 3 && token.startsWith(word));
+}
+function lpMatchPlanet(word) {
+  if (!word) return null;
+  const hit = LP_PLANET_TOKENS.find(p => p.tokens.some(t => lpTokenHit(word, t)));
+  return hit ? hit.id : null;
+}
+function lpMatchAspect(word) {
+  if (!word) return null;
+  const num = Number(word);
+  if (!isNaN(num)) {
+    const a = ASPECTS.find(a => a.angle === num);
+    return a ? a.angle : null;
+  }
+  const hit = LP_ASPECT_TOKENS.find(a => a.tokens.some(t => lpTokenHit(word, t)));
+  return hit ? hit.angle : null;
+}
+function lpMatchSign(word) {
+  if (!word) return null;
+  const i = LP_SIGN_TOKENS.findIndex(pair => pair.some(t => lpTokenHit(word, t)));
+  return i >= 0 ? i : null;
+}
+
+// Разбор одного условия: «планета [аспект] планета», «планета в знак»,
+// «планета дом N», «планета rx». Возвращает предикат или null.
+function lpParseClause(raw) {
+  let maxOrb = null;
+  const clause = raw.replace(/(?:orb|орб)\s*<=?\s*(\d+(?:[.,]\d+)?)/i, (_, v) => {
+    maxOrb = parseFloat(v.replace(',', '.'));
+    return ' ';
+  });
+  const words = clause.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return null;
+  const p1 = lpMatchPlanet(words[0]);
+  if (p1 === null || words.length < 2) return null;
+  let i = 1, w = words[i];
+
+  if (w === 'in' || w === 'в') { i++; w = words[i]; }
+  const sign = lpMatchSign(w);
+  if (sign !== null && lpMatchPlanet(w) === null) return { type: 'sign', p: p1, sign };
+
+  const hm = w && w.match(/^(?:house|дом|h|д)(\d{1,2})?$/);
+  if (hm) {
+    const n = hm[1] ? Number(hm[1]) : Number(words[i + 1]);
+    return (n >= 1 && n <= 12) ? { type: 'house', p: p1, house: n } : null;
+  }
+  if (LP_RX_TOKENS.includes(w)) return { type: 'rx', p: p1 };
+
+  let angle = lpMatchAspect(w);
+  if (angle !== null && lpMatchPlanet(w) === null) i++;
+  else angle = -1;                                  // «saturn pluto» = любой аспект
+  const p2 = lpMatchPlanet(words[i]);
+  if (p2 === null || p2 === p1) return null;
+  return { type: 'aspect', a: p1, b: p2, angle, maxOrb };
+}
+
+// Запрос → массив OR-групп, каждая — массив AND-условий; null если не разобран
+function lpParseQuery(q) {
+  const orGroups = q.split(/\s+(?:or|или)\s+/i).map(part => {
+    const clauses = part.split(/\s*,\s*|\s+(?:and|и)\s+/i)
+      .map(lpParseClause);
+    return clauses.every(Boolean) ? clauses : null;
+  });
+  return orGroups.every(Boolean) && orGroups.length ? orGroups : null;
+}
+
+/* ── Индекс фактов: chart.id → { sig, facts } ─────────────────────────────── */
+
+const _lpFactsCache = new Map();
+
+function lpChartSig(c) {
+  return [c.birth_date, c.birth_time, c.lat, c.lon, c.utc_offset].join('|');
+}
+
+function lpGetFacts(c) {
+  const sig = lpChartSig(c);
+  const hit = _lpFactsCache.get(c.id);
+  if (hit && hit.sig === sig) return hit.facts;
+  const data = computeChartData({
+    birthDate: c.birth_date, birthTime: c.birth_time,
+    lat: c.lat, lon: c.lon, utcOff: c.utc_offset,
+  }, (c.case_type === 'horary') ? 'R' : 'P');
+  if (!data) return null;
+  const pts = data.planets.map(p => ({
+    id: p.id, lon: p.longitude, rx: p.retrograde,
+    house: p.house, sign: Math.floor(p.longitude / 30),
+  }));
+  pts.push({ id: 'asc', lon: data.asc, sign: Math.floor(data.asc / 30) });
+  pts.push({ id: 'mc',  lon: data.mc,  sign: Math.floor(data.mc / 30) });
+  const aspects = [];
+  for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+    const a = pts[i], b = pts[j];
+    if (typeof a.id === 'string' && typeof b.id === 'string') continue;  // asc–mc не аспект
+    const d = angDiff(a.lon, b.lon);
+    for (const asp of ASPECTS) {
+      const orb = Math.abs(d - asp.angle);
+      if (orb <= getNatalOrb(asp, a.id, b.id)) {
+        aspects.push({ a: a.id, b: b.id, angle: asp.angle, orb });
+        break;
+      }
+    }
+  }
+  const facts = { pts, aspects };
+  _lpFactsCache.set(c.id, { sig, facts });
+  return facts;
+}
+
+/* ── Матчинг и рендер ─────────────────────────────────────────────────────── */
+
+function lpGlyph(id) {
+  if (id === 'asc') return 'As';
+  if (id === 'mc')  return 'Mc';
+  return PLANETS.find(p => p.id === id)?.glyph ?? '?';
+}
+function lpAspSymbol(angle) {
+  return ASPECTS.find(a => a.angle === angle)?.symbol ?? '∠';
+}
+
+// Условие против фактов карты → массив строк-описаний совпадений (пустой = не сматчилось)
+function lpMatchClause(facts, cl) {
+  if (cl.type === 'sign') {
+    return facts.pts.filter(p => p.id === cl.p && p.sign === cl.sign)
+      .map(p => ({ orb: 0, html: `${lpGlyph(p.id)} ${SIGNS[p.sign]} ${SIGN_NAMES[p.sign]}` }));
+  }
+  if (cl.type === 'house') {
+    return facts.pts.filter(p => p.id === cl.p && p.house === cl.house)
+      .map(p => ({ orb: 0, html: `${lpGlyph(p.id)} · ${tr('lpHouseShort')} ${cl.house}` }));
+  }
+  if (cl.type === 'rx') {
+    return facts.pts.filter(p => p.id === cl.p && p.rx)
+      .map(p => ({ orb: 0, html: `${lpGlyph(p.id)} R` }));
+  }
+  // aspect
+  return facts.aspects.filter(x =>
+    ((x.a === cl.a && x.b === cl.b) || (x.a === cl.b && x.b === cl.a)) &&
+    (cl.angle === -1 || x.angle === cl.angle) &&
+    (cl.maxOrb == null || x.orb <= cl.maxOrb)
+  ).map(x => ({
+    orb: x.orb,
+    html: `${lpGlyph(x.a)} ${lpAspSymbol(x.angle)} ${lpGlyph(x.b)} · ${x.orb.toFixed(1)}°`,
+  }));
+}
+
+function lpRunSearch() {
+  const q = document.getElementById('lp-query').value.trim();
+  const meta = document.getElementById('lp-search-meta');
+  const list = document.getElementById('lp-search-results');
+  list.innerHTML = '';
+  if (!q) { meta.innerHTML = tr('lpSearchHint'); return; }
+  if (/^(tr|transit|prog|dir|syn|транз\w*|прог\w*|дир\w*|син\w*):/i.test(q)) {
+    meta.textContent = tr('lpSearchScopeHint');
+    return;
+  }
+  if (!swe) { meta.textContent = tr('loading'); return; }
+  const pool = (_homeCharts || []).filter(c => c.birth_date && c.birth_time && c.lat != null);
+  if (!pool.length) { meta.textContent = tr('lpNoCharts'); return; }
+  const orGroups = lpParseQuery(q);
+  if (!orGroups) {
+    meta.innerHTML = escapeHtml(tr('lpSearchBadQuery')) + tr('lpSearchHint');
+    return;
+  }
+  const results = [];
+  for (const c of pool) {
+    const facts = lpGetFacts(c);
+    if (!facts) continue;
+    for (const group of orGroups) {
+      const perClause = group.map(cl => lpMatchClause(facts, cl));
+      if (perClause.every(m => m.length)) {
+        const matches = perClause.flat();
+        results.push({ c, matches, bestOrb: Math.min(...matches.map(m => m.orb)) });
+        break;   // первая совпавшая OR-группа
+      }
+    }
+  }
+  results.sort((a, b) => a.bestOrb - b.bestOrb);
+  if (!results.length) { meta.textContent = tr('lpSearchNone'); return; }
+  meta.textContent = tr('lpSearchFound', { n: results.length });
+  for (const { c, matches } of results.slice(0, 100)) {
+    const div = document.createElement('div');
+    div.className = 'chart-item';
+    const fmtD = c.birth_date ? c.birth_date.split('-').reverse().join('.') : '';
+    const metaLine = [fmtD, c.city ?? ''].filter(Boolean).join(' · ');
+    div.innerHTML = `
+      <div class="chart-item-info">
+        <div class="chart-item-name">${escapeHtml(c.name ?? '')}</div>
+        ${metaLine ? `<div class="chart-item-meta">${metaLine}</div>` : ''}
+        <div class="lp-match">${matches.map(m => `<span class="lp-fact">${m.html}</span>`).join('')}</div>
+      </div>`;
+    // Панель НЕ закрывается — идём по результатам, просматривая карты (концепт §12)
+    div.addEventListener('click', () => {
+      if (div.dataset.lpFired) { div.dataset.lpFired = ''; return; }
+      openChartInTab(c, false);
+    });
+    attachChartCtxMenu(div, c);
+    list.appendChild(div);
+  }
+}
+
+let _lpSearchTimer = null;
+document.getElementById('lp-query').addEventListener('input', () => {
+  clearTimeout(_lpSearchTimer);
+  _lpSearchTimer = setTimeout(lpRunSearch, 250);
 });
 
 document.getElementById('tab-add-btn').addEventListener('click', () => {

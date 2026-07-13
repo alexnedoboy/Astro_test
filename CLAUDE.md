@@ -9,6 +9,7 @@
 - **`styles.css`** — весь CSS (палитра UI-цветов `:root` — в начале файла)
 - **`js/constants.js`** — чистые константы: `PLANETS`, `SIGNS`, `COLORS`, `ASPECTS`, `T_ASPECTS`, `D_ASPECTS`, `CHART` (+ производные `CX`/`CY`/`R_*`), `TL`, `SLOW_IDS`/`FAST_IDS`, орбисы (`getNatalOrb`, `getTransitOrb`), рулерство. Мутабельного состояния здесь нет и быть не должно
 - **`js/strings.js`** — словарь i18n `STRINGS` (ru/en); `tr()` и `currentLang` — в index.html
+- **`js/settings.js`** — каркас настроек: реестр (`defineSettings`), `get/setSetting`, персистенс (localStorage + Supabase `user_metadata.settings`, remote при логине побеждает), модалка (Obsidian-стиль: разделы, поиск, мгновенное применение). Записи регистрирует index.html (блок «Реестр настроек»)
 - `sw.js`, `manifest.json` — PWA (сервис-воркер перехватывает только navigation-запросы)
 
 **Правила распила:** новые чистые константы — в `js/constants.js`, новые строки перевода — в `js/strings.js`. Выносить код в новые модули — только отдельным механическим коммитом без изменения поведения (от листьев к ядру: следующие кандидаты — svg-хелперы, markdown, geo). Запуск — только по HTTP (ES-модули), локально: `.claude/launch.json` → Static HTTP Server.
@@ -29,7 +30,8 @@
   - `#home-right` (только залогиненным): поиск `#home-search`, кнопка `#newChartBtn` (открывает `#form-wrap` модалкой, класс `.modal`), чипы групп `#home-groups` (из колонки `folder`), список карт `#home-charts` с закреплением (`pinned`), «большой тройкой» (☉/☽/As) и сортировкой по `last_opened_at`
 - Форма `#form-wrap`: незалогиненным — инлайн по центру; залогиненным — модалка
 - Видимость главной — классы на body: `home-off` (открыта карта/небо, ставится в `hideHome()`/`showHome()`), `home-dash` (залогинен)
-- Хедер (`#app-header`) с кнопкой настроек — всегда виден
+- Хедер (`#app-header`) с кнопкой настроек — всегда виден. ⚙ открывает дропдаун (кнопка «Настройки» → модалка `#settings-modal-overlay` + auth-зона)
+- **Настройки** — реестр в `js/settings.js` + записи в index.html. Каждая запись: `{id, section, type: toggle|segment|action, default, lsKey/lsKind (прежние localStorage-ключи), labelKey, onChange}`. Область действия реестра — глобальная («метод астролога»); per-case состояние — `context.ui`/workspace_state, НЕ реестр. Новая настройка = запись в реестре + `getSetting()` в месте чтения; тумблеры панельных ☰-меню зовут `setSetting` (одно хранилище, две точки доступа)
 - Колонки Supabase `charts.pinned` (boolean) и `charts.last_opened_at` (timestamptz); код толерантен к их отсутствию до миграции
 
 ### Страница карты (`#layout-v2`)

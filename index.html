@@ -131,20 +131,27 @@
   </div>
 </div>
 <div id="settings-dropdown">
-  <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap">
-    <input type="checkbox" id="privacyModeToggle"> <span data-i18n="privacyMode">Скрыть имя и дату</span>
-  </label>
-  <div id="lang-switcher">
-    <button class="lang-btn lang-btn-active" data-lang="ru">RU</button>
-    <button class="lang-btn" data-lang="en">EN</button>
-  </div>
-  <button class="auth-btn" id="planetFilterBtn" data-i18n="planetVisibility">Планеты натала</button>
+  <button class="auth-btn" id="openSettingsBtn" data-i18n="settings">Настройки</button>
   <div id="auth-zone">
     <button id="loginBtn" class="auth-btn primary" data-i18n="login">Войти</button>
     <div id="user-info" style="display:none">
       <span id="user-email-short"></span>
       <button id="chartsBtn" class="auth-btn" data-i18n="charts">📂 Карты</button>
       <button id="logoutBtn" class="auth-btn ghost" data-i18n="logout">Выйти</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Settings modal (контент генерится из реестра, js/settings.js) ── -->
+<div id="settings-modal-overlay">
+  <div id="settings-modal">
+    <div id="sm-nav">
+      <input id="sm-search" type="text" data-i18n-placeholder="smSearch" placeholder="Поиск настроек…" autocomplete="off">
+      <div id="sm-sections"></div>
+    </div>
+    <div id="sm-main">
+      <button id="sm-close" type="button">✕</button>
+      <div id="sm-content"></div>
     </div>
   </div>
 </div>
@@ -556,6 +563,9 @@
 import SwissEph    from 'https://cdn.jsdelivr.net/gh/prolaxu/swisseph-wasm@main/src/swisseph.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { STRINGS } from './js/strings.js';
+import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
+         syncSettingsFromUser, openSettingsModal, closeSettingsModal,
+         refreshSettingsModal } from './js/settings.js';
 import { PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js';
 
 // ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -601,10 +611,8 @@ function applyLang() {
   document.querySelectorAll('[data-i18n-title]').forEach(el => {
     el.title = tr(el.dataset.i18nTitle);
   });
-  // Update lang buttons active state
-  document.querySelectorAll('.lang-btn').forEach(btn => {
-    btn.classList.toggle('lang-btn-active', btn.dataset.lang === currentLang);
-  });
+  // Re-render settings modal if open (labels and section names are translated)
+  refreshSettingsModal();
   // Re-render notes list (dates are locale-formatted)
   if (notesCache) renderNotesList();
   // Re-render if chart is loaded
@@ -648,11 +656,8 @@ function updateAuthUI(user) {
     emailEl.textContent = user.email ?? user.user_metadata?.full_name ?? '';
     loadHomeCharts();
     loadChartFromHash();
-    // Load element colors preference from Supabase (overrides localStorage)
-    const meta = user?.user_metadata;
-    const pref = meta?.elementColors ?? (localStorage.getItem('elementColors') === '1');
-    elementColorsMode = pref;
-    localStorage.setItem('elementColors', pref ? '1' : '0');
+    // Настройки из Supabase user metadata побеждают localStorage
+    syncSettingsFromUser(user);
   } else {
     loginBtn.style.display = '';
     userInfo.style.display = 'none';
@@ -873,35 +878,51 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   await sb.auth.signOut();
   closeChartsPanel();
 });
-// ── Настройки отображения карты (живут в меню ☰ панели Карты) ─────────────────
-// Load from localStorage on startup (before auth resolves)
-if (localStorage.getItem('elementColors') === '1') elementColorsMode = true;
+// ── Реестр настроек (каркас — js/settings.js) ─────────────────────────────────
+// Все записи здесь глобальные («метод астролога»). Прежние localStorage-ключи
+// сохранены. onChange — только применение (рендер/классы), хранение — в каркасе.
 
-async function setElementColorsMode(v) {
-  elementColorsMode = v;
-  localStorage.setItem('elementColors', v ? '1' : '0');
-  reRenderCurrentChart();
-  // Also save to Supabase user metadata if logged in
-  try {
-    const { data: { user } } = await sb.auth.getUser();
-    if (user) await sb.auth.updateUser({ data: { elementColors: v } });
-  } catch (e) {}
-}
+let showProgLunarPhases = true;  // фактические значения выставляются ниже из реестра
 
-let showProgLunarPhases = localStorage.getItem('showProgLunarPhases') !== '0';
-function setShowProgLunarPhases(v) {
-  showProgLunarPhases = v;
-  localStorage.setItem('showProgLunarPhases', v ? '1' : '0');
-  if (natalData && currentMode === 'progressed') renderProgressedBiwheel(currentTransitJD);
-}
+defineSettings([
+  { id: 'lang', section: 'general', type: 'segment',
+    options: [['ru', 'RU'], ['en', 'EN']], default: 'ru',
+    lsKey: 'lang', lsKind: 'string', labelKey: 'language',
+    onChange: v => { currentLang = v; applyLang(); } },
+  { id: 'privacyMode', section: 'general', type: 'toggle', default: false,
+    lsKey: 'privacyMode', lsKind: 'bool01', labelKey: 'privacyMode',
+    onChange: v => document.body.classList.toggle('privacy-mode', v) },
+  { id: 'elementColors', section: 'chart', type: 'toggle', default: false,
+    lsKey: 'elementColors', lsKind: 'bool01', labelKey: 'elements',
+    onChange: v => { elementColorsMode = v; reRenderCurrentChart(); } },
+  { id: 'natalPlanets', section: 'chart', type: 'action', labelKey: 'planetVisibility',
+    action: () => {
+      closeSettingsModal();
+      buildPlanetFilterGrid();
+      planetFilterOverlay.classList.add('open');
+    } },
+  { id: 'showProgLunarPhases', section: 'timeline', type: 'toggle', default: true,
+    lsKey: 'showProgLunarPhases', lsKind: 'bool01', labelKey: 'progLunarPhases',
+    onChange: v => {
+      showProgLunarPhases = v;
+      if (natalData && currentMode === 'progressed') renderProgressedBiwheel(currentTransitJD);
+    } },
+]);
 
-const privacyModeToggle = document.getElementById('privacyModeToggle');
-privacyModeToggle.checked = localStorage.getItem('privacyMode') === '1';
-document.body.classList.toggle('privacy-mode', privacyModeToggle.checked);
-privacyModeToggle.addEventListener('change', () => {
-  document.body.classList.toggle('privacy-mode', privacyModeToggle.checked);
-  localStorage.setItem('privacyMode', privacyModeToggle.checked ? '1' : '0');
+// Стартовое применение (без onChange-каскадов: applyLang зовётся в конце файла)
+elementColorsMode   = getSetting('elementColors');
+showProgLunarPhases = getSetting('showProgLunarPhases');
+document.body.classList.toggle('privacy-mode', getSetting('privacyMode'));
+
+initSettingsUI({
+  tr,
+  sections: [['general', 'smGeneral'], ['chart', 'smChart'], ['timeline', 'smTimeline']],
 });
+initSettingsSync(sb);
+
+// Тонкие обёртки для существующих вызовов (☰ панели Карты)
+function setElementColorsMode(v)    { setSetting('elementColors', v); }
+function setShowProgLunarPhases(v)  { setSetting('showProgLunarPhases', v); }
 
 function reRenderCurrentChart() {
   if (!natalData) return;
@@ -944,6 +965,11 @@ function closeSettingsDropdown() {
 
 document.getElementById('settingsBtn').addEventListener('click', e => {
   openSettingsDropdown(e.currentTarget, e);
+});
+
+document.getElementById('openSettingsBtn').addEventListener('click', () => {
+  closeSettingsDropdown();
+  openSettingsModal();
 });
 
 // Close on outside click
@@ -998,11 +1024,6 @@ function rerenderNatal() {
   buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps));
 }
 
-document.getElementById('planetFilterBtn').addEventListener('click', () => {
-  closeSettingsDropdown();
-  buildPlanetFilterGrid();
-  planetFilterOverlay.classList.add('open');
-});
 document.getElementById('closePlanetFilter').addEventListener('click', () => {
   planetFilterOverlay.classList.remove('open');
 });
@@ -1014,15 +1035,6 @@ document.getElementById('pf-reset').addEventListener('click', () => {
   saveNatalFilter();
   buildPlanetFilterGrid();
   rerenderNatal();
-});
-
-// Language switcher
-document.querySelectorAll('.lang-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    currentLang = btn.dataset.lang;
-    localStorage.setItem('lang', currentLang);
-    applyLang();
-  });
 });
 
 // ── Charts panel ──────────────────────────────────────────────────────────────

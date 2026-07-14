@@ -1551,6 +1551,20 @@
     padding: 1px 6px; line-height: 1.5;
   }
   #v2-case-type:empty { display: none; }
+  /* Селектор системы домов — чип в стиле метки типа кейса */
+  #v2-house-sys {
+    display: inline-block;
+    margin-top: 3px; margin-left: 4px;
+    font-size: 0.6em; letter-spacing: 0.05em;
+    color: var(--tx-7);
+    background: var(--bg-active);
+    border: 1px solid var(--bd-light);
+    border-radius: 3px;
+    padding: 1px 2px; line-height: 1.5;
+    cursor: pointer; max-width: 120px;
+  }
+  #v2-house-sys:hover { color: var(--tx-2); }
+  #layout-v2.case-synastry #v2-house-sys { display: none; }
   .v2-icon-btn {
     width: 22px; height: 22px;
     flex: 0 0 22px;

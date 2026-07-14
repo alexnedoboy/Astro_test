@@ -7,8 +7,8 @@
 //   {
 //     id,                  // уникальный ключ (он же ключ в Supabase settings)
 //     section,             // id раздела модалки
-//     type,                // 'toggle' | 'segment' | 'action'
-//     options,             // для segment: [[значение, подпись], …]
+//     type,                // 'toggle' | 'segment' | 'select' | 'action' | 'custom'
+//     options,             // для segment/select: [[значение, подпись-или-ключ STRINGS], …]
 //     default,             // значение по умолчанию
 //     lsKey, lsKind,       // localStorage: ключ + формат ('bool01' | 'string')
 //     labelKey, descKey,   // ключи STRINGS (переводится через tr)
@@ -191,6 +191,19 @@ function controlFor(def) {
     cb.checked = !!values.get(def.id);
     cb.addEventListener('change', () => setSetting(def.id, cb.checked));
     return cb;
+  }
+  if (def.type === 'select') {
+    const sel = document.createElement('select');
+    sel.className = 'sm-select';
+    for (const [val, labelKey] of def.options) {
+      const o = document.createElement('option');
+      o.value = val;
+      o.textContent = _tr(labelKey);
+      if (values.get(def.id) === val) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.addEventListener('change', () => setSetting(def.id, sel.value));
+    return sel;
   }
   if (def.type === 'segment') {
     const wrap = document.createElement('div');

@@ -308,6 +308,7 @@
           <span id="v2-chart-date"></span>
           <span id="v2-chart-place"></span>
           <span id="v2-case-type"></span>
+          <select id="v2-house-sys" title="Система домов"></select>
           <div id="v2-outcome">
             <button class="outcome-chip" data-outcome="yes" data-i18n="outcomeYes">Сбылся</button>
             <button class="outcome-chip" data-outcome="no" data-i18n="outcomeNo">Нет</button>
@@ -608,6 +609,7 @@ function applyLang() {
   });
   // Re-render settings modal if open (labels and section names are translated)
   refreshSettingsModal();
+  syncHouseSysChip();
   // Re-render notes list (dates are locale-formatted)
   if (notesCache) renderNotesList();
   // Re-render if chart is loaded
@@ -879,6 +881,41 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 
 let showProgLunarPhases = true;  // фактические значения выставляются ниже из реестра
 
+// Системы домов: код swisseph (houses_ex) → ключ подписи в STRINGS
+const HOUSE_SYSTEMS = [
+  ['P', 'hsysP'], ['K', 'hsysK'], ['R', 'hsysR'], ['C', 'hsysC'],
+  ['O', 'hsysO'], ['E', 'hsysE'], ['W', 'hsysW'], ['B', 'hsysB'],
+];
+
+// Каскад системы домов: оверрайд кейса (t.houseSystem / charts.house_system)
+// → дефолт типа кейса из настроек. Синастрия считает субъектов как наталы.
+function houseSysForType(type) {
+  if (type === 'horary') return getSetting('houseSysHorary');
+  if (type === 'election' || type === 'sky' || type === 'event') return getSetting('houseSysElection');
+  return getSetting('houseSysNatal');
+}
+function houseSysFor(t) { return t?.houseSystem ?? houseSysForType(t?.type ?? 'natal'); }
+
+// Смена дефолта типа: пересчитать активный кейс (если он этого типа и без
+// оверрайда) и сбросить кэш состояния фоновых вкладок — пересчёт при показе.
+function onHouseDefaultChange(type) {
+  const affected = t => !t.kind && t.type !== 'synastry' && !t.houseSystem &&
+    ((t.type ?? 'natal') === type ||
+     (type === 'election' && (t.type === 'sky' || t.type === 'event')));
+  (tabs ?? []).forEach((t, i) => {
+    if (!affected(t)) return;
+    if (i === activeTab && !dashboardOpen && t.fields) {
+      t.view = stateToView(captureState());
+      t.st = null;
+      rebuildTabFromFields(t);
+      syncHouseSysChip();
+    } else if (t.st) {
+      t.view = stateToView(t.st);   // вид сохраняем, расчёт инвалидируем
+      t.st = null;
+    }
+  });
+}
+
 defineSettings([
   { id: 'lang', section: 'general', type: 'segment',
     options: [['ru', 'RU'], ['en', 'EN']], default: 'ru',
@@ -887,6 +924,15 @@ defineSettings([
   { id: 'privacyMode', section: 'general', type: 'toggle', default: false,
     lsKey: 'privacyMode', lsKind: 'bool01', labelKey: 'privacyMode',
     onChange: v => document.body.classList.toggle('privacy-mode', v) },
+  { id: 'houseSysNatal', section: 'calc', type: 'select', options: HOUSE_SYSTEMS,
+    default: 'P', lsKey: 'houseSysNatal', lsKind: 'string', labelKey: 'hsNatal',
+    onChange: () => onHouseDefaultChange('natal') },
+  { id: 'houseSysHorary', section: 'calc', type: 'select', options: HOUSE_SYSTEMS,
+    default: 'R', lsKey: 'houseSysHorary', lsKind: 'string', labelKey: 'hsHorary',
+    onChange: () => onHouseDefaultChange('horary') },
+  { id: 'houseSysElection', section: 'calc', type: 'select', options: HOUSE_SYSTEMS,
+    default: 'P', lsKey: 'houseSysElection', lsKind: 'string', labelKey: 'hsElection',
+    onChange: () => onHouseDefaultChange('election') },
   { id: 'elementColors', section: 'chart', type: 'toggle', default: false,
     lsKey: 'elementColors', lsKind: 'bool01', labelKey: 'elements',
     onChange: v => { elementColorsMode = v; reRenderCurrentChart(); } },
@@ -945,7 +991,7 @@ document.body.classList.toggle('privacy-mode', getSetting('privacyMode'));
 
 initSettingsUI({
   tr,
-  sections: [['general', 'smGeneral'], ['chart', 'smChart'], ['timeline', 'smTimeline']],
+  sections: [['general', 'smGeneral'], ['calc', 'smCalc'], ['chart', 'smChart'], ['timeline', 'smTimeline']],
 });
 initSettingsSync(sb);
 
@@ -1227,7 +1273,7 @@ function loadChartFromDB(c) {
   if (c.case_type === 'synastry') { openSynastryTab(c); return; }
   markChartOpened(c);
   writeFormFields(rowToFields(c));
-  openNewTabFromForm(c.id ?? null, c.case_type ?? 'natal', c.outcome ?? null, c.snapshots ?? null);
+  openNewTabFromForm(c.id ?? null, c.case_type ?? 'natal', c.outcome ?? null, c.snapshots ?? null, c.house_system ?? null);
 }
 
 // Открыть сохранённую синастрию (композитный кейс) в новой вкладке из c.refs
@@ -1284,6 +1330,7 @@ function openChartInTab(c, newTab = false) {
   const t = tabs[activeTab];
   delete t.kind;             // вкладка-палитра становится вкладкой кейса
   t.type    = c.case_type ?? 'natal';   // до расчёта: от типа зависит система домов
+  t.houseSystem = c.house_system ?? null;
   t.outcome = c.outcome ?? null;
   t.snapshots = Array.isArray(c.snapshots) ? c.snapshots : [];   // варианты элекции
   if (!computeAndRenderNatal()) return;
@@ -1465,6 +1512,9 @@ async function saveCurrentChartToDb(extra = {}) {
 function caseExtraColumns(t) {
   const type = t?.type ?? 'natal';
   const extra = { case_type: type };
+  // Фактическая система домов пишется в кейс всегда (кроме композитов):
+  // смена глобального дефолта не должна тихо пересчитать сохранённые карты
+  if (type !== 'synastry') extra.house_system = houseSysFor(t);
   if (type === 'horary') {
     extra.question = document.getElementById('chartName').value.trim() || null;
     extra.folder   = tr('horaryFolder');
@@ -2188,10 +2238,11 @@ function closeTab(i) {
 }
 
 // Создать новую вкладку из текущей формы и построить карту
-function openNewTabFromForm(chartId, caseType = 'natal', outcome = null, snapshots = null) {
+function openNewTabFromForm(chartId, caseType = 'natal', outcome = null, snapshots = null, houseSystem = null) {
   if (!dashboardOpen) snapshotActiveTab();
   const t = { uid: ++_tabUid, chartId: chartId ?? null, fields: null, header: null, st: null,
-              type: caseType, outcome, snapshots: Array.isArray(snapshots) ? snapshots : [] };
+              type: caseType, outcome, snapshots: Array.isArray(snapshots) ? snapshots : [],
+              houseSystem: houseSystem ?? null };
   tabs.push(t);
   activeTab = tabs.length - 1;
   dashboardOpen = false;
@@ -2591,8 +2642,8 @@ wireSynForm();
 // Пересчитать данные обоих субъектов из refs в natalData / synastryB
 function recomputeSynastry(t) {
   if (!swe || !t?.refs?.a || !t?.refs?.b) return false;
-  const A = computeChartData(subjToComputeFields(t.refs.a), 'P');
-  const B = computeChartData(subjToComputeFields(t.refs.b), 'P');
+  const A = computeChartData(subjToComputeFields(t.refs.a), houseSysForType('natal'));
+  const B = computeChartData(subjToComputeFields(t.refs.b), houseSysForType('natal'));
   if (!A || !B) return false;
   natalData = A; synastryB = B;
   return true;
@@ -2849,9 +2900,9 @@ function stateToView(s) {
 function tabToStorage(t, live) {
   if (t.kind === 'palette') return { kind: 'palette' };
   if (live) {
-    return { chartId: currentChartId ?? null, fields: readFormFields(), header: readHeader(), view: stateToView(captureState()), type: t.type ?? 'natal', outcome: t.outcome ?? null, snapshots: t.snapshots ?? [], refs: t.refs ?? null };
+    return { chartId: currentChartId ?? null, fields: readFormFields(), header: readHeader(), view: stateToView(captureState()), type: t.type ?? 'natal', outcome: t.outcome ?? null, snapshots: t.snapshots ?? [], refs: t.refs ?? null, houseSystem: t.houseSystem ?? null };
   }
-  return { chartId: t.chartId ?? null, fields: t.fields, header: t.header, view: t.st ? stateToView(t.st) : (t.view || null), type: t.type ?? 'natal', outcome: t.outcome ?? null, snapshots: t.snapshots ?? [], refs: t.refs ?? null };
+  return { chartId: t.chartId ?? null, fields: t.fields, header: t.header, view: t.st ? stateToView(t.st) : (t.view || null), type: t.type ?? 'natal', outcome: t.outcome ?? null, snapshots: t.snapshots ?? [], refs: t.refs ?? null, houseSystem: t.houseSystem ?? null };
 }
 
 function persistTabs() {
@@ -2883,6 +2934,7 @@ function restoreTabs() {
         outcome: d.outcome ?? null,
         snapshots: Array.isArray(d.snapshots) ? d.snapshots : [],
         refs: d.refs ?? null,
+        houseSystem: d.houseSystem ?? null,
       });
   activeTab = (typeof data.activeTab === 'number' && data.activeTab < tabs.length) ? data.activeTab : 0;
   dashboardOpen = data.dashboardOpen !== false;   // по умолчанию показываем дашборд
@@ -2923,6 +2975,43 @@ function setV2ChartInfo(name, dateTime, city) {
   if (city !== undefined) document.getElementById('v2-chart-place').textContent = city;
 }
 
+// Селектор системы домов на карточке кейса: показывает фактическую систему
+// (оверрайд → дефолт типа), смена = оверрайд кейса + пересчёт + запись в БД.
+function syncHouseSysChip() {
+  const sel = document.getElementById('v2-house-sys');
+  if (!sel) return;
+  if (!sel.options.length) {
+    for (const [v] of HOUSE_SYSTEMS) {
+      const o = document.createElement('option');
+      o.value = v;
+      sel.appendChild(o);
+    }
+  }
+  [...sel.options].forEach(o => { o.textContent = tr('hsys' + o.value); });
+  sel.title = tr('hsTitle');
+  sel.value = houseSysFor(tabs[activeTab]);
+}
+
+document.getElementById('v2-house-sys').addEventListener('change', async e => {
+  const t = tabs?.[activeTab];
+  if (!t || t.kind === 'palette' || t.type === 'synastry') return;
+  t.houseSystem = e.target.value;
+  if (t.fields) {
+    t.view = stateToView(captureState());   // сохранить вид (режим, T, раскрытия)
+    t.st = null;
+    rebuildTabFromFields(t);
+  }
+  persistTabs();
+  if (t.chartId && currentUser) {
+    const { error } = await sb.from('charts').update({ house_system: t.houseSystem }).eq('id', t.chartId);
+    if (error) console.warn('house_system:', error.message);  // до миграции колонки может не быть
+    else {
+      const row = _homeCharts.find(x => x.id === t.chartId);
+      if (row) row.house_system = t.houseSystem;
+    }
+  }
+});
+
 // Метка типа кейса (натал / синастрия / хорар / …) — см. WORKSPACE_CONCEPT.md §7.
 // Тип фиксируется при создании кейса; межтипового переключения нет.
 const CASE_TYPE_LABELS = { natal:'натал', synastry:'синастрия', horary:'хорар', election:'элекция', event:'событие', sky:'небо' };
@@ -2931,6 +3020,7 @@ function applyCaseType(type) {
   currentCaseType = type || 'natal';
   const el = document.getElementById('v2-case-type');
   if (el) el.textContent = CASE_TYPE_LABELS[type] || '';
+  syncHouseSysChip();
   // Пресет хорара: без таймлайна, режимов и контроллера времени (всё anchored)
   document.getElementById('layout-v2')?.classList.toggle('case-horary', type === 'horary');
   // Пресет элекции: карта момента (самосущая). Таймлайн source=sky и контроллер T — фаза 2.
@@ -3485,8 +3575,8 @@ function computeAndRenderNatal() {
 
   const caseType = tabs[activeTab]?.type || 'natal';
   try {
-    // Хорар — всегда Региомонтан; остальные типы — Плацидус
-    const data = computeChartData(readFormFields(), caseType === 'horary' ? 'R' : 'P');
+    // Система домов: оверрайд кейса → дефолт типа из настроек (houseSysFor)
+    const data = computeChartData(readFormFields(), houseSysFor(tabs[activeTab]));
     if (!data) { setStatus(tr('fillAllFields')); return false; }
     const { planets, cusps, asc, mc } = data;
 
@@ -4565,7 +4655,7 @@ function applyNatalJD(jd) {
     if (!r) return null;
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   }).filter(Boolean);
-  const hRes = swe.houses_ex(jd, flags, lat, lon, 'P');   // houses() игнорирует hsys — см. computeChartData
+  const hRes = swe.houses_ex(jd, flags, lat, lon, houseSysFor(tabs[activeTab]));   // houses() игнорирует hsys — см. computeChartData
   const cusps = Array.from(hRes.cusps).slice(1, 13);
   const ascmc = Array.from(hRes.ascmc);
   const asc = ((ascmc[0] % 360) + 360) % 360;
@@ -7740,7 +7830,8 @@ function lpParseQuery(q) {
 const _lpFactsCache = new Map();
 
 function lpChartSig(c) {
-  return [c.birth_date, c.birth_time, c.lat, c.lon, c.utc_offset].join('|');
+  return [c.birth_date, c.birth_time, c.lat, c.lon, c.utc_offset,
+          c.house_system ?? houseSysForType(c.case_type ?? 'natal')].join('|');
 }
 
 function lpGetFacts(c) {
@@ -7750,7 +7841,7 @@ function lpGetFacts(c) {
   const data = computeChartData({
     birthDate: c.birth_date, birthTime: c.birth_time,
     lat: c.lat, lon: c.lon, utcOff: c.utc_offset,
-  }, (c.case_type === 'horary') ? 'R' : 'P');
+  }, c.house_system ?? houseSysForType(c.case_type ?? 'natal'));
   if (!data) return null;
   const pts = data.planets.map(p => ({
     id: p.id, lon: p.longitude, rx: p.retrograde,
@@ -8056,7 +8147,7 @@ function renderSkyWheel(planets) {
   let cusps = null;
   const place = getSkyPlace();
   if (place) {
-    try { cusps = Array.from(swe.houses(skyJD, place.lat, place.lon, 'P').cusps).slice(1, 13); }
+    try { cusps = Array.from(swe.houses_ex(skyJD, (swe.SEFLG_SWIEPH ?? 2), place.lat, place.lon, houseSysForType('sky')).cusps).slice(1, 13); }
     catch { cusps = null; }
   }
 
@@ -8977,7 +9068,7 @@ function renderHomeSky() {
   const place = getSkyPlace();
   if (place) {
     try {
-      const hRes = swe.houses(jd, place.lat, place.lon, 'P');
+      const hRes = swe.houses_ex(jd, (swe.SEFLG_SWIEPH ?? 2), place.lat, place.lon, houseSysForType('sky'));
       cusps = Array.from(hRes.cusps).slice(1, 13);
     } catch { cusps = null; }
   }

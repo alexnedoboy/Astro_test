@@ -342,7 +342,7 @@ PLANETS = [
 ## Зодиак и система домов
 
 - `SIGNS` — 12 глифов знаков (Unicode + `︎` чтобы не рендерились как эмодзи)
-- Система домов: Placidus (`'P'` в `swe.houses`)
+- **Система домов — каскад** (см. память/обсуждение): оверрайд кейса (`t.houseSystem` ↔ `charts.house_system`, селектор-чип `#v2-house-sys` на карточке) → дефолт типа кейса из настроек (`houseSysNatal`='P', `houseSysHorary`='R', `houseSysElection`='P', раздел «Расчёты»). Резолверы: `houseSysFor(t)` / `houseSysForType(type)`. Фактическая система пишется в кейс при сохранении (`caseExtraColumns`); миграция — `supabase_house_system.sql`, код толерантен к отсутствию колонки. Список систем — `HOUSE_SYSTEMS` (P/K/R/C/O/E/W/B). ВАЖНО: только `swe.houses_ex()` учитывает hsys (`swe.houses()` игнорирует — баг swisseph-wasm)
 - Угловые точки: `ANGULAR = { 0: 'As', 3: 'Ic', 6: 'Ds', 9: 'Mc' }`
 
 ---

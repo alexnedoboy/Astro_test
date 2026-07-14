@@ -1472,7 +1472,11 @@ function showSaveConfirm(msg, isError = false) {
 // Сохранить текущую карту (из формы) в Supabase. extra — колонки миграций
 // (case_type / question / folder / outcome); при их отсутствии в схеме
 // повторяем вставку без них (толерантность до миграции).
-async function saveCurrentChartToDb(extra = {}) {
+// Запись кейса: insert для нового, update для уже записанного (без дублей).
+// Ретраи на отсутствующие колонки: сначала без house_system, затем без extras.
+// targetTab — вкладка, которой принадлежит кейс (id пишется в неё, а не в
+// «активную на момент ответа» — автосейв асинхронный, вкладку могли сменить).
+async function saveCurrentChartToDb(extra = {}, targetTab = null) {
   const name = document.getElementById('chartName').value.trim()
              || document.getElementById('birthPlace').value
              || tr('chartFallback');
@@ -1487,22 +1491,48 @@ async function saveCurrentChartToDb(extra = {}) {
     utc_offset: parseFloat(document.getElementById('utcOff').value)  || null,
     timezone:   detectedTimezone ?? null,
   };
-  let res = await sb.from('charts').insert({ ...baseRow, ...extra }).select().single();
+  const tt = targetTab ?? ((activeTab >= 0 && tabs[activeTab]) ? tabs[activeTab] : null);
+  const existingId = tt?.chartId ?? currentChartId ?? null;
+
+  const write = row => existingId
+    ? sb.from('charts').update(row).eq('id', existingId).select().single()
+    : sb.from('charts').insert(row).select().single();
+
+  let res = await write({ ...baseRow, ...extra });
+  if (res.error && extra.house_system) {  // до миграции house_system может не быть
+    const { house_system, ...rest } = extra;
+    console.warn('charts write: house_system отклонён, ретрай без него:', res.error.message);
+    res = await write({ ...baseRow, ...rest });
+  }
   if (res.error && Object.keys(extra).length) {
-    console.warn('charts insert with extras failed, retrying base row:', res.error.message);
-    res = await sb.from('charts').insert(baseRow).select().single();
+    console.warn('charts write with extras failed, retrying base row:', res.error.message);
+    res = await write(baseRow);
   }
   if (res.error) return res;
   const data = res.data;
-  // Сохранённая карта сразу становится «открытой» — заметки доступны без переоткрытия
-  currentChartId = data.id;
-  if (activeTab >= 0 && tabs[activeTab]) { tabs[activeTab].chartId = data.id; persistTabs(); }
-  const newHash = `#chart/${data.id}`;
-  if (window.location.hash !== newHash) {
-    history.pushState({ chartId: data.id }, '', newHash);
+  // Записанная карта сразу становится «открытой» — заметки доступны без переоткрытия
+  if (tt) { tt.chartId = data.id; persistTabs(); }
+  if (!targetTab || tt === tabs[activeTab]) {
+    currentChartId = data.id;
+    const newHash = `#chart/${data.id}`;
+    if (window.location.hash !== newHash) {
+      history.pushState({ chartId: data.id }, '', newHash);
+    }
+    if (notesPanelOpen) openNotesTab();
   }
-  if (notesPanelOpen) openNotesTab();
   return res;
+}
+
+// Авто-запись кейса (Obsidian-модель: создание/правка = запись, отдельного
+// «сохранить» не нужно). Sky — transient (§14: 💾 превращает его в элекцию),
+// синастрия — свой путь (saveSynastryToDb), палитра — не кейс.
+function persistCaseToDb(t) {
+  if (!currentUser || !t || t.kind === 'palette' || t.type === 'sky' || t.type === 'synastry') return;
+  saveCurrentChartToDb(caseExtraColumns(t), t).then(({ error }) => {
+    if (error) { showSaveConfirm(tr('saveError'), true); return; }
+    showSaveConfirm(tr('saved'));
+    loadHomeCharts();   // список на главной, в библиотеке и палитре
+  });
 }
 
 // Доп-колонки для сохранения по типу кейса
@@ -2266,6 +2296,7 @@ function openNewTabFromForm(chartId, caseType = 'natal', outcome = null, snapsho
   updateHashForActiveTab(true);
   persistTabs();
   renderTabBar();
+  persistCaseToDb(t);   // авто-запись: создание кейса = запись
   return true;
 }
 
@@ -2416,14 +2447,7 @@ function computeIntoPaletteTab() {
   updateHashForActiveTab(true);
   persistTabs();
   renderTabBar();
-  // Хорары и элекции автосохраняются в свою папку (толерантно к отсутствию колонок)
-  if ((t.type === 'horary' || t.type === 'election') && currentUser) {
-    saveCurrentChartToDb(caseExtraColumns(t)).then(({ error }) => {
-      if (error) { showSaveConfirm(tr('saveError'), true); return; }
-      showSaveConfirm(tr('saved'));
-      loadHomeCharts();   // папка/список на главной и в палитре
-    });
-  }
+  persistCaseToDb(t);   // авто-запись любого нового кейса (хорар/элекция — в свою папку)
 }
 
 document.getElementById('palette-cmds').addEventListener('click', e => {
@@ -3628,6 +3652,7 @@ document.getElementById('calcBtn').addEventListener('click', () => {
       t.st      = captureState();
       persistTabs();
       renderTabBar();
+      persistCaseToDb(t);   // правка = запись (update существующей строки)
     }
   } else if (!dashboardOpen && tabs[activeTab]?.kind === 'palette') {
     // Конструктор из палитры — кейс рождается в этой же вкладке

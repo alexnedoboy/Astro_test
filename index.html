@@ -558,11 +558,14 @@
 <script type="module">
 import SwissEph    from 'https://cdn.jsdelivr.net/gh/prolaxu/swisseph-wasm@main/src/swisseph.js';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { STRINGS } from './js/strings.js';
+// Локальные модули версионируются (?v=N): index.html всегда свежий (SW network-first),
+// а модули кэшируются браузером/CDN — при изменении СОСТАВА ЭКСПОРТОВ бампните версию,
+// иначе свежий index.html слинкуется со старым кэшем модуля и приложение умрёт.
+import { STRINGS } from './js/strings.js?v=2';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
-         refreshSettingsModal } from './js/settings.js';
-import { PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js';
+         refreshSettingsModal } from './js/settings.js?v=2';
+import { HOUSE_SYSTEMS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js?v=2';
 
 // ┌─────────────────────────────────────────────────────────────────────────────┐
 // │  TODO: вставьте ваши данные из Supabase → Project Settings → API           │
@@ -880,12 +883,6 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 // сохранены. onChange — только применение (рендер/классы), хранение — в каркасе.
 
 let showProgLunarPhases = true;  // фактические значения выставляются ниже из реестра
-
-// Системы домов: код swisseph (houses_ex) → ключ подписи в STRINGS
-const HOUSE_SYSTEMS = [
-  ['P', 'hsysP'], ['K', 'hsysK'], ['R', 'hsysR'], ['C', 'hsysC'],
-  ['O', 'hsysO'], ['E', 'hsysE'], ['W', 'hsysW'], ['B', 'hsysB'],
-];
 
 // Каскад системы домов: оверрайд кейса (t.houseSystem / charts.house_system)
 // → дефолт типа кейса из настроек. Синастрия считает субъектов как наталы.

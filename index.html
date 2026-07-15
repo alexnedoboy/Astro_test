@@ -561,6 +561,9 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // Локальные модули версионируются (?v=N): index.html всегда свежий (SW network-first),
 // а модули кэшируются браузером/CDN — при изменении СОСТАВА ЭКСПОРТОВ бампните версию,
 // иначе свежий index.html слинкуется со старым кэшем модуля и приложение умрёт.
+import './js/state.js?v=1';   // леджер разделяемого состояния — до всех модулей
+import { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff }
+  from './js/astro-core.js?v=1';
 import { STRINGS } from './js/strings.js?v=3';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
@@ -578,7 +581,6 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── i18n ──────────────────────────────────────────────────────────────────────
 
-let currentLang = localStorage.getItem('lang') || 'ru';
 
 
 function tr(key, vars) {
@@ -637,8 +639,6 @@ function applyLang() {
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-let currentUser = null;
-let elementColorsMode = false;
 
 // Restore session on page load (handles OAuth redirect)
 sb.auth.getSession().then(({ data: { session } }) => updateAuthUI(session?.user ?? null));
@@ -882,7 +882,6 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 // Все записи здесь глобальные («метод астролога»). Прежние localStorage-ключи
 // сохранены. onChange — только применение (рендер/классы), хранение — в каркасе.
 
-let showProgLunarPhases = true;  // фактические значения выставляются ниже из реестра
 
 // Каскад системы домов: оверрайд кейса (t.houseSystem / charts.house_system)
 // → дефолт типа кейса из настроек. Синастрия считает субъектов как наталы.
@@ -1988,27 +1987,9 @@ const ORB_PROFILES = { tight: 0.75, std: 1, wide: 1.25 };
 function natalOrbFactor()   { return ORB_PROFILES[getSetting('orbProfileNatal')]   ?? 1; }
 function transitOrbFactor() { return ORB_PROFILES[getSetting('orbProfileTransit')] ?? 1; }
 
-let swe              = null;
-let natalData        = null;   // { planets, cusps, asc, mc } — субъект A (в синастрии)
-let synastryB        = null;   // данные субъекта B в синастрии (то же, что natalData)
-let synView          = 'both'; // вид карты в синастрии: 'a' | 'b' | 'both' (совмещённое биколесо)
 let _synEditSlot     = null;   // слот ('a'|'b'), редактируемый через #form-wrap, либо null
-let cachedTimeline   = null;   // transit timeline cache
-let tlPastYears      = 0;      // extra years extended into the past
-let tlFutureYears    = 0;      // extra years extended into the future
-let expandedRows     = new Set();  // natal planet IDs whose row is expanded
-let fastCache        = {};         // natal planet id → fast-transit periods[]
-let hiddenTPlants    = new Set();  // transiting planet IDs hidden from timeline
-let tlYearScale      = false;      // 10Y scale timeline
-let tl2Year         = false;      // 2Y scale timeline
-let moonBandCollapsed = false;     // whether progressed Moon band is collapsed
-let detectedTimezone = null;   // IANA timezone name after geocoding
-let currentTransitJD = null;   // currently displayed JD (null = today)
-let currentMode      = 'transit'; // 'transit' | 'progressed' | 'direction'
 let currentForecastHouse = 7;    // selected house for long-term forecast (1–12)
-let currentChartId   = null;   // Supabase id of the currently open chart
 let _pendingChartLoad = null;  // chart row waiting for swe to initialize
-let sweReady = false;          // true после полной инициализации swisseph
 
 (async () => {
   try {
@@ -2184,9 +2165,6 @@ document.getElementById('birthPlace').addEventListener('keydown', e => {
 // идёт в те же статичные DOM-узлы V2 — при переключении мы свопаем глобалы и
 // перерисовываем. Натальные данные пересчёту не подлежат, поэтому держим их
 // прямо в объекте вкладки.
-let tabs = [];           // [{ uid, chartId, fields, header, st }]
-let activeTab = -1;      // индекс активной вкладки (-1 = ни одной)
-let dashboardOpen = true; // показан ли дашборд поверх вкладок
 let _tabUid = 0;
 
 function readFormFields() {
@@ -3175,7 +3153,6 @@ document.getElementById('v2-house-sys').addEventListener('change', async e => {
 // Метка типа кейса (натал / синастрия / хорар / …) — см. WORKSPACE_CONCEPT.md §7.
 // Тип фиксируется при создании кейса; межтипового переключения нет.
 const CASE_TYPE_LABELS = { natal:'натал', synastry:'синастрия', horary:'хорар', election:'элекция', event:'событие', sky:'небо' };
-let currentCaseType = 'natal';
 function applyCaseType(type) {
   currentCaseType = type || 'natal';
   const el = document.getElementById('v2-case-type');
@@ -3239,8 +3216,7 @@ const RP_WIDGETS = {
   aspflow:   { i18n: 'panelTabAspFlow'    },
 };
 const RP_DEFAULT_TABS = ['grades', 'aspects'];
-let rightPanelTabs = [...RP_DEFAULT_TABS];
-let rightPanelTab  = 'grades';
+rightPanelTabs = [...RP_DEFAULT_TABS];
 
 function sanitizeRpTabs(arr) {
   const ok = Array.isArray(arr) ? arr.filter(id => RP_WIDGETS[id]) : [];
@@ -3459,7 +3435,7 @@ const MODE_TAB_I18N   = {
   natal: 'v2ModeNatal', transit: 'v2ModeTransit',
   progressed: 'v2ModeProgressed', direction: 'v2ModeDirection',
 };
-let chartModeTabs = [...CHART_MODE_ALL];
+chartModeTabs = [...CHART_MODE_ALL];
 
 function sanitizeChartModeTabs(arr) {
   return Array.isArray(arr) ? CHART_MODE_ALL.filter(m => arr.includes(m)) : [...CHART_MODE_ALL];
@@ -3689,43 +3665,7 @@ document.getElementById('edit-backdrop').addEventListener('click', () => {
 // Обёртка calc_ut, которая не роняет расчёт, если тело недоступно на данную дату
 // (напр. Хирон вне диапазона астероидных файлов seas_*.se1 до 1800 г. — Мошье
 // астероиды не считает). Возвращает массив результата либо null.
-function safeCalcUt(jd, id, flags) {
-  try { return swe.calc_ut(jd, id, flags); }
-  catch (e) { return null; }
-}
 
-// Чистый расчёт карты из набора полей (без DOM). Возвращает объект данных карты
-// либо null, если полей не хватает. fields = { birthDate, birthTime, lat, lon, utcOff }.
-// houseSys — система домов ('P' Плацидус по умолчанию, 'R' Региомонтан у хорара).
-function computeChartData(fields, houseSys = 'P') {
-  if (!swe || !fields) return null;
-  const lat    = parseFloat(fields.lat);
-  const lon    = parseFloat(fields.lon);
-  const utcOff = parseFloat(fields.utcOff) || 0;
-  if (!fields.birthDate || !fields.birthTime || isNaN(lat) || isNaN(lon)) return null;
-
-  const [y, m, d] = fields.birthDate.split('-').map(Number);
-  const [hr, mn]  = fields.birthTime.split(':').map(Number);
-  const jd        = swe.julday(y, m, d, hr + mn / 60 - utcOff);
-  const flags     = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
-
-  const planets = PLANETS.map(p => {
-    const r = safeCalcUt(jd, p.id, flags);   // вне диапазона астероидных файлов (Хирон < 1800) — пропуск
-    if (!r) return null;
-    return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
-  }).filter(Boolean);
-
-  // ВАЖНО: swe.houses() (4 аргумента) в swisseph-wasm игнорирует параметр системы
-  // домов и всегда считает Плацидус — используем houses_ex(), которая учитывает hsys.
-  const hRes  = swe.houses_ex(jd, flags, lat, lon, houseSys);
-  const cusps = Array.from(hRes.cusps).slice(1, 13);
-  const ascmc = Array.from(hRes.ascmc);
-  const asc   = ((ascmc[0] % 360) + 360) % 360;
-  const mc    = ((ascmc[1] % 360) + 360) % 360;
-
-  planets.forEach(p => { p.house = findHouse(p.longitude, cusps); });
-  return { planets, cusps, asc, mc, birthJD: jd, lat, lon, originalBirthJD: jd, utcOff };
-}
 
 // Построить натальные данные из формы и отрисовать в V2.
 // Не управляет вкладками — это делают вызывающие. Возвращает true при успехе.
@@ -3804,18 +3744,7 @@ document.getElementById('calcBtn').addEventListener('click', () => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function findHouse(lon, cusps) {
-  for (let i = 0; i < 12; i++) {
-    const s = cusps[i], e = cusps[(i + 1) % 12];
-    if (s <= e ? (lon >= s && lon < e) : (lon >= s || lon < e)) return i + 1;
-  }
-  return 1;
-}
 
-// Ecliptic longitude → SVG angle (ASC at 9 o'clock, CCW = increasing lon)
-function lonToRad(lon, asc) { return (180 - (lon - asc)) * Math.PI / 180; }
-function polar(a, r)         { return { x: CX + r * Math.cos(a), y: CY + r * Math.sin(a) }; }
-function angDiff(a, b)       { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
 
 // ── South Node helper ─────────────────────────────────────────────────────────
 // South Node is always exactly opposite the North Node (id=10).
@@ -7750,11 +7679,8 @@ document.getElementById('v2-control-panel').addEventListener('click', e => {
   }
 });
 
-let layout2Active = false;
 const V2_TL_STATES  = ['tl-normal', 'tl-expanded'];
 const V2_TL_LABELS  = ['▲', '▼'];
-let layout2TlState  = 0;
-let chartExpanded   = false;
 // Показ V2 теперь идёт через computeAndRenderNatal()/paintActiveChart() (см. менеджер вкладок).
 
 document.getElementById('v2-exit-btn').addEventListener('click', () => exitChartMode(true));
@@ -8235,16 +8161,9 @@ document.getElementById('v2-chart-expand-btn').addEventListener('click', () => {
 // SKY NOW MODE — Актуальные аспекты
 // ═══════════════════════════════════════════════════════════════════════════════
 
-let skyJD = null;          // current JD in sky mode (null = now)
-let skyNavMode = 'date';   // 'date' | 'time'
-let skySnapshots = [];     // session election variants: { id, jd, label }
-let skySnapActiveId = null; // id снимка, на который сейчас установлено T (null = ушли вручную)
-let skyScale = '1Y';       // '1M' | '1Y' | '2Y' | '10Y'
-let skyCachedTimeline = null;
 // Хост таймлайна неба: куда рисовать и как читать/двигать T.
 // null = классический режим «Небо» (#sky-timeline-content, T = skyJD).
 // election = вкладка элекции (#right-timeline-content, T = момент карты).
-let skyTlHost = null;
 function tlHostContentEl() {
   return document.getElementById(skyTlHost ? skyTlHost.contentId : 'sky-timeline-content');
 }
@@ -8255,11 +8174,6 @@ function tlHostSetJD(jd) {
   if (skyTlHost) { skyTlHost.setJD(jd); return; }
   renderSkyAt(jd); syncSkyDateLabel(); clearSkySnapActive();
 }
-let skyLayoutActive = false;
-let skyTlHidden = false;
-let skyMoonOn = false;          // Moon band visible in sky timeline (off by default)
-let skyHighlightPlanet = null;  // planet id whose aspects are emphasised (null = none)
-let skyTlVariant = 'A';         // 'A' — строки по медленной планете; 'B' — по первой/быстрой
 
 // ── Enter / Exit ──────────────────────────────────────────────────────────────
 

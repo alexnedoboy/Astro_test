@@ -311,7 +311,7 @@
   #tl-filter input[type=checkbox] { accent-color: var(--accent); width: 12px; height: 12px; margin: 0; }
 
   #tl-settings-menu {
-    position: fixed; z-index: 9999;
+    position: fixed; z-index: 9999; max-width: 300px;
     background: var(--bg); border: 1px solid var(--bd); border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.12);
     padding: 4px 0; min-width: 130px;
@@ -2059,3 +2059,17 @@
   /* Широкая строка настроек: контрол под подписью на всю ширину */
   .sm-row-wide { flex-direction: column; align-items: stretch; gap: 4px; }
   .sm-row-wide .pf-grid { margin: 8px 0 0; }
+
+  /* ── Меню ☰ таймлайна: глобальные тумблеры классов событий ── */
+  .tl-sm-scope {
+    padding: 5px 16px 3px; font-size: 0.72em; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--tx-7); user-select: none;
+  }
+  .tl-sm-toggle {
+    display: flex; align-items: center; gap: 8px; color: var(--tx-2); cursor: pointer;
+    /* нейтрализуем глобальный стиль label (капс/межбуквенный/выравнивание) */
+    justify-content: flex-start; text-transform: none; letter-spacing: normal;
+    text-align: left; font-weight: normal; margin: 0;
+  }
+  .tl-sm-toggle input { width: 15px; height: 15px; accent-color: var(--accent); margin: 0; cursor: pointer; flex-shrink: 0; }
+  .tl-sm-link { border-top: 1px solid var(--bd-light); margin-top: 4px; }

@@ -979,7 +979,76 @@ defineSettings([
       showProgLunarPhases = v;
       if (natalData && currentMode === 'progressed') renderProgressedBiwheel(currentTransitJD);
     } },
+  // Классы событий таймлайна (глобально — «метод астролога»; гейты в computeAndRenderTimeline)
+  { id: 'tlProgIngress', section: 'timeline', type: 'toggle', default: true,
+    lsKey: 'tlProgIngress', lsKind: 'bool01', labelKey: 'tlProgIngress',
+    onChange: refreshTimelineFromSettings },
+  { id: 'tlProgHouses', section: 'timeline', type: 'toggle', default: true,
+    lsKey: 'tlProgHouses', lsKind: 'bool01', labelKey: 'tlProgHouses',
+    onChange: refreshTimelineFromSettings },
+  { id: 'tlReturns', section: 'timeline', type: 'toggle', default: true,
+    lsKey: 'tlReturns', lsKind: 'bool01', labelKey: 'tlReturns',
+    onChange: refreshTimelineFromSettings },
+  { id: 'tlAngles', section: 'timeline', type: 'toggle', default: true,
+    lsKey: 'tlAngles', lsKind: 'bool01', labelKey: 'tlAnglesRow',
+    onChange: refreshTimelineFromSettings },
 ]);
+
+// Пересчёт таймлайна после смены классов событий (кэш инвалидируется; если
+// таймлайна нет на экране — хорар/синастрия — просто посчитается заново при показе)
+function refreshTimelineFromSettings() {
+  if (!natalData || !cachedTimeline) { cachedTimeline = null; return; }
+  const savedCenter = cachedTimeline.center;
+  cachedTimeline = null;
+  computeAndRenderTimeline(natalData.planets, savedCenter);
+}
+
+// ☰ меню панели Таймлайна — вторая точка доступа к тем же глобальным настройкам
+// (одно хранилище: тумблеры зовут setSetting, секция помечена «Все карты»).
+const TL_MENU_ITEMS = [   // [id настройки, ключ подписи]
+  ['tlProgIngress', 'tlProgIngress'],
+  ['tlProgHouses', 'tlProgHouses'],
+  ['showProgLunarPhases', 'progLunarPhases'],
+  ['tlReturns', 'tlReturns'],
+  ['tlAngles', 'tlAnglesRow'],
+];
+
+function closeTlSettingsMenu() { document.getElementById('tl-settings-menu')?.remove(); }
+
+function openTlSettingsMenu(anchorBtn) {
+  if (document.getElementById('tl-settings-menu')) { closeTlSettingsMenu(); return; }
+  const m = document.createElement('div');
+  m.id = 'tl-settings-menu';
+  const scope = document.createElement('div');
+  scope.className = 'tl-sm-scope';
+  scope.textContent = tr('tlScopeAll');
+  m.appendChild(scope);
+  for (const [id, labelKey] of TL_MENU_ITEMS) {
+    const row = document.createElement('label');
+    row.className = 'tl-sm-item tl-sm-toggle';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !!getSetting(id);
+    cb.addEventListener('change', () => setSetting(id, cb.checked));
+    const span = document.createElement('span');
+    span.textContent = tr(labelKey);
+    row.append(cb, span);
+    m.appendChild(row);
+  }
+  const link = document.createElement('div');
+  link.className = 'tl-sm-item tl-sm-link';
+  link.textContent = tr('tlAllSettings');
+  link.addEventListener('click', () => { closeTlSettingsMenu(); openSettingsModal('timeline'); });
+  m.appendChild(link);
+  document.body.appendChild(m);
+  // Таймлайн внизу — меню раскрывается вверх от кнопки
+  const r = anchorBtn.getBoundingClientRect();
+  m.style.right  = Math.max(8, window.innerWidth - r.right) + 'px';
+  m.style.bottom = (window.innerHeight - r.top + 4) + 'px';
+  setTimeout(() => document.addEventListener('click', function onDoc(e) {
+    if (!m.contains(e.target)) { closeTlSettingsMenu(); document.removeEventListener('click', onDoc); }
+  }), 0);
+}
 
 // Стартовое применение (без onChange-каскадов: applyLang зовётся в конце файла)
 elementColorsMode   = getSetting('elementColors');
@@ -5829,7 +5898,7 @@ function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
         jdEnd       = jdCoreEnd + 30;
       }
       // Angular cusps as extra conjunction-only targets (As / Ic / Ds / Mc)
-      const angleTargets = natalData?.cusps
+      const angleTargets = (getSetting('tlAngles') && natalData?.cusps)
         ? [0, 3, 6, 9].map(i => ({
             id: TL_ANGLE_ID, isAngle: true,
             glyph: ANGULAR[i], name: ANGULAR_NAMES[i],
@@ -5837,11 +5906,14 @@ function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
           }))
         : [];
       const transitData = computeTransits(natalPlanets, jdStart, jdEnd, angleTargets);
-      const returnPeriods = computeReturnPeriods(natalPlanets, transitData.jdStart, transitData.jdEnd);
-      transitData.periods.push(...returnPeriods);
-      const progEvents  = natalData?.birthJD
+      if (getSetting('tlReturns')) {
+        transitData.periods.push(...computeReturnPeriods(natalPlanets, transitData.jdStart, transitData.jdEnd));
+      }
+      const progEvents  = (natalData?.birthJD
         ? computeProgressedEvents(natalPlanets, natalData.cusps, natalData.birthJD, transitData.jdStart, transitData.jdEnd)
-        : [];
+        : []
+      ).filter(e => (e.type !== 'sign'  || getSetting('tlProgIngress'))
+                 && (e.type !== 'house' || getSetting('tlProgHouses')));
       const dirEvents   = natalData?.birthJD
         ? computeDirectionEvents(natalPlanets, natalData.cusps, natalData.birthJD, transitData.jdStart, transitData.jdEnd)
         : [];
@@ -6404,6 +6476,13 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
   });
   scaleWrap.append(btn1Y, btn2Y, btn10Y);
   nav.append(prevShiftBtn, navLbl, nextShiftBtn, scaleWrap);
+  if (!tlCtx) {   // натальный таймлайн: ☰ — настройки классов событий (у неба свой набор)
+    const menuBtn = hel('button', 'tl-scale-btn tl-menu-btn');
+    menuBtn.textContent = '☰';
+    menuBtn.title = tr('settings');
+    menuBtn.addEventListener('click', e => { e.stopPropagation(); openTlSettingsMenu(menuBtn); });
+    nav.appendChild(menuBtn);
+  }
 
   // ── Left panel SVG (sticky planet labels) ───────────────────────────────────
   const svgL = el('svg', { id: 'tl-svg-left', width: LABEL_W, height: TL_H });

@@ -561,11 +561,11 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // Локальные модули версионируются (?v=N): index.html всегда свежий (SW network-first),
 // а модули кэшируются браузером/CDN — при изменении СОСТАВА ЭКСПОРТОВ бампните версию,
 // иначе свежий index.html слинкуется со старым кэшем модуля и приложение умрёт.
-import { STRINGS } from './js/strings.js?v=2';
+import { STRINGS } from './js/strings.js?v=3';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
-         refreshSettingsModal } from './js/settings.js?v=2';
-import { HOUSE_SYSTEMS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js?v=2';
+         refreshSettingsModal } from './js/settings.js?v=3';
+import { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js?v=3';
 
 // ┌─────────────────────────────────────────────────────────────────────────────┐
 // │  TODO: вставьте ваши данные из Supabase → Project Settings → API           │
@@ -597,7 +597,7 @@ function applyLang() {
   // Update mutable data arrays
   PLANETS.forEach(p => { p.name = tr(PLANET_KEYS[p.id] ?? 'chartFallback'); });
   STRINGS[currentLang].signs.forEach((s, i) => { SIGN_NAMES[i] = s; });
-  const aspKeys = ['asp_conjunction','asp_sextile','asp_square','asp_trine','asp_opposition'];
+  const aspKeys = ['asp_conjunction','asp_sextile','asp_square','asp_trine','asp_opposition','asp_semisextile','asp_quincunx'];
   ASPECTS.forEach((a, i) => { a.name = tr(aspKeys[i]); });
   Object.assign(ANGULAR_NAMES, STRINGS[currentLang].angularNames);
   // Update static HTML
@@ -930,6 +930,45 @@ defineSettings([
   { id: 'houseSysElection', section: 'calc', type: 'select', options: HOUSE_SYSTEMS,
     default: 'P', lsKey: 'houseSysElection', lsKind: 'string', labelKey: 'hsElection',
     onChange: () => onHouseDefaultChange('election') },
+  { id: 'natalAspects', section: 'aspects', type: 'custom', wide: true, labelKey: 'natalAspectsLabel',
+    render: () => {
+      const grid = document.createElement('div');
+      grid.className = 'pf-grid';
+      ASPECTS.forEach(a => {
+        const label = document.createElement('label');
+        label.className = 'pf-item';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = natalAspectFilter.has(a.angle);
+        cb.addEventListener('change', () => {
+          if (cb.checked) natalAspectFilter.add(a.angle);
+          else natalAspectFilter.delete(a.angle);
+          saveNatalAspectFilter();
+          refreshAspectsFromSettings();
+        });
+        const sym = document.createElement('span');
+        sym.className = 'pf-glyph';
+        sym.textContent = a.symbol;
+        sym.style.color = a.color;
+        const name = document.createElement('span');
+        name.textContent = a.name;
+        label.append(cb, sym, name);
+        grid.appendChild(label);
+      });
+      return grid;
+    } },
+  { id: 'orbProfileNatal', section: 'aspects', type: 'select',
+    options: [['tight', 'orbTight'], ['std', 'orbStd'], ['wide', 'orbWide']],
+    default: 'std', lsKey: 'orbProfileNatal', lsKind: 'string', labelKey: 'orbNatal',
+    onChange: refreshAspectsFromSettings },
+  { id: 'orbProfileTransit', section: 'aspects', type: 'select',
+    options: [['tight', 'orbTight'], ['std', 'orbStd'], ['wide', 'orbWide']],
+    default: 'std', lsKey: 'orbProfileTransit', lsKind: 'string', labelKey: 'orbTransit',
+    onChange: () => {
+      fastCache = {};                 // быстрые транзиты считались со старым орбисом
+      refreshTimelineFromSettings();
+      if (currentMode !== 'natal') reRenderCurrentChart();   // орбисы биколеса
+    } },
   { id: 'elementColors', section: 'chart', type: 'toggle', default: false,
     lsKey: 'elementColors', lsKind: 'bool01', labelKey: 'elements',
     onChange: v => { elementColorsMode = v; reRenderCurrentChart(); } },
@@ -994,6 +1033,14 @@ defineSettings([
     onChange: refreshTimelineFromSettings },
 ]);
 
+// Перерисовка после смены состава аспектов / орбисов натала: в натале —
+// карта + таблица + сетка, в остальных режимах — текущий вид (сетка своя)
+function refreshAspectsFromSettings() {
+  if (!natalData) return;
+  if (currentMode === 'natal') rerenderNatal();
+  else reRenderCurrentChart();
+}
+
 // Пересчёт таймлайна после смены классов событий (кэш инвалидируется; если
 // таймлайна нет на экране — хорар/синастрия — просто посчитается заново при показе)
 function refreshTimelineFromSettings() {
@@ -1057,7 +1104,7 @@ document.body.classList.toggle('privacy-mode', getSetting('privacyMode'));
 
 initSettingsUI({
   tr,
-  sections: [['general', 'smGeneral'], ['calc', 'smCalc'], ['chart', 'smChart'], ['timeline', 'smTimeline']],
+  sections: [['general', 'smGeneral'], ['calc', 'smCalc'], ['aspects', 'smAspects'], ['chart', 'smChart'], ['timeline', 'smTimeline']],
 });
 initSettingsSync(sb);
 
@@ -1917,6 +1964,29 @@ function filterNatalPlanets(planets) {
     p.id === -10 ? natalPlanetFilter.has(10) : natalPlanetFilter.has(p.id)
   );
 }
+
+// ── Состав аспектов натала (мажоры по умолчанию; минорные — через настройки) ──
+// Действует только на натальное отображение: линии карты + сетка аспектов.
+// Прогрессии/транзиты/поиск/события всегда MAJOR_ASPECTS (см. constants.js).
+function loadNatalAspectFilter() {
+  try {
+    const saved = localStorage.getItem('natalAspectFilter');
+    if (saved) return new Set(JSON.parse(saved));
+  } catch {}
+  return new Set(MAJOR_ASPECTS.map(a => a.angle));
+}
+let natalAspectFilter = loadNatalAspectFilter();
+function saveNatalAspectFilter() {
+  localStorage.setItem('natalAspectFilter', JSON.stringify([...natalAspectFilter]));
+}
+function activeNatalAspects() {
+  return ASPECTS.filter(a => natalAspectFilter.has(a.angle));
+}
+
+// ── Профили орбисов (глобальные множители к базовым таблицам) ─────────────────
+const ORB_PROFILES = { tight: 0.75, std: 1, wide: 1.25 };
+function natalOrbFactor()   { return ORB_PROFILES[getSetting('orbProfileNatal')]   ?? 1; }
+function transitOrbFactor() { return ORB_PROFILES[getSetting('orbProfileTransit')] ?? 1; }
 
 let swe              = null;
 let natalData        = null;   // { planets, cusps, asc, mc } — субъект A (в синастрии)
@@ -4079,8 +4149,8 @@ function drawAspects(g, planets, asc) {
       const ids = [planets[i].id, planets[j].id];
       if (ids.includes(10) && ids.includes(-10)) continue;
       const diff = angDiff(planets[i].longitude, planets[j].longitude);
-      for (const asp of ASPECTS) {
-        const orb = getNatalOrb(asp, planets[i].id, planets[j].id);
+      for (const asp of activeNatalAspects()) {
+        const orb = getNatalOrb(asp, planets[i].id, planets[j].id) * natalOrbFactor();
         const actualOrb = Math.abs(diff - asp.angle);
         if (actualOrb <= orb) {
           const tipText = `${planets[i].glyph} ${asp.name} ${planets[j].glyph}  ${fmtOrb(actualOrb)}`;
@@ -4678,10 +4748,11 @@ function renderAspFlow() {
 
 function findGridAspect(lon1, lon2, id1, id2, orbMode) {
   const diff = angDiff(lon1, lon2);
-  for (const asp of ASPECTS) {
+  const list = orbMode === 'natal' ? activeNatalAspects() : MAJOR_ASPECTS;
+  for (const asp of list) {
     let maxOrb;
     if (orbMode === 'natal') {
-      maxOrb = getNatalOrb(asp, id1, id2);
+      maxOrb = getNatalOrb(asp, id1, id2) * natalOrbFactor();
     } else if (orbMode === 'progressed') {
       maxOrb = (id1 === 0 || id1 === 1 || id2 === 0 || id2 === 1) ? 2 : 1;
     } else {
@@ -5107,7 +5178,7 @@ function drawProgressedAspects(g, natal, progressed, asc) {
       if ((pr.id === 10 && na.id === -10) || (pr.id === -10 && na.id === 10)) continue;
       const progOrb = (pr.id === 0 || pr.id === 1 || na.id === 0 || na.id === 1) ? 2.0 : 1.0;
       const diff = angDiff(pr.longitude, na.longitude);
-      for (const asp of ASPECTS) {
+      for (const asp of MAJOR_ASPECTS) {
         if (Math.abs(diff - asp.angle) <= progOrb) {
           const actualOrb = Math.abs(diff - asp.angle);
           const tipText = `${tr('prPrefix')}${pr.glyph} ${asp.name} ${tr('natPrefix')}${na.glyph}  ${fmtOrb(actualOrb)}`;
@@ -5481,12 +5552,12 @@ function drawBiwheelPlanets(g, planets, asc, rDot, rGlyphL0, rGlyphL1, dotColor 
 
 function drawTransitAspects(g, natal, transit, asc) {
   for (const tPl of transit) {
-    const orb = getTransitOrb(tPl.id);   // per-planet transit orb
+    const orb = getTransitOrb(tPl.id) * transitOrbFactor();   // per-planet transit orb
     for (const na of natal) {
       // Skip trivial N.Node ↔ S.Node opposition
       if ((tPl.id === 10 && na.id === -10) || (tPl.id === -10 && na.id === 10)) continue;
       const diff = angDiff(tPl.longitude, na.longitude);
-      for (const asp of ASPECTS) {
+      for (const asp of MAJOR_ASPECTS) {
         if (Math.abs(diff - asp.angle) <= orb) {
           const actualOrb = Math.abs(diff - asp.angle);
           const tipText = `${tr('trPrefix')}${tPl.glyph} ${asp.name} ${tr('natPrefix')}${na.glyph}  ${fmtOrb(actualOrb)}`;
@@ -5986,7 +6057,7 @@ function computeTransits(natalPlanets, jdWindowStart, jdWindowEnd, angleTargets 
   for (const id of transitIds) {
     const tPlanet  = PLANETS.find(p => p.id === id);
     const lons     = slowLons[id];
-    const orbLimit = getTransitOrb(id);
+    const orbLimit = getTransitOrb(id) * transitOrbFactor();
     const targets  = id === 4 ? angleTargets : [...natalPlanets, ...angleTargets];
 
     for (const na of targets) {
@@ -6086,7 +6157,7 @@ function computeFastTransits(natalPlanet, jdStart, jdEnd) {
 
   for (const id of FAST_IDS) {
     const tPlanet  = PLANETS.find(p => p.id === id);
-    const orbLimit = getTransitOrb(id);
+    const orbLimit = getTransitOrb(id) * transitOrbFactor();
     const lons     = new Float64Array(DAYS);
     for (let i = 0; i < DAYS; i++) {
       const r = swe.calc_ut(jdStart + i, id, flags);
@@ -7305,7 +7376,7 @@ function computeLongTermTransits(houseNum, rulerIds, natalPlanets, natalCusps, j
   const findTrPeriods = (id, targets, aspList) => {
     const lons     = slowLons[id];
     const tPlanet  = PLANETS.find(p => p.id === id);
-    const orbLimit = getTransitOrb(id);
+    const orbLimit = getTransitOrb(id) * transitOrbFactor();
     for (const na of targets) {
       const asps = (id === 10 || id === 12 || na.id === 10 || na.id === 12)
         ? aspList.filter(a => a.angle === 0) : aspList;
@@ -7955,7 +8026,7 @@ function lpGetFacts(c) {
     const a = pts[i], b = pts[j];
     if (typeof a.id === 'string' && typeof b.id === 'string') continue;  // asc–mc не аспект
     const d = angDiff(a.lon, b.lon);
-    for (const asp of ASPECTS) {
+    for (const asp of MAJOR_ASPECTS) {
       const orb = Math.abs(d - asp.angle);
       if (orb <= getNatalOrb(asp, a.id, b.id)) {
         aspects.push({ a: a.id, b: b.id, angle: asp.angle, orb });
@@ -9409,7 +9480,7 @@ function homeTransitEvents() {
     if (!natal) continue;
     for (const t of trans) {
       for (const n of natal) {
-        for (const asp of ASPECTS) {
+        for (const asp of MAJOR_ASPECTS) {
           const orb = Math.abs(angDiff(t.lon, n.lon) - asp.angle);
           if (orb > 1) continue;
           const orbNext = Math.abs(angDiff(((t.lon + t.spd) % 360 + 360) % 360, n.lon) - asp.angle);

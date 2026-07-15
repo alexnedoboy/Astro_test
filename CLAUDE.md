@@ -308,6 +308,8 @@ COLORS = {
 
 Транзитные аспекты (`T_ASPECTS`, orb 3°): используют `COLORS.tlSoft`, `COLORS.tlHard`, `COLORS.tlNeutral`.
 
+**Состав и орбисы настраиваются** (раздел «Аспекты» модалки): `ASPECTS` содержит мажоры (`major:true`) + минорные (полусекстиль 30°, квиконс 150°, по умолчанию выключены). Активный состав — `activeNatalAspects()` (фильтр `natalAspectFilter`, ls-ключ `natalAspectFilter`) — действует ТОЛЬКО на натальное отображение (линии карты `drawAspects`, сетка `findGridAspect` в режиме natal). Прогрессии/транзиты/поиск/события — всегда `MAJOR_ASPECTS`. Орбисы: профили-множители ×0.75/1/1.25 (`natalOrbFactor()` / `transitOrbFactor()`, настройки `orbProfileNatal`/`orbProfileTransit`); транзитный фактор действует на биколесо и таймлайн (смена сбрасывает `fastCache` + `cachedTimeline`), sky-расчёты не трогает.
+
 ---
 
 ## Данные планет

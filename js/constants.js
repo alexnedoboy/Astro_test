@@ -82,21 +82,30 @@ const SIGN_ELEM_COLORS = [
 // Angular cusp colors for element colors mode
 const ANGULAR_COLORS = { 0: '#ED0004', 3: '#72EF6D', 6: '#4248AA', 9: '#F84CD6' };
 
-// Natal aspects — dynamic orbs via getNatalOrb()
+// Natal aspects — dynamic orbs via getNatalOrb().
+// Мажоры (major:true) — всегда; минорные подключаются настройкой natalAspectFilter
+// и участвуют ТОЛЬКО в натальном отображении (линии карты, сетка аспектов).
+// Прогрессии/транзиты/поиск/события используют MAJOR_ASPECTS.
 const ASPECTS = [
-  { angle: 0,   color: COLORS.conj,      width: 1, dash: '', symbol: '☌\uFE0E', hg: 'q', type: 'conj', name: 'Соединение' },
-  { angle: 60,  color: COLORS.chartSoft, width: 1, dash: '', symbol: '✶',        hg: 't',               name: 'Секстиль' },
-  { angle: 90,  color: COLORS.chartHard, width: 1, dash: '', symbol: '□',        hg: 'r',               name: 'Квадрат' },
-  { angle: 120, color: COLORS.chartSoft, width: 1, dash: '', symbol: '△',        hg: 'e',               name: 'Трин' },
-  { angle: 180, color: COLORS.chartHard, width: 1, dash: '', symbol: '☍\uFE0E', hg: 'w',               name: 'Оппозиция' },
+  { angle: 0,   color: COLORS.conj,      width: 1, dash: '', symbol: '☌\uFE0E', hg: 'q', type: 'conj', major: true, name: 'Соединение' },
+  { angle: 60,  color: COLORS.chartSoft, width: 1, dash: '', symbol: '✶',        hg: 't',               major: true, name: 'Секстиль' },
+  { angle: 90,  color: COLORS.chartHard, width: 1, dash: '', symbol: '□',        hg: 'r',               major: true, name: 'Квадрат' },
+  { angle: 120, color: COLORS.chartSoft, width: 1, dash: '', symbol: '△',        hg: 'e',               major: true, name: 'Трин' },
+  { angle: 180, color: COLORS.chartHard, width: 1, dash: '', symbol: '☍\uFE0E', hg: 'w',               major: true, name: 'Оппозиция' },
+  { angle: 30,  color: '#8a8a8a', width: 1, dash: '4 3', symbol: '⚺\uFE0E', hg: '', major: false, name: 'Полусекстиль' },
+  { angle: 150, color: '#8a8a8a', width: 1, dash: '4 3', symbol: '⚻\uFE0E', hg: '', major: false, name: 'Квиконс' },
 ];
 
+const MAJOR_ASPECTS = ASPECTS.filter(a => a.major);
+
 // Dynamic natal orb: conjunction 8°/6°, trine & opposition 7°/6°, square & sextile 6°
-// +1° if Sun (0) or Moon (1) is involved
+// +1° if Sun (0) or Moon (1) is involved. Минорные: квиконс 3°/2°, полусекстиль 2°/1.5°.
 function getNatalOrb(asp, id1, id2) {
   const hasSunMoon = (id1 === 0 || id1 === 1 || id2 === 0 || id2 === 1);
   if (asp.angle === 0)   return hasSunMoon ? 8 : 6;
   if (asp.angle === 180 || asp.angle === 120) return hasSunMoon ? 7 : 6;
+  if (asp.angle === 150) return hasSunMoon ? 3 : 2;
+  if (asp.angle === 30)  return hasSunMoon ? 2 : 1.5;
   return 6;
 }
 
@@ -233,4 +242,4 @@ const HOUSE_SYSTEMS = [
   ['O', 'hsysO'], ['E', 'hsysE'], ['W', 'hsysW'], ['B', 'hsysB'],
 ];
 
-export { HOUSE_SYSTEMS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL };
+export { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL };

@@ -1208,7 +1208,7 @@ let _fpClose = null;
 function openFolderPicker(anchorBtn, currentFolder, onPick) {
   if (_fpClose) _fpClose();
 
-  const folders = [...new Set(_allCharts.map(c => c.folder).filter(Boolean))];
+  const folders = [...new Set([..._homeCharts, ..._allCharts].map(c => c.folder).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru'));
 
   _fp.innerHTML = '';
 

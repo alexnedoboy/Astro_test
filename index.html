@@ -2275,9 +2275,9 @@ function applyLayout2Classes() {
   hideHome();
   hidePaletteView();
   v2.classList.add('v2-visible');
-  v2.classList.remove(...V2_TL_STATES, 'tl-hidden');
+  v2.classList.remove(...V2_TL_STATES, 'tl-hidden', 'chart-expanded');
   if (chartExpanded) {
-    v2.classList.add('tl-hidden');
+    v2.classList.add('tl-hidden', 'chart-expanded');
     document.getElementById('v2-chart-expand-btn').textContent = '⤡';
   } else {
     v2.classList.add(V2_TL_STATES[layout2TlState]);
@@ -2426,7 +2426,7 @@ function goDashboard(push = true) {
   if (!tabs.length) { fullExitToHome(push); return; }
   if (!dashboardOpen) snapshotActiveTab();
   dashboardOpen = true;
-  document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', ...V2_TL_STATES);
+  document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', 'chart-expanded', ...V2_TL_STATES);
   layout2Active = false;
   hidePaletteView();
   closeNotesPanel();
@@ -2444,7 +2444,7 @@ function fullExitToHome(push = true) {
   hidePaletteView();
   currentChartId = null;
   if (push) history.pushState('', document.title, window.location.pathname + window.location.search);
-  document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', ...V2_TL_STATES);
+  document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', 'chart-expanded', ...V2_TL_STATES);
   showHome();
   natalData = null;
   cachedTimeline = null;
@@ -2470,7 +2470,7 @@ function openPaletteTab() {
 
 function showPaletteView() {
   hideHome();
-  document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', ...V2_TL_STATES);
+  document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', 'chart-expanded', ...V2_TL_STATES);
   layout2Active = false;
   document.getElementById('palette-view').classList.add('open');
   const inp = document.getElementById('palette-search');
@@ -7696,10 +7696,10 @@ document.getElementById('v2-chart-expand-btn').addEventListener('click', () => {
   chartExpanded = !chartExpanded;
   if (chartExpanded) {
     v2.classList.remove(...V2_TL_STATES);
-    v2.classList.add('tl-hidden');
+    v2.classList.add('tl-hidden', 'chart-expanded');
     document.getElementById('v2-chart-expand-btn').textContent = '⤡';
   } else {
-    v2.classList.remove('tl-hidden');
+    v2.classList.remove('tl-hidden', 'chart-expanded');
     v2.classList.add(V2_TL_STATES[layout2TlState]);
     document.getElementById('v2-chart-expand-btn').textContent = '⤢';
     if (cachedTimeline) {

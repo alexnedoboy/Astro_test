@@ -1681,6 +1681,15 @@
   #layout-v2.tl-hidden #v2-bottom { flex: 0 0 0; height: 0; overflow: hidden; }
   #layout-v2.tl-hidden #v2-tl-tab { display: none; }
 
+  /* chart-expanded: right panel hidden, chart takes full width */
+  #layout-v2.chart-expanded #v2-aspect-panel { display: none; }
+  #layout-v2.chart-expanded #v2-chart-area,
+  #layout-v2.chart-expanded.tl-hidden #v2-chart-area {
+    flex: 1 1 100%;
+    width: auto;
+    max-width: none;
+  }
+
   #v2-bottom {
     flex: 1;
     min-height: 0;

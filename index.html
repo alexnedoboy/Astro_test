@@ -405,6 +405,7 @@
         </table>
         <div id="aspect-grid"></div>
         <div id="dignities-view"></div>
+        <div id="dispositors-view"></div>
         <div id="aspflow-view"></div>
       </div>
       <div id="v2-notes-view">
@@ -3212,10 +3213,11 @@ document.getElementById('v2-outcome')?.addEventListener('click', e => {
 // context.ui, персистятся per-case. Реестр RP_WIDGETS — точка добавления новых
 // виджетов (достоинства, мидпойнты и т.д.).
 const RP_WIDGETS = {
-  grades:    { i18n: 'panelTabGrades'     },
-  aspects:   { i18n: 'panelTabAspects'    },
-  dignities: { i18n: 'panelTabDignities'  },
-  aspflow:   { i18n: 'panelTabAspFlow'    },
+  grades:      { i18n: 'panelTabGrades'      },
+  aspects:     { i18n: 'panelTabAspects'     },
+  dignities:   { i18n: 'panelTabDignities'   },
+  dispositors: { i18n: 'panelTabDispositors' },
+  aspflow:     { i18n: 'panelTabAspFlow'     },
 };
 const RP_DEFAULT_TABS = ['grades', 'aspects'];
 rightPanelTabs = [...RP_DEFAULT_TABS];
@@ -3241,10 +3243,11 @@ function applyRightPanelTab() {
   }
   const content   = document.getElementById('right-info-content');
   if (content) {
-    content.classList.remove('rp-grades', 'rp-aspects', 'rp-dignities', 'rp-aspflow');
+    content.classList.remove('rp-grades', 'rp-aspects', 'rp-dignities', 'rp-dispositors', 'rp-aspflow');
     content.classList.add('rp-' + (RP_WIDGETS[rightPanelTab] ? rightPanelTab : 'grades'));
   }
   if (rightPanelTab === 'dignities') renderDignities();
+  if (rightPanelTab === 'dispositors') renderDispositors();
   if (rightPanelTab === 'aspflow') renderAspFlow();
   const addBtn = document.getElementById('rp-add-btn');
   if (addBtn) addBtn.style.display =
@@ -4473,6 +4476,257 @@ function buildDignityTable(planets, cusps) {
     return td;
   });
   return table;
+}
+
+// ── Виджет «Диспозиторы»: цепочки управителей по знакам или по домам ──────────
+// Узел без исходящей стрелки — тупик (у критерия нет управителя для его знака).
+// Цикл длины 1 (планета в своей же обители и т.п. — сама себе управитель) —
+// финальный диспозитор, рисуется пунктирным кружком. Цикл длины 2 — взаимный
+// приём, рисуется двусторонней стрелкой.
+const DISP_IDS_7  = [0, 1, 2, 3, 4, 5, 6];
+const DISP_IDS_10 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+// Обитель с учётом современных управителей (Плутон/Уран/Нептун) — режим «10 планет»
+const DIG_SIGN_RULERS_MODERN = [4, 3, 2, 1, 0, 2, 3, 9, 5, 6, 7, 8];
+const ROMAN_12 = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+
+let dispSet = '10';        // '7' | '10' — состав планет-управителей
+let dispCriterion = 'dom'; // dom | exalt | trip | term | face | detr | fall
+let dispGroup = 'signs';   // signs | houses — что является узлом цепочки
+
+// Управитель знака sign (0–11) на градусе inDeg по критерию criterion
+function dispRulerOfSign(sign, inDeg, criterion, isDay, useModern) {
+  const domTable = useModern ? DIG_SIGN_RULERS_MODERN : DIG_SIGN_RULERS;
+  switch (criterion) {
+    case 'dom':  return domTable[sign];
+    case 'detr': return domTable[(sign + 6) % 12];
+    case 'exalt': {
+      const e = Object.entries(DIG_EXALT_SIGN).find(([, s]) => s === sign)?.[0];
+      return e != null ? Number(e) : null;
+    }
+    case 'fall': {
+      const f = Object.entries(DIG_EXALT_SIGN).find(([, s]) => (s + 6) % 12 === sign)?.[0];
+      return f != null ? Number(f) : null;
+    }
+    case 'trip': return DIG_TRIPLICITY[sign % 4][isDay ? 0 : 1];
+    case 'term': return DIG_TERMS[sign].find(([limit]) => inDeg < limit)?.[1] ?? DIG_TERMS[sign][4][1];
+    case 'face': return DIG_FACES[(sign * 3 + Math.floor(inDeg / 10)) % 7];
+    default:     return null;
+  }
+}
+
+// Функциональный граф (у узла не более одного исходящего ребра). Возвращает
+// { nodes, next, cycles, cycleOf, depth }; depth=0 у финальных узлов (цикл/тупик).
+function buildDispGraph(nodes, nextFn) {
+  const next = new Map();
+  nodes.forEach(n => next.set(n, nextFn(n)));
+  const state = new Map();
+  const cycles = [];
+  const cycleOf = new Map();
+  for (const n of nodes) {
+    if (state.has(n)) continue;
+    const path = [];
+    let cur = n;
+    while (cur != null && next.has(cur) && !state.has(cur)) {
+      state.set(cur, 1);
+      path.push(cur);
+      cur = next.get(cur);
+    }
+    if (cur != null && next.has(cur) && state.get(cur) === 1) {
+      const idx = path.indexOf(cur);
+      const cyc = path.slice(idx);
+      const cid = cycles.length;
+      cycles.push(cyc);
+      cyc.forEach(x => cycleOf.set(x, cid));
+    }
+    path.forEach(x => state.set(x, 2));
+  }
+  const depth = new Map();
+  function depthOf(x, guard) {
+    if (depth.has(x)) return depth.get(x);
+    if (cycleOf.has(x)) { depth.set(x, 0); return 0; }
+    const nx = next.get(x);
+    if (nx == null || !next.has(nx) || guard.has(x)) { depth.set(x, 0); return 0; }
+    guard.add(x);
+    const d = 1 + depthOf(nx, guard);
+    depth.set(x, d);
+    return d;
+  }
+  nodes.forEach(n => depthOf(n, new Set()));
+  return { nodes, next, cycles, cycleOf, depth };
+}
+
+// Слоистая раскладка функционального графа: колонка = глубина до финального узла
+// (финал — справа), строка внутри колонки — упрощённый barycenter-проход.
+function layoutDispGraph(nodes, next, depth) {
+  const maxDepth = Math.max(0, ...nodes.map(n => depth.get(n)));
+  const parent = new Map(nodes.map(n => [n, n]));
+  const find = x => { while (parent.get(x) !== x) x = parent.get(x); return x; };
+  const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb); };
+  nodes.forEach(n => { const t = next.get(n); if (t != null && next.has(t)) union(n, t); });
+  const compOf = new Map(nodes.map(n => [n, find(n)]));
+  const comps = [...new Set(nodes.map(n => compOf.get(n)))]
+    .map(root => nodes.filter(n => compOf.get(n) === root));
+
+  const children = new Map(nodes.map(n => [n, []]));
+  nodes.forEach(n => { const t = next.get(n); if (t != null && children.has(t)) children.get(t).push(n); });
+
+  const pos = new Map();
+  const COL_W = 78, ROW_H = 46;
+  let compY = 0;
+  for (const comp of comps) {
+    const byDepth = new Map();
+    comp.forEach(n => {
+      const d = depth.get(n);
+      if (!byDepth.has(d)) byDepth.set(d, []);
+      byDepth.get(d).push(n);
+    });
+    const rowOf = new Map();
+    let maxRows = 1;
+    for (let d = maxDepth; d >= 0; d--) {
+      const layer = byDepth.get(d);
+      if (!layer) continue;
+      let counter = 0;
+      const withRow = layer.map(n => {
+        const kids = children.get(n).filter(c => comp.includes(c));
+        const r = kids.length ? kids.reduce((s, c) => s + rowOf.get(c), 0) / kids.length : counter++;
+        return { n, r };
+      });
+      withRow.sort((a, b) => a.r - b.r);
+      withRow.forEach((it, i) => rowOf.set(it.n, i));
+      maxRows = Math.max(maxRows, withRow.length);
+    }
+    comp.forEach(n => {
+      const x = (maxDepth - depth.get(n)) * COL_W + 40;
+      const y = compY + rowOf.get(n) * ROW_H + 28;
+      pos.set(n, { x, y });
+    });
+    compY += maxRows * ROW_H + 30;
+  }
+  return { pos, height: compY };
+}
+
+function buildDispositorSvg(mode, criterion, useModern) {
+  const cusps = natalData.cusps;
+  const planets = natalData.planets;
+  const sun = planets.find(p => p.id === 0);
+  const isDay = sun ? findHouse(sun.longitude, cusps) >= 7 : true;
+  const activeIds = useModern ? DISP_IDS_10 : DISP_IDS_7;
+
+  let nodes, labelOf, nextFn;
+  if (mode === 'houses') {
+    nodes = ROMAN_12.map((_, i) => i + 1);
+    labelOf = h => ROMAN_12[h - 1];
+    nextFn = h => {
+      const cuspLon = ((cusps[h - 1] % 360) + 360) % 360;
+      const sign = Math.floor(cuspLon / 30);
+      const inDeg = cuspLon - sign * 30;
+      const rulerId = dispRulerOfSign(sign, inDeg, criterion, isDay, useModern);
+      const rp = rulerId != null ? planets.find(p => p.id === rulerId) : null;
+      return rp ? findHouse(rp.longitude, cusps) : null;
+    };
+  } else {
+    nodes = planets.filter(p => activeIds.includes(p.id)).map(p => p.id);
+    labelOf = id => digGlyph(id);
+    nextFn = id => {
+      const p = planets.find(pp => pp.id === id);
+      const lon = ((p.longitude % 360) + 360) % 360;
+      const sign = Math.floor(lon / 30);
+      const inDeg = lon - sign * 30;
+      const ruler = dispRulerOfSign(sign, inDeg, criterion, isDay, useModern);
+      return ruler != null && activeIds.includes(ruler) ? ruler : null;
+    };
+  }
+
+  const graph = buildDispGraph(nodes, nextFn);
+  const { pos, height } = layoutDispGraph(graph.nodes, graph.next, graph.depth);
+  const maxDepth = Math.max(0, ...nodes.map(n => graph.depth.get(n)));
+  const W = (maxDepth + 1) * 78 + 60;
+  const H = Math.max(90, height);
+  const svg = el('svg', {
+    viewBox: `0 0 ${W} ${H}`, width: '100%', height: H,
+    preserveAspectRatio: 'xMidYMid meet', style: 'display:block',
+  });
+  const defs = el('defs', {});
+  const marker = el('marker', {
+    id: 'disp-arrow-head', viewBox: '0 0 10 10', refX: 9, refY: 5,
+    markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse',
+  });
+  marker.appendChild(el('path', { d: 'M0,0 L10,5 L0,10 z', fill: 'var(--tx-6)' }));
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+
+  const drawnCycles = new Set();
+  for (const n of graph.nodes) {
+    const cid = graph.cycleOf.get(n);
+    if (cid == null) continue;
+    const cyc = graph.cycles[cid];
+    if (cyc.length === 2 && !drawnCycles.has(cid)) {
+      drawnCycles.add(cid);
+      const [a, b] = cyc;
+      const pa = pos.get(a), pb = pos.get(b);
+      svg.appendChild(ln(pa.x, pa.y, pb.x, pb.y, {
+        stroke: 'var(--tx-6)', 'stroke-width': 1,
+        'marker-end': 'url(#disp-arrow-head)', 'marker-start': 'url(#disp-arrow-head)',
+      }));
+    }
+  }
+  for (const n of graph.nodes) {
+    const cid = graph.cycleOf.get(n);
+    const cycLen = cid != null ? graph.cycles[cid].length : 0;
+    if (cycLen === 1 || cycLen === 2) continue;   // отрисовано отдельно / кружком
+    const target = graph.next.get(n);
+    if (target == null || !pos.has(target) || target === n) continue;
+    const pa = pos.get(n), pb = pos.get(target);
+    svg.appendChild(ln(pa.x + 13, pa.y, pb.x - 15, pb.y, {
+      stroke: 'var(--tx-6)', 'stroke-width': 1, 'marker-end': 'url(#disp-arrow-head)',
+    }));
+  }
+  for (const n of graph.nodes) {
+    const p = pos.get(n);
+    const cid = graph.cycleOf.get(n);
+    if (cid != null && graph.cycles[cid].length === 1) {
+      svg.appendChild(circ(p.x, p.y, 15, {
+        fill: 'none', stroke: 'var(--accent)', 'stroke-width': 1.2, 'stroke-dasharray': '3,2',
+      }));
+    }
+    svg.appendChild(txt(p.x, p.y, labelOf(n), {
+      'font-size': mode === 'houses' ? 13 : 17, 'text-anchor': 'middle',
+      'dominant-baseline': 'central', fill: 'var(--tx-2)',
+    }));
+  }
+  return svg;
+}
+
+function renderDispositors() {
+  const view = document.getElementById('dispositors-view');
+  if (!view) return;
+  view.innerHTML = '';
+  if (!natalData) return;
+
+  const bar = document.createElement('div');
+  bar.id = 'disp-controls';
+  const mkSelect = (options, value, onChange) => {
+    const sel = document.createElement('select');
+    for (const [v, label] of options) {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = label;
+      if (v === value) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    sel.addEventListener('change', () => onChange(sel.value));
+    return sel;
+  };
+  bar.appendChild(mkSelect([['10', tr('dispSet10')], ['7', tr('dispSet7')]],
+    dispSet, v => { dispSet = v; renderDispositors(); }));
+  bar.appendChild(mkSelect([
+    ['dom', tr('digRowDom')], ['exalt', tr('digRowExalt')], ['trip', tr('digRowTrip')],
+    ['term', tr('digRowTerm')], ['face', tr('digRowFace')], ['detr', tr('digRowDetr')], ['fall', tr('digRowFall')],
+  ], dispCriterion, v => { dispCriterion = v; renderDispositors(); }));
+  bar.appendChild(mkSelect([['signs', tr('dispGroupSigns')], ['houses', tr('dispGroupHouses')]],
+    dispGroup, v => { dispGroup = v; renderDispositors(); }));
+  view.appendChild(bar);
+  view.appendChild(buildDispositorSvg(dispGroup, dispCriterion, dispSet === '10'));
 }
 
 // Градусная линейка живёт в нижней зоне (на месте таймлайна) — панель Карты чистая

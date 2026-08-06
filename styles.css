@@ -1261,16 +1261,30 @@
   .panel-tab.active::before,
   .panel-tab.active + .panel-tab::before { background: transparent; }
   #right-info-content #dignities-view,
+  #right-info-content #dispositors-view,
   #right-info-content #aspflow-view { display: none; }
   #right-info-content.rp-aspects #info-table { display: none; }
   #right-info-content.rp-grades  #aspect-grid { display: none; }
   #right-info-content.rp-aspects #aspect-grid { margin-top: 0; }
   #right-info-content.rp-dignities #info-table,
   #right-info-content.rp-dignities #aspect-grid,
+  #right-info-content.rp-dispositors #info-table,
+  #right-info-content.rp-dispositors #aspect-grid,
   #right-info-content.rp-aspflow #info-table,
   #right-info-content.rp-aspflow #aspect-grid { display: none; }
   #right-info-content.rp-dignities #dignities-view { display: block; }
+  #right-info-content.rp-dispositors #dispositors-view { display: block; }
   #right-info-content.rp-aspflow #aspflow-view { display: block; }
+  /* Виджет «Диспозиторы»: выбор набора планет / критерия / группировки + SVG-цепочки */
+  #disp-controls {
+    display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px 4px;
+  }
+  #disp-controls select {
+    font-size: 0.78em; padding: 3px 6px; border-radius: 10px;
+    border: 1px solid var(--bd-input); background: var(--bg-input); color: var(--tx-3);
+  }
+  #dispositors-view svg { display: block; }
+  #dispositors-view text { font-family: inherit; }
   /* Виджет «События» (прошлые/будущие) */
   #aspflow-view { padding: 6px 10px 12px; }
   .af-section { font-size: 0.74em; font-weight: 600; color: var(--tx-6); margin: 10px 0 3px; text-transform: uppercase; letter-spacing: 0.04em; }

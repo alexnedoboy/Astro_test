@@ -3328,7 +3328,12 @@ function persistSnapshotsToDb(t) {
 function addSnapshot() {
   if ((currentCaseType !== 'election' && currentCaseType !== 'natal') || !natalData) return;
   const id = 's' + Date.now();
-  tabSnaps().push({ id, jd: natalData.birthJD });
+  const snap = { id, jd: natalData.birthJD };
+  if (currentCaseType === 'natal' && currentMode !== 'natal') {
+    snap.jd = currentTransitJD ?? computeJDNow();
+    snap.mode = currentMode;
+  }
+  tabSnaps().push(snap);
   _snapActive = id;
   renderSnaps();
   persistTabs();
@@ -3338,7 +3343,12 @@ function addSnapshot() {
 function jumpSnapshot(snap) {
   _snapActive = snap.id;
   _snapJumping = true;
-  applyNatalJD(snap.jd);
+  if (currentCaseType === 'natal' && snap.mode) {
+    switchModeAndNavigate(snap.mode, snap.jd);
+  } else {
+    if (currentCaseType === 'natal' && currentMode !== 'natal') switchToMode('natal');
+    applyNatalJD(snap.jd);
+  }
   _snapJumping = false;
   renderSnaps();
 }
@@ -3383,7 +3393,15 @@ function renderSnaps() {
     del.textContent = '✕';
     del.title = tr('delete');
     del.addEventListener('click', e => { e.stopPropagation(); deleteSnapshot(snap.id); });
-    item.append(dateSpan, timeSpan, del);
+    if (snap.mode) {
+      const modeSpan = document.createElement('span');
+      modeSpan.className = 'sky-snap-mode';
+      const modeLabels = { transit: 'Т', progressed: 'П', direction: 'Д' };
+      modeSpan.textContent = modeLabels[snap.mode] || '';
+      item.append(dateSpan, timeSpan, modeSpan, del);
+    } else {
+      item.append(dateSpan, timeSpan, del);
+    }
     list.appendChild(item);
   }
 }
@@ -5084,9 +5102,11 @@ function navigateDateBy(unit, delta) {
   const baseJD = currentTransitJD ?? computeJDNow();
   if (!baseJD) return;
   let newJD;
-  if (unit === 'day') {
-    newJD = baseJD + delta;
-  } else {
+  if (unit === 'hour')        newJD = baseJD + delta / 24;
+  else if (unit === 'minute') newJD = baseJD + delta / 1440;
+  else if (unit === 'second') newJD = baseJD + delta / 86400;
+  else if (unit === 'day')    newJD = baseJD + delta;
+  else {
     const d = new Date((baseJD - 2440587.5) * 86400000);
     if (unit === 'month') d.setUTCMonth(d.getUTCMonth() + delta);
     else d.setUTCFullYear(d.getUTCFullYear() + delta);

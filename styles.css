@@ -1931,6 +1931,7 @@
   .sky-snap-item .sky-snap-date { font-size: 0.7em; font-weight: 600; color: var(--tx-2); line-height: 1.4; }
   .sky-snap-item .sky-snap-time { font-size: 0.62em; color: var(--tx-6); line-height: 1.4; }
   .sky-snap-item.active .sky-snap-date { color: var(--tx); }
+  .sky-snap-mode { font-size: 0.58em; color: var(--tx-7); font-weight: 600; letter-spacing: 0.03em; }
   .sky-snap-del {
     position: absolute; top: 50%; right: 3px; transform: translateY(-50%);
     width: 16px; height: 16px; padding: 0; line-height: 1;

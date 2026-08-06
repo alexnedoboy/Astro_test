@@ -1059,7 +1059,7 @@
     display: flex; align-items: center; justify-content: center; padding: 0;
   }
   #v2-snap-add:hover { background: var(--bg-hover); color: var(--tx-2); }
-  #v2-snap-list { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; min-height: 0; }
+  #v2-snap-list { display: flex; flex-direction: column; gap: 0; overflow-y: auto; min-height: 0; }
   #v2-snap-empty { font-size: 0.6em; color: var(--tx-8); text-align: center; padding: 4px 2px; line-height: 1.4; }
   #horary-bottom {
     display: none;
@@ -1920,16 +1920,16 @@
   #sky-snap-empty { font-size: 0.62em; color: var(--tx-8); text-align: center; padding: 4px 2px; line-height: 1.4; }
   .sky-snap-item {
     position: relative;
-    display: flex; flex-direction: column; gap: 1px;
-    padding: 5px 16px 5px 8px;
-    border: 1px solid var(--bd-light); border-radius: 6px;
-    background: var(--bg); cursor: pointer;
-    transition: background 0.12s, border-color 0.12s;
+    display: flex; align-items: baseline; gap: 6px;
+    padding: 3px 16px 3px 8px;
+    border: none; border-radius: 3px;
+    background: none; cursor: pointer;
+    transition: background 0.12s;
   }
-  .sky-snap-item:hover { background: var(--bg-hover); border-color: var(--bd); }
-  .sky-snap-item.active { background: var(--link-bg); border-color: var(--accent); }
-  .sky-snap-item .sky-snap-date { font-size: 0.7em; font-weight: 600; color: var(--tx-2); line-height: 1.2; }
-  .sky-snap-item .sky-snap-time { font-size: 0.62em; color: var(--tx-6); line-height: 1.15; }
+  .sky-snap-item:hover { background: var(--bg-hover); }
+  .sky-snap-item.active { background: var(--link-bg); }
+  .sky-snap-item .sky-snap-date { font-size: 0.7em; font-weight: 600; color: var(--tx-2); line-height: 1.4; }
+  .sky-snap-item .sky-snap-time { font-size: 0.62em; color: var(--tx-6); line-height: 1.4; }
   .sky-snap-item.active .sky-snap-date { color: var(--tx); }
   .sky-snap-del {
     position: absolute; top: 50%; right: 3px; transform: translateY(-50%);

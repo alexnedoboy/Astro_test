@@ -1046,9 +1046,10 @@
     #layout-v2.case-synastry .v2-ctrl-sep { display: none; }
   }
 
-  /* Панель снимков элекции — отдельная плашка под контроллером T (только элекция) */
+  /* Панель снимков момента — отдельная плашка под контроллером T (натал и элекция) */
   #v2-snap-panel { display: none; flex-direction: column; min-height: 0; padding: 8px 8px 9px; }
-  #layout-v2.case-election #v2-snap-panel { display: flex; }
+  #layout-v2.case-election #v2-snap-panel,
+  #layout-v2.case-natal #v2-snap-panel { display: flex; }
   #v2-snap-head { display: flex; align-items: center; gap: 4px; padding: 0 2px 5px; flex-shrink: 0; }
   #v2-snap-title { flex: 1; font-size: 0.58em; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tx-7); }
   #v2-snap-add {

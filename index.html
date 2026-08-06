@@ -2302,8 +2302,9 @@ function paintActiveChart() {
   switchToMode(currentMode);
   renderHoraryBlock();
   if (currentCaseType === 'horary') { skyTlHost = null; return; }   // пресет хорара — без таймлайна
-  if (currentCaseType === 'election') { renderElectionTimeline(); _electionSnapActive = null; renderElectionSnaps(); return; }
+  if (currentCaseType === 'election') { renderElectionTimeline(); _snapActive = null; renderSnaps(); return; }
   skyTlHost = null;   // натал/прогностика — таймлайн к наталу, не source=sky
+  if (currentCaseType === 'natal') renderSnaps();
   if (cachedTimeline) {
     const snap = { ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() };
     requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
@@ -3167,6 +3168,8 @@ function applyCaseType(type) {
   document.getElementById('layout-v2')?.classList.toggle('case-election', type === 'election');
   // Пресет синастрии: две карточки субъектов, без таймлайна/режимов/контроллера (§6).
   document.getElementById('layout-v2')?.classList.toggle('case-synastry', type === 'synastry');
+  // Панель снимков момента — натал и элекция (см. #v2-snap-panel в styles.css)
+  document.getElementById('layout-v2')?.classList.toggle('case-natal', type === 'natal');
   applyOutcomeChips();
 }
 
@@ -3301,56 +3304,56 @@ function applySynastryRpPreset() {
   applyRightPanelTab();
 }
 
-// ── Снимки элекции (варианты): закреплённые значения T на вкладке-кейсе ────────
+// ── Снимки момента: закреплённые значения T на вкладке-кейсе (натал, элекция) ──
 // Снимок = момент (jd). Живёт на tabs[activeTab].snapshots, персист в localStorage
 // (Supabase-персист — отдельная фаза). Прыжок = applyNatalJD → двигает и карту,
 // и курсор таймлайна (единый сеттер T).
-let _electionSnapActive = null;   // id снимка, на котором сейчас стоит момент
-let _electionJumping = false;     // прыжок по снимку (не сбрасывать подсветку)
+let _snapActive = null;   // id снимка, на котором сейчас стоит момент
+let _snapJumping = false; // прыжок по снимку (не сбрасывать подсветку)
 
-function electionSnaps() {
+function tabSnaps() {
   const t = tabs[activeTab];
   if (!t) return [];
   return (t.snapshots ||= []);
 }
 
-// Синхронизация снимков в Supabase (только если элекция уже сохранена).
+// Синхронизация снимков в Supabase (только если кейс уже сохранён).
 // Толерантно к отсутствию колонки snapshots — просто молчит.
-function persistElectionSnapshotsToDb(t) {
+function persistSnapshotsToDb(t) {
   if (!t?.chartId || !currentUser) return;
   sb.from('charts').update({ snapshots: t.snapshots ?? [] }).eq('id', t.chartId)
     .then(({ error }) => { if (error) console.warn('snapshots update:', error.message); });
 }
 
-function addElectionSnapshot() {
-  if (currentCaseType !== 'election' || !natalData) return;
+function addSnapshot() {
+  if ((currentCaseType !== 'election' && currentCaseType !== 'natal') || !natalData) return;
   const id = 's' + Date.now();
-  electionSnaps().push({ id, jd: natalData.birthJD });
-  _electionSnapActive = id;
-  renderElectionSnaps();
+  tabSnaps().push({ id, jd: natalData.birthJD });
+  _snapActive = id;
+  renderSnaps();
   persistTabs();
-  persistElectionSnapshotsToDb(tabs[activeTab]);
+  persistSnapshotsToDb(tabs[activeTab]);
 }
 
-function jumpElectionSnapshot(snap) {
-  _electionSnapActive = snap.id;
-  _electionJumping = true;
+function jumpSnapshot(snap) {
+  _snapActive = snap.id;
+  _snapJumping = true;
   applyNatalJD(snap.jd);
-  _electionJumping = false;
-  renderElectionSnaps();
+  _snapJumping = false;
+  renderSnaps();
 }
 
-function deleteElectionSnapshot(id) {
+function deleteSnapshot(id) {
   const t = tabs[activeTab];
   if (!t) return;
   t.snapshots = (t.snapshots || []).filter(s => s.id !== id);
-  if (_electionSnapActive === id) _electionSnapActive = null;
-  renderElectionSnaps();
+  if (_snapActive === id) _snapActive = null;
+  renderSnaps();
   persistTabs();
-  persistElectionSnapshotsToDb(t);
+  persistSnapshotsToDb(t);
 }
 
-function renderElectionSnaps() {
+function renderSnaps() {
   const list = document.getElementById('v2-snap-list');
   if (!list) return;
   list.replaceChildren();
@@ -3365,9 +3368,9 @@ function renderElectionSnaps() {
   for (const snap of snaps) {
     const parts = fmtSkySnapParts(snap.jd);
     const item = document.createElement('div');
-    item.className = 'sky-snap-item' + (snap.id === _electionSnapActive ? ' active' : '');
+    item.className = 'sky-snap-item' + (snap.id === _snapActive ? ' active' : '');
     item.title = `${parts.date} ${parts.time}`;
-    item.addEventListener('click', () => jumpElectionSnapshot(snap));
+    item.addEventListener('click', () => jumpSnapshot(snap));
     const dateSpan = document.createElement('span');
     dateSpan.className = 'sky-snap-date';
     dateSpan.textContent = parts.date;
@@ -3379,7 +3382,7 @@ function renderElectionSnaps() {
     del.className = 'sky-snap-del';
     del.textContent = '✕';
     del.title = tr('delete');
-    del.addEventListener('click', e => { e.stopPropagation(); deleteElectionSnapshot(snap.id); });
+    del.addEventListener('click', e => { e.stopPropagation(); deleteSnapshot(snap.id); });
     item.append(dateSpan, timeSpan, del);
     list.appendChild(item);
   }
@@ -3714,8 +3717,9 @@ function computeAndRenderNatal() {
     syncV2DateLabel();
     setInfoTableMode('natal');
     renderHoraryBlock();
-    if (caseType === 'election') { renderElectionTimeline(); _electionSnapActive = null; renderElectionSnaps(); }
+    if (caseType === 'election') { renderElectionTimeline(); _snapActive = null; renderSnaps(); }
     else if (caseType !== 'horary') computeAndRenderTimeline(natalData.planets);
+    if (caseType === 'natal') { _snapActive = null; renderSnaps(); }
     setStatus('');
     return true;
   } catch (e) { setStatus(tr('error') + e.message); return false; }
@@ -5023,11 +5027,10 @@ function applyNatalJD(jd) {
   buildAspectGrid(addSouthNode(planets, cusps));
   syncV2DateLabel();
   // Элекция: карта — это T, поэтому курсор таймлайна неба следует за моментом.
-  if (currentCaseType === 'election') {
-    syncSkyTimelineCursor();
-    // ушли с сохранённого снимка вручную (контроллер/таймлайн) — снять подсветку
-    if (!_electionJumping && _electionSnapActive !== null) { _electionSnapActive = null; renderElectionSnaps(); }
-  }
+  if (currentCaseType === 'election') syncSkyTimelineCursor();
+  // ушли с сохранённого снимка вручную (контроллер/таймлайн) — снять подсветку
+  if ((currentCaseType === 'election' || currentCaseType === 'natal') &&
+      !_snapJumping && _snapActive !== null) { _snapActive = null; renderSnaps(); }
 }
 
 function applyNavigatedJD(jd, unit = null) {
@@ -7652,7 +7655,7 @@ document.getElementById('tab-add-btn').addEventListener('click', () => {
   openPaletteTab();
 });
 
-document.getElementById('v2-snap-add').addEventListener('click', addElectionSnapshot);
+document.getElementById('v2-snap-add').addEventListener('click', addSnapshot);
 
 // Переключатель шага контроллера: Дата (год/мес/день) ↔ Время (час/мин/сек)
 let v2NavMode = 'date';

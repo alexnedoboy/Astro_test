@@ -296,6 +296,7 @@
       <div id="v2-panel-head">
         <img src="Aspectus%20logo.png" id="v2-logo" alt="Aspectus">
         <div id="v2-chart-info">
+          <span id="v2-case-type"></span>
           <div id="v2-chart-info-top">
             <span id="v2-chart-name"></span>
             <button class="v2-icon-btn" id="v2-edit-btn" title="Редактировать данные">✎</button>
@@ -303,8 +304,11 @@
           </div>
           <span id="v2-chart-date"></span>
           <span id="v2-chart-place"></span>
-          <span id="v2-case-type"></span>
-          <select id="v2-house-sys" title="Система домов"></select>
+          <!-- Параметры расчёта (отделены от данных субъекта) -->
+          <div id="v2-calc-params">
+            <span id="v2-house-sys-lbl" data-i18n="hsLabel">Дома</span>
+            <select id="v2-house-sys" title="Система домов"></select>
+          </div>
           <div id="v2-outcome">
             <button class="outcome-chip" data-outcome="yes" data-i18n="outcomeYes">Сбылся</button>
             <button class="outcome-chip" data-outcome="no" data-i18n="outcomeNo">Нет</button>
@@ -568,7 +572,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // Локальные модули версионируются (?v=N): index.html всегда свежий (SW network-first),
 // а модули кэшируются браузером/CDN — при изменении СОСТАВА ЭКСПОРТОВ бампните версию,
 // иначе свежий index.html слинкуется со старым кэшем модуля и приложение умрёт.
-import './js/state.js?v=1';   // леджер разделяемого состояния — до всех модулей
+import './js/state.js?v=2';   // леджер разделяемого состояния — до всех модулей
 import { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff }
   from './js/astro-core.js?v=1';
 import { computeTransits, computeFastTransits, computeReturnPeriods,
@@ -3132,7 +3136,11 @@ function fmtUtcOff(off) {
 function setV2ChartInfo(name, dateTime, city) {
   document.getElementById('v2-chart-name').textContent = name || '';
   document.getElementById('v2-chart-date').textContent = dateTime || '';
-  if (city !== undefined) document.getElementById('v2-chart-place').textContent = city;
+  if (city !== undefined) {
+    const el = document.getElementById('v2-chart-place');
+    el.textContent = city;
+    el.title = city || '';   // строка обрезается по ширине панели — полное в тултипе
+  }
 }
 
 // Селектор системы домов на карточке кейса: показывает фактическую систему
@@ -3200,7 +3208,9 @@ function fillSynSubjectCards(refs) {
     const dt = subj.birth_date ? subj.birth_date.split('-').reverse().join('.') : '';
     const off = subj.utc_offset != null && subj.utc_offset !== '' ? ` (${fmtUtcOff(parseFloat(subj.utc_offset) || 0)})` : '';
     card.querySelector('.v2-syn-card-date').textContent = [dt, subj.birth_time || ''].filter(Boolean).join(' ') + off;
-    card.querySelector('.v2-syn-card-place').textContent = subj.city || '';
+    const pl = card.querySelector('.v2-syn-card-place');
+    pl.textContent = subj.city || '';
+    pl.title = subj.city || '';
   };
   fill('a', refs?.a);
   fill('b', refs?.b);

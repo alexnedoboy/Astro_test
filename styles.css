@@ -613,7 +613,6 @@
   .auth-btn.primary:hover { background: var(--accent-hv); }
   .auth-btn.ghost { background: none; border-color: transparent; color: var(--tx-8); font-size: 0.78em; padding: 4px 8px; }
 
-  #save-wrap { display: none; }
 
   /* ── Save confirmation ─────────────────────────────────── */
   #save-confirm {

@@ -196,9 +196,6 @@
     });
   }
   </script>
-  <div id="save-wrap">
-    <button id="saveBtn" data-i18n="saveChartBtn">💾 Сохранить карту</button>
-  </div>
 </div>
 
 <!-- ── Конструктор синастрии (композитный кейс, WORKSPACE_CONCEPT §8) ────────── -->
@@ -302,7 +299,6 @@
           <div id="v2-chart-info-top">
             <span id="v2-chart-name"></span>
             <button class="v2-icon-btn" id="v2-edit-btn" title="Редактировать данные">✎</button>
-            <button class="v2-icon-btn" id="v2-save-btn" title="Сохранить карту">💾</button>
             <span id="save-confirm"></span>
           </div>
           <span id="v2-chart-date"></span>
@@ -670,6 +666,7 @@ function updateAuthUI(user) {
     emailEl.textContent = user.email ?? user.user_metadata?.full_name ?? '';
     loadHomeCharts();
     loadChartFromHash();
+    persistUnsavedTabs();   // кейсы, построенные до логина, дозаписываются
     // Настройки из Supabase user metadata побеждают localStorage
     syncSettingsFromUser(user);
   } else {
@@ -1605,20 +1602,20 @@ function showSaveConfirm(msg, isError = false) {
 // Ретраи на отсутствующие колонки: сначала без house_system, затем без extras.
 // targetTab — вкладка, которой принадлежит кейс (id пишется в неё, а не в
 // «активную на момент ответа» — автосейв асинхронный, вкладку могли сменить).
-async function saveCurrentChartToDb(extra = {}, targetTab = null) {
-  const name = document.getElementById('chartName').value.trim()
-             || document.getElementById('birthPlace').value
-             || tr('chartFallback');
+// fields — снимок полей кейса (readFormFields); по умолчанию читаем форму.
+async function saveCurrentChartToDb(extra = {}, targetTab = null, fields = null) {
+  const f = fields ?? readFormFields();
+  const name = (f.name ?? '').trim() || f.city || tr('chartFallback');
   const baseRow = {
     user_id:    currentUser.id,
     name,
-    birth_date: document.getElementById('birthDate').value  || null,
-    birth_time: document.getElementById('birthTime').value  || null,
-    city:       document.getElementById('birthPlace').value || null,
-    lat:        parseFloat(document.getElementById('lat').value)     || null,
-    lon:        parseFloat(document.getElementById('lonVal').value)  || null,
-    utc_offset: parseFloat(document.getElementById('utcOff').value)  || null,
-    timezone:   detectedTimezone ?? null,
+    birth_date: f.birthDate || null,
+    birth_time: f.birthTime || null,
+    city:       f.city      || null,
+    lat:        parseFloat(f.lat)    || null,
+    lon:        parseFloat(f.lon)    || null,
+    utc_offset: parseFloat(f.utcOff) || null,
+    timezone:   f.timezone ?? null,
   };
   const tt = targetTab ?? ((activeTab >= 0 && tabs[activeTab]) ? tabs[activeTab] : null);
   const existingId = tt?.chartId ?? currentChartId ?? null;
@@ -1655,28 +1652,40 @@ async function saveCurrentChartToDb(extra = {}, targetTab = null) {
 // Авто-запись кейса (Obsidian-модель: создание/правка = запись, отдельного
 // «сохранить» не нужно). Sky — transient (§14: 💾 превращает его в элекцию),
 // синастрия — свой путь (saveSynastryToDb), палитра — не кейс.
-function persistCaseToDb(t) {
+function persistCaseToDb(t, fields = null) {
   if (!currentUser || !t || t.kind === 'palette' || t.type === 'sky' || t.type === 'synastry') return;
-  saveCurrentChartToDb(caseExtraColumns(t), t).then(({ error }) => {
+  const f = fields ?? t.fields ?? null;
+  saveCurrentChartToDb(caseExtraColumns(t, f), t, f).then(({ error }) => {
     if (error) { showSaveConfirm(tr('saveError'), true); return; }
     showSaveConfirm(tr('saved'));
     loadHomeCharts();   // список на главной, в библиотеке и палитре
   });
 }
 
+// Дозапись кейсов, построенных до логина: сохранения нет — есть отложенная
+// запись. Пишем по снимку полей вкладки, форму не трогаем.
+function persistUnsavedTabs() {
+  if (!currentUser || !Array.isArray(tabs)) return;
+  for (const t of tabs) {
+    if (t?.chartId || !t?.fields) continue;
+    persistCaseToDb(t, t.fields);
+  }
+}
+
 // Доп-колонки для сохранения по типу кейса
-function caseExtraColumns(t) {
+function caseExtraColumns(t, fields = null) {
   const type = t?.type ?? 'natal';
+  const qName = () => ((fields ?? readFormFields()).name ?? '').trim() || null;
   const extra = { case_type: type };
   // Фактическая система домов пишется в кейс всегда (кроме композитов):
   // смена глобального дефолта не должна тихо пересчитать сохранённые карты
   if (type !== 'synastry') extra.house_system = houseSysFor(t);
   if (type === 'horary') {
-    extra.question = document.getElementById('chartName').value.trim() || null;
+    extra.question = qName();
     extra.folder   = tr('horaryFolder');
     if (t?.outcome) extra.outcome = t.outcome;
   } else if (type === 'election') {
-    extra.question = document.getElementById('chartName').value.trim() || null;  // что подбираем
+    extra.question = qName();   // что подбираем
     extra.folder   = tr('electionFolder');
     extra.snapshots = t?.snapshots ?? [];   // варианты (jsonb)
   } else if (type === 'synastry') {
@@ -1694,12 +1703,6 @@ function synastryTitle(refs) {
   return `${a} × ${b}`;
 }
 
-document.getElementById('saveBtn').addEventListener('click', async () => {
-  if (!currentUser) { openModal(); return; }
-  const { error } = await saveCurrentChartToDb(caseExtraColumns(tabs[activeTab]));
-  if (error) { showSaveConfirm(tr('saveError'), true); return; }
-  showSaveConfirm(tr('saved'));
-});
 
 // ── Notes ─────────────────────────────────────────────────────────────────────
 // Заметки к карте: выдвижная панель (иконка в хедере), список + markdown-редактор.

@@ -233,8 +233,22 @@ TL.SUB_H   = 18                        // высота одной дорожки
 Заполняет `#tableBody` внутри `#right-info-content`. Показывает натальные планеты: знак, градус, дом.
 
 ### `switchToMode(mode)`
-Главная функция переключения режима карты: `'natal' | 'transit' | 'progressed' | 'direction'`.
-Обновляет `currentMode`, вызывает `syncV2ModeButtons()` и рендерит нужный вид.
+Главная функция переключения режима карты: `'natal' | 'transit' | 'progressed' | 'direction' | 'solar'`.
+Обновляет `currentMode`, вызывает `syncV2ModeButtons()`/`syncSolarCtl()` и рендерит нужный вид.
+
+### Соляр (`currentMode === 'solar'`)
+- Момент точного возврата Солнца к натальной долготе: `refineSolarReturn` (Ньютон по скорости
+  Солнца), `lastSolarReturnJD(targetJD)` — **последний** возврат ≤ выбранной даты контроллера.
+- Карта строится на **место рождения** (`natalData.lat/lon`), система домов — общий каскад
+  `houseSysFor(t)`. Планируется настройка «строить на другое место».
+- Вид — глобал `solarView` (`'single'` отдельно | `'overlay'` наложение, дефолт `single`),
+  персист в `context.ui`. Переключалка `#v2-solar-ctl` — левый верхний угол области карты,
+  видна по классу `mode-solar` на `#layout-v2`; под ней — точный момент соляра
+  (`updateSolarMomentLabel`), сам контроллер времени показывает выбранную дату.
+- `overlay`: натал внутри (каркас домов), соляр снаружи с короткими куспидами —
+  `renderBiwheelDirected(..., drawTransitAspects)` (5-й аргумент — рисовальщик кросс-аспектов),
+  инфо-таблица `biwheel-houses`, сетка кросс-аспектов с транзитными орбисами.
+  `single`: обычное натальное колесо солярной карты + её собственные аспекты.
 
 ### `syncV2ModeButtons()`
 Синхронизирует классы `.active` на кнопках `#v2-control-panel .v2-mode-btn`.
@@ -374,7 +388,8 @@ lblSup(x,y,main,deg)   // текст с суперскриптом градус�
 swe              // инстанс SwissEph (null до инициализации)
 natalData        // { planets, cusps, asc, mc, birthJD, lat, lon } после расчёта
 currentChartId   // Supabase id открытой карты (null если не сохранена)
-currentMode      // 'natal' | 'transit' | 'progressed' | 'direction'
+currentMode      // 'natal' | 'transit' | 'progressed' | 'direction' | 'solar'
+solarView        // 'single' | 'overlay' — вид соляра
 currentTransitJD // текущий JD для отображения (null = сегодня)
 cachedTimeline   // кэш транзитного timeline
 tlPastYears      // дополнительные годы в прошлом

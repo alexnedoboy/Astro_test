@@ -389,6 +389,14 @@
         </div>
       </div>
       <div id="chart-dropdown"></div>
+      <!-- Соляр: вид «отдельно / с наталом» + точный момент возврата Солнца -->
+      <div id="v2-solar-ctl">
+        <div id="v2-solar-seg">
+          <button class="v2-solar-btn active" data-solarview="single" data-i18n-title="solarViewSingle" title="Соляр отдельно">○</button>
+          <button class="v2-solar-btn" data-solarview="overlay" data-i18n-title="solarViewOverlay" title="Соляр с наталом">◎</button>
+        </div>
+        <div id="v2-solar-moment"></div>
+      </div>
       <button id="v2-chart-expand-btn" title="Развернуть карту">⤢</button>
       <div id="chart-block"></div>
     </div>
@@ -2234,6 +2242,7 @@ function captureState() {
       rightPanelTabs: [...rightPanelTabs],
       chartModeTabs: [...chartModeTabs],
       synView,   // вид карты синастрии
+      solarView, // вид соляра: отдельно / с наталом
     },
   };
 }
@@ -2259,6 +2268,7 @@ function applyState(s) {
   rightPanelTab    = u.rightPanelTab || 'grades';
   chartModeTabs    = sanitizeChartModeTabs(u.chartModeTabs);
   synView          = u.synView || 'both';
+  solarView        = u.solarView || 'single';
 }
 
 function snapshotActiveTab() {
@@ -2805,6 +2815,7 @@ function paintSynastryFromRefs(t) {
   applySynastryRpPreset();
   applyChartModeTabs();
   applyLayout2Classes();
+  syncSolarCtl();
   fillSynSubjectCards(t.refs);
   renderSynastry();
   return true;
@@ -3005,6 +3016,7 @@ function rebuildTabFromFields(t) {
   rightPanelTabs = sanitizeRpTabs(v.rightPanelTabs);
   rightPanelTab = v.rightPanelTab || 'grades';
   chartModeTabs = sanitizeChartModeTabs(v.chartModeTabs);
+  solarView = v.solarView || 'single';
   if (t.header) setV2ChartInfo(t.header.name, t.header.dateTime, t.header.city);
   applyCaseType(t.type);
   cachedTimeline = null;
@@ -3038,6 +3050,7 @@ function stateToView(s) {
     rightPanelTabs: u.rightPanelTabs ? [...u.rightPanelTabs] : undefined,
     chartModeTabs: u.chartModeTabs ? [...u.chartModeTabs] : undefined,
     synView: u.synView,
+    solarView: u.solarView,
   };
 }
 
@@ -3458,15 +3471,22 @@ document.addEventListener('click', e => {
 // ── Панель Карты: состав табов-режимов + меню ☰ (аналогично правой группе) ────
 // chartModeTabs — какие производные карты показывать табами (натал всегда есть).
 // Часть context.ui, персистится per-case.
-const CHART_MODE_ALL  = ['transit', 'progressed', 'direction'];
+const CHART_MODE_ALL  = ['transit', 'progressed', 'direction', 'solar'];
 const MODE_TAB_I18N   = {
   natal: 'v2ModeNatal', transit: 'v2ModeTransit',
   progressed: 'v2ModeProgressed', direction: 'v2ModeDirection',
+  solar: 'v2ModeSolar',
 };
 chartModeTabs = [...CHART_MODE_ALL];
 
+// Миграция состояний, сохранённых до появления соляра: полный дефолтный набор
+// старых режимов означает «состав не трогали» — дополняем новым табом.
+const CHART_MODE_PRE_SOLAR = ['transit', 'progressed', 'direction'];
 function sanitizeChartModeTabs(arr) {
-  return Array.isArray(arr) ? CHART_MODE_ALL.filter(m => arr.includes(m)) : [...CHART_MODE_ALL];
+  if (!Array.isArray(arr)) return [...CHART_MODE_ALL];
+  const kept = CHART_MODE_ALL.filter(m => arr.includes(m));
+  if (!arr.includes('solar') && CHART_MODE_PRE_SOLAR.every(m => arr.includes(m))) kept.push('solar');
+  return kept;
 }
 
 const SYN_VIEW_TABS = [
@@ -3734,6 +3754,7 @@ function computeAndRenderNatal() {
     buildAspectGrid(addSouthNode(planets, cusps));
     currentMode = 'natal';
     syncV2ModeButtons();
+    syncSolarCtl();
     syncV2DateLabel();
     setInfoTableMode('natal');
     renderHoraryBlock();
@@ -5057,6 +5078,7 @@ function applyNavigatedJD(jd, unit = null) {
   currentTransitJD = jd;
   if (currentMode === 'transit') renderBiwheelAt(currentTransitJD);
   else if (currentMode === 'direction') renderDirectionBiwheel(currentTransitJD);
+  else if (currentMode === 'solar') renderSolarChart(currentTransitJD);
   else renderProgressedBiwheel(currentTransitJD);
   syncTimelineCursor(unit);
   syncV2DateLabel();
@@ -5145,7 +5167,8 @@ function renderDirectionBiwheel(jd = null) {
   currentTransitJD = jd;
 }
 
-function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) {
+// drawAsps — рисовальщик кросс-аспектов: дирекции по умолчанию, соляр передаёт транзитный
+function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc, drawAsps = drawDirectionAspects) {
   const svg = el('svg', { viewBox: VIEWBOX, width: '100%', style: 'display:block' });
 
   const clipRect = el('rect', { width: W, height: H });
@@ -5186,7 +5209,7 @@ function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) 
   drawDirectedCusps(g, directedCusps, 0);
 
   // 8. Direction → natal aspect lines (include South Nodes)
-  drawDirectionAspects(g, addSouthNode(natal, natalCusps), addSouthNode(directed), 0);
+  drawAsps(g, addSouthNode(natal, natalCusps), addSouthNode(directed), 0);
 
   // 9. Natal planets (inner ring) — include South Node
   drawBiwheelPlanets(g, addSouthNode(natal, natalCusps), 0, R_BW_INNER, R_N_PLANET, CHART.BW_R_NATAL_GLYPH_L1);
@@ -5198,6 +5221,107 @@ function renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc) 
   drawHouseLabels(g, natalCusps, 0);
 
   document.getElementById('chart-block').replaceChildren(svg);
+}
+
+// ── Соляр (solar return) ─────────────────────────────────────────────────────
+// Соляр — момент, когда Солнце возвращается точно в натальную долготу. Карта
+// строится на МЕСТО РОЖДЕНИЯ (в будущем — выбираемое место, WORKSPACE_CONCEPT §5).
+// На выбранную дату показывается ПОСЛЕДНИЙ соляр (ближайший возврат ≤ даты).
+
+let _solarJD = null;   // момент показанного возврата (UI-приватное)
+
+// Уточнение момента возврата Солнца к долготе lon0 из приближения jdGuess.
+// Ньютон по мгновенной скорости Солнца — сходится за 2–3 итерации до долей секунды.
+function refineSolarReturn(lon0, jdGuess) {
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  let jd = jdGuess;
+  for (let i = 0; i < 20; i++) {
+    const r = safeCalcUt(jd, 0, flags);
+    if (!r) return null;
+    const d = ((((r[0] - lon0) % 360) + 540) % 360) - 180;   // -180..180
+    const spd = r[3] || 0.9856;
+    jd -= d / spd;
+    if (Math.abs(d) < 1e-7) break;
+  }
+  return jd;
+}
+
+// Ближайший возврат Солнца ≤ targetJD (последний соляр на выбранную дату)
+function lastSolarReturnJD(targetJD) {
+  if (!natalData || !swe) return null;
+  const sun = natalData.planets.find(p => p.id === 0);
+  if (!sun) return null;
+  const birthJD = natalData.originalBirthJD ?? natalData.birthJD;
+  const k0 = Math.floor((targetJD - birthJD) / 365.2422);
+  for (let k = k0 + 1; k >= k0 - 2; k--) {
+    const jd = refineSolarReturn(sun.longitude, birthJD + k * 365.2422);
+    if (jd != null && jd <= targetJD + 1e-9) return jd;
+  }
+  return null;
+}
+
+// Карта соляра: планеты на момент возврата, дома — на координаты рождения
+function computeSolarChart(jdSR) {
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const planets = PLANETS.map(p => {
+    const r = safeCalcUt(jdSR, p.id, flags);   // Хирон < 1800 недоступен — пропуск
+    if (!r) return null;
+    return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
+  }).filter(Boolean);
+  const hRes  = swe.houses_ex(jdSR, flags, natalData.lat, natalData.lon, houseSysFor(tabs[activeTab]));
+  const cusps = Array.from(hRes.cusps).slice(1, 13);
+  const ascmc = Array.from(hRes.ascmc);
+  const asc   = ((ascmc[0] % 360) + 360) % 360;
+  const mc    = ((ascmc[1] % 360) + 360) % 360;
+  planets.forEach(p => { p.house = findHouse(p.longitude, cusps); });
+  return { planets, cusps, asc, mc, jd: jdSR };
+}
+
+function renderSolarChart(jd = null) {
+  if (!natalData || !swe) return;
+  currentTransitJD = jd;
+  const srJD = lastSolarReturnJD(jd ?? computeJDNow());
+  _solarJD = srJD;
+  updateSolarMomentLabel();
+  if (srJD == null) return;
+  const sol = computeSolarChart(srJD);
+  if (solarView === 'overlay') {
+    // Соляр снаружи (его куспиды — короткими линиями), натал внутри с каркасом домов
+    renderBiwheelDirected(natalData.planets, sol.planets, natalData.cusps, sol.cusps, 0, drawTransitAspects);
+    buildInfoTable(natalData.planets, natalData.cusps);
+    updateSecondColumn(sol.planets);
+    updateSecondHouses(sol.cusps);
+    setInfoTableMode('biwheel-houses');
+    buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps), addSouthNode(sol.planets), 'transit');
+  } else {
+    renderChart(sol.planets, sol.cusps, sol.asc, sol.mc);
+    buildInfoTable(sol.planets, sol.cusps);
+    setInfoTableMode('natal');
+    buildAspectGrid(addSouthNode(sol.planets, sol.cusps));
+  }
+}
+
+// Подпись момента возврата под переключателем (контроллер показывает выбранную дату)
+function updateSolarMomentLabel() {
+  const box = document.getElementById('v2-solar-moment');
+  if (!box) return;
+  if (_solarJD == null) { box.textContent = '—'; return; }
+  const p = splitNavDateTime(_solarJD, natalData?.utcOff ?? 0);
+  box.textContent = `${p.date} · ${p.time}`;
+}
+
+function syncSolarCtl() {
+  document.getElementById('layout-v2')?.classList.toggle('mode-solar', currentMode === 'solar');
+  document.querySelectorAll('.v2-solar-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.solarview === solarView));
+}
+
+function switchSolarView(view) {
+  if (!['single', 'overlay'].includes(view) || view === solarView) return;
+  solarView = view;
+  syncSolarCtl();
+  renderSolarChart(currentTransitJD);
+  if (activeTab >= 0 && tabs[activeTab]) { tabs[activeTab].st = captureState(); persistTabs(); }
 }
 
 // ── Синастрия: совмещённое биколесо двух наталов (A внутри, B снаружи) ─────────
@@ -5624,7 +5748,10 @@ function switchToMode(mode) {
     renderProgressedBiwheel(currentTransitJD);
   } else if (mode === 'direction') {
     renderDirectionBiwheel(currentTransitJD);
+  } else if (mode === 'solar') {
+    renderSolarChart(currentTransitJD);
   }
+  syncSolarCtl();
 }
 
 // ── Render biwheel for a specific JD (called from timeline bar tap) ──────────
@@ -7237,6 +7364,7 @@ document.getElementById('v2-control-panel').addEventListener('click', e => {
       currentTransitJD = null;
       if (currentMode === 'transit') showTransitNow();
       else if (currentMode === 'direction') renderDirectionBiwheel(null);
+      else if (currentMode === 'solar') renderSolarChart(null);
       else renderProgressedBiwheel(null);
       syncTimelineCursor();
       syncV2DateLabel();
@@ -7693,11 +7821,12 @@ document.querySelectorAll('.v2-navmode-btn').forEach(btn => {
   });
 });
 
-document.getElementById('v2-edit-btn').addEventListener('click', enterEditMode);
-
-document.getElementById('v2-save-btn').addEventListener('click', () => {
-  document.getElementById('saveBtn').click();
+// Соляр: вид «отдельно» ↔ «с наталом»
+document.querySelectorAll('.v2-solar-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchSolarView(btn.dataset.solarview));
 });
+
+document.getElementById('v2-edit-btn').addEventListener('click', enterEditMode);
 
 document.getElementById('v2-settings-btn').addEventListener('click', e => {
   openSettingsDropdown(e.currentTarget, e);

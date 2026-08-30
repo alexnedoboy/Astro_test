@@ -23,9 +23,10 @@ const APP_STATE = {
   natalData: null,         // { planets, cusps, asc, mc, birthJD… } — субъект A
   synastryB: null,         // субъект B (только в синастрии)
   synView: 'both',         // вид карты синастрии: 'a' | 'b' | 'both'
+  solarView: 'single',     // вид соляра: 'single' (отдельно) | 'overlay' (наложение на натал)
   currentChartId: null,    // Supabase id открытого кейса
   currentCaseType: 'natal',
-  currentMode: 'transit',  // 'natal' | 'transit' | 'progressed' | 'direction'
+  currentMode: 'transit',  // 'natal' | 'transit' | 'progressed' | 'direction' | 'solar'
   currentTransitJD: null,  // ось T (null = сегодня); курсор таймлайна = тот же T
   detectedTimezone: null,  // IANA timezone после геокодинга
 

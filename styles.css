@@ -1517,17 +1517,26 @@
     flex-direction: column; flex-shrink: 0;
     pointer-events: auto;
     gap: 1px;
-    padding: 8px 8px 9px;
+    padding: 11px 8px 9px;
   }
-  /* Дата/Время — переключатель шага контроллера (везде, где есть контроллер) */
-  #v2-navmode-row { display: flex; gap: 2px; margin-bottom: 4px; }
+  /* Дата/Время — переключатель шага контроллера (сегменты с общей линией-дорожкой) */
+  #v2-navmode-row {
+    display: flex; gap: 0;
+    margin: 6px 0 6px;
+    border-top: 1px solid var(--bd-light);
+  }
   .v2-navmode-btn {
-    flex: 1; height: 22px;
-    background: none; border: 1px solid var(--bd-light); border-radius: 4px;
-    cursor: pointer; font-size: 0.68em; color: var(--tx-5);
+    flex: 1; height: 24px;
+    margin-top: -1px;
+    background: none; border: none; border-radius: 0;
+    border-top: 2px solid transparent;
+    cursor: pointer;
+    font-size: 0.6em; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--tx-7);
+    transition: color 0.15s, border-color 0.15s;
   }
-  .v2-navmode-btn.active { background: var(--bg-active); color: var(--tx); font-weight: 600; border-color: var(--bd); }
-  .v2-navmode-btn:hover:not(.active) { background: var(--bg-hover); }
+  .v2-navmode-btn.active { color: var(--tx-2); border-top-color: var(--accent); }
+  .v2-navmode-btn:hover:not(.active) { color: var(--tx-4); }
   #v2-logo { display: none; }
   #v2-chart-info {
     flex-shrink: 0;
@@ -1625,18 +1634,49 @@
   }
   .v2-ctrl-sep { display: none; }
   .v2-ctrl-spacer { flex: 1; min-height: 4px; }
-  .v2-nav-row { display: flex; gap: 2px; }
-  .v2-nav-row .v2-nav-btn { flex: 1; font-size: 0.72em; }
-  .v2-today-btn { margin-top: 2px; }
-  #v2-nav-date-lbl {
-    position: relative; width: 100%; background: none; border: none; outline: none;
-    color: var(--tx-6); font-size: 0.78em; padding: 4px 4px;
-    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;
-    opacity: 0.75; transition: opacity 0.15s, color 0.15s;
-    line-height: 1.3; white-space: nowrap;
+  /* пары стрелок — одна капсула с разделителем посередине */
+  .v2-nav-row {
+    display: flex; gap: 0; margin-top: 4px;
+    background: var(--seg-track); border-radius: 8px; padding: 2px;
   }
-  #v2-nav-date-lbl:hover { opacity: 1; color: var(--tx-2); }
-  #v2-nav-date-lbl.v2-date-active { color: var(--accent); opacity: 0.9; }
+  .v2-nav-row .v2-nav-btn {
+    flex: 1; width: auto; height: 26px; font-size: 0.72em;
+    position: relative; border-radius: 6px;
+  }
+  .v2-nav-row .v2-nav-btn:not(:first-child)::before {
+    content: ''; position: absolute; top: 5px; bottom: 5px; left: 0;
+    width: 1px; background: var(--seg-divider);
+  }
+  .v2-nav-row .v2-nav-btn:hover {
+    background: var(--seg-sel-bg);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.10);
+  }
+  .v2-nav-row .v2-nav-btn:hover::before,
+  .v2-nav-row .v2-nav-btn:hover + .v2-nav-btn::before { background: transparent; }
+
+  /* строка с датой: крупная дата + «сейчас» справа */
+  /* строка даты: дата занимает всё место, ↺ прижата справа */
+  #v2-nav-date-row { display: flex; align-items: center; gap: 2px; }
+  .v2-today-btn { flex: 0 0 22px; width: 22px; height: 22px; font-size: 0.78em; padding: 0; }
+  #v2-nav-date-lbl {
+    position: relative; flex: 1; min-width: 0;
+    background: none; border: none; outline: none; padding: 0;
+    color: var(--tx); font-size: 1.1em; font-weight: 600; letter-spacing: 0.01em;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    line-height: 1.25; white-space: nowrap;
+    transition: color 0.15s;
+  }
+  #v2-nav-date-lbl:hover { color: var(--accent); }
+  #v2-nav-date-lbl.v2-date-active { color: var(--accent); }
+  #v2-nav-time-text {
+    text-align: center; color: var(--tx-6);
+    font-size: 0.76em; line-height: 1.3;
+    padding-right: 24px;   /* компенсация ↺ — время встаёт ровно под датой */
+  }
+  /* панель упирается в min-width — ужимаем дату, чтобы не наезжала на ↺ */
+  @media (max-width: 1100px) {
+    #v2-nav-date-lbl { font-size: 0.95em; }
+  }
   #nav-date-input {
     position: absolute; inset: 0; width: 100%; height: 100%;
     opacity: 0; cursor: pointer; border: none; padding: 0; margin: 0;
@@ -1781,18 +1821,22 @@
     /* на мобильном плашки-заголовки скрыты, стек управляется нижней навигацией */
     .v2-panel-cap { display: none; }
     #v2-navmode-row { order: 0; flex: 0 0 100%; }
-    /* 3b — навигация: дата на всю ширину, 7 кнопок одним рядом ◀◀◀ ◀◀ ◀ ↺ ▶ ▶▶ ▶▶▶ */
+    /* 3b — навигация: дата+↺ и время на всю ширину, 6 стрелок одним рядом ◀◀◀ ◀◀ ◀ ▶ ▶▶ ▶▶▶ */
     #v2-panel-nav {
-      display: flex; flex-wrap: wrap; gap: 4px; flex: 0 0 auto;
+      display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px; flex: 0 0 auto;
       background: var(--bg); border-radius: 8px; padding: 4px;
     }
     #v2-panel-nav .v2-nav-row { display: contents; }
-    #v2-nav-date-lbl { flex: 0 0 100%; width: auto; order: 0; }
+    #v2-panel-nav .v2-nav-row .v2-nav-btn::before { background: transparent; }
+    #v2-nav-date-row { flex: 0 0 100%; order: 0; margin: 0; }
+    #v2-nav-time-text { flex: 0 0 100%; order: 0; }
+    #v2-navmode-row { margin: 0; }
     #v2-panel-nav .v2-nav-btn { flex: 1 1 0; width: auto; height: 42px; font-size: 0.78em; }
+    /* ↺ живёт в строке даты (absolute), а не в ряду стрелок — после общего правила выше */
+    #v2-panel-nav .v2-today-btn { flex: 0 0 auto; width: 32px; height: 32px; font-size: 0.9em; }
     #v2-panel-nav .v2-nav-btn[data-nav="prev-year"]  { order: 1; }
     #v2-panel-nav .v2-nav-btn[data-nav="prev-month"] { order: 2; }
     #v2-panel-nav .v2-nav-btn[data-nav="prev-day"]   { order: 3; }
-    #v2-panel-nav .v2-nav-btn[data-nav="today"]      { order: 4; margin-top: 0; }
     #v2-panel-nav .v2-nav-btn[data-nav="next-day"]   { order: 5; }
     #v2-panel-nav .v2-nav-btn[data-nav="next-month"] { order: 6; }
     #v2-panel-nav .v2-nav-btn[data-nav="next-year"]  { order: 7; }

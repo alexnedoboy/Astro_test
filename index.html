@@ -347,15 +347,18 @@
       </div>
       <div class="v2-ctrl-sep"></div>
       <div id="v2-panel-nav">
-        <div class="v2-panel-cap" data-i18n="momentTitle">Момент</div>
+        <div id="v2-nav-date-row">
+          <button id="v2-nav-date-lbl" style="display:none">
+            <span id="v2-nav-date-text"></span>
+            <input type="date" id="nav-date-input" tabindex="-1">
+          </button>
+          <button class="v2-nav-btn v2-today-btn" data-nav="today" title="Сейчас">↺</button>
+        </div>
+        <div id="v2-nav-time-text"></div>
         <div id="v2-navmode-row">
           <button class="v2-navmode-btn active" data-v2navmode="date" data-i18n="navModeDate">Дата</button>
           <button class="v2-navmode-btn" data-v2navmode="time" data-i18n="navModeTime">Время</button>
         </div>
-        <button id="v2-nav-date-lbl" style="display:none">
-          <span id="v2-nav-date-text"></span>
-          <input type="date" id="nav-date-input" tabindex="-1">
-        </button>
         <div class="v2-nav-row">
           <button class="v2-nav-btn" data-nav="prev-year">◀◀◀</button>
           <button class="v2-nav-btn" data-nav="next-year">▶▶▶</button>
@@ -368,7 +371,6 @@
           <button class="v2-nav-btn" data-nav="prev-day">◀</button>
           <button class="v2-nav-btn" data-nav="next-day">▶</button>
         </div>
-        <button class="v2-nav-btn v2-today-btn" data-nav="today">↺</button>
       </div>
       <div id="v2-snap-panel">
         <div id="v2-snap-head">
@@ -7165,7 +7167,14 @@ function syncV2DateLabel() {
   if (!lbl) return;
   lbl.style.display = '';
   const txt = document.getElementById('v2-nav-date-text');
+  const tim = document.getElementById('v2-nav-time-text');
   const inp = document.getElementById('nav-date-input');
+  // дата и время — двумя строками: крупная дата, под ней время
+  const paint = jd => {
+    const p = splitNavDateTime(jd, natalData?.utcOff ?? 0);
+    txt.textContent = p.date;
+    if (tim) tim.textContent = p.time;
+  };
 
   if (currentMode === 'natal') {
     const baseJD = natalData?.birthJD;
@@ -7174,7 +7183,7 @@ function syncV2DateLabel() {
       inp.value = d.getUTCFullYear() + '-' +
         String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
         String(d.getUTCDate()).padStart(2, '0');
-      txt.textContent = fmtNavDateTime(baseJD, natalData?.utcOff ?? 0);
+      paint(baseJD);
     }
     const atOrigin = natalData?.originalBirthJD == null || Math.abs((natalData?.birthJD ?? 0) - (natalData?.originalBirthJD ?? 0)) < 0.001;
     lbl.classList.toggle('v2-date-active', !atOrigin);
@@ -7188,22 +7197,20 @@ function syncV2DateLabel() {
       String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
       String(d.getUTCDate()).padStart(2, '0');
   }
-  if (currentTransitJD === null) {
-    txt.textContent = tr('today');
-    lbl.classList.remove('v2-date-active');
-  } else {
-    txt.textContent = fmtNavDateTime(currentTransitJD, natalData?.utcOff ?? 0);
-    lbl.classList.add('v2-date-active');
-  }
+  paint(baseJD);
+  lbl.classList.toggle('v2-date-active', currentTransitJD !== null);
 }
 
-// Подпись контроллера: локальные дата и время «DD.MM.YYYY HH:MM» (с учётом utcOff).
+// Подпись контроллера: локальные дата и время (с учётом utcOff), раздельно.
 // Округляем до минуты — снимаем артефакт округления JD (10:30 не показывается как 10:29).
-function fmtNavDateTime(jd, utcOff = 0) {
+function splitNavDateTime(jd, utcOff = 0) {
   const ms = Math.round(((jd - 2440587.5) * 86400000 + utcOff * 3600000) / 60000) * 60000;
   const d = new Date(ms);
   const p = n => String(n).padStart(2, '0');
-  return `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+  return {
+    date: `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}.${d.getUTCFullYear()}`,
+    time: `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`,
+  };
 }
 
 document.getElementById('chart-mode-tabs').addEventListener('click', e => {

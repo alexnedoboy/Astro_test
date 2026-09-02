@@ -442,26 +442,8 @@
         </div>
         </div>
       </div>
-      <!-- ── Библиотека: та же выдвижная панель, что и заметки ─────────────── -->
-      <div id="v2-library-view">
-        <div id="lib-panel-head">
-          <button id="lib-back-btn" class="v2-icon-btn" data-i18n-title="libBackTitle" title="Назад">←</button>
-          <span id="lib-panel-title" data-i18n="library">Библиотека</span>
-          <button id="lib-panel-close" title="Закрыть">✕</button>
-        </div>
-        <div id="lib-search-row">
-          <input id="lib-search" type="search" autocomplete="off" spellcheck="false"
-                 data-i18n-placeholder="libSearchPlaceholder" placeholder="Поиск по оглавлению…">
-        </div>
-        <div id="lib-inner">
-          <div id="lib-msg"></div>
-          <div id="lib-list"></div>
-          <div id="lib-reader">
-            <div id="lib-reader-toc"></div>
-            <div id="lib-reader-body"></div>
-          </div>
-        </div>
-      </div>
+      <!-- ── Библиотека: та же выдвижная панель, что и заметки (разметку строит createLibraryUI) ── -->
+      <div id="v2-library-view"></div>
     </div>
   </div>
   <div id="v2-bottom">
@@ -694,7 +676,7 @@ function updateAuthUI(user) {
     persistUnsavedTabs();   // кейсы, построенные до логина, дозаписываются
     // Настройки из Supabase user metadata побеждают localStorage
     syncSettingsFromUser(user);
-    if (libraryPanelOpen) libRefresh();   // панель ждала логина — теперь можно грузить
+    if (libraryPanelOpen) libPanel.refresh();   // панель ждала логина — теперь можно грузить
   } else {
     loginBtn.style.display = '';
     userInfo.style.display = 'none';
@@ -1769,16 +1751,17 @@ document.getElementById('notes-panel-close')?.addEventListener('click', closeNot
 // Книги лежат в приватном бакете Supabase Storage «library» (см. supabase_library.sql):
 // index.json — дерево книга → глава → раздел, рядом сами главы в markdown.
 // Читать может только авторизованный пользователь; сборка и заливка — tools/*-library.mjs.
+//
+// Читалка — фабрика createLibraryUI(root): экземпляров может быть несколько
+// (выдвижная панель у карты, отдельная вкладка), у каждого своё положение в книге,
+// а индекс и загруженные главы общие на сессию.
 
 const LIB_BUCKET = 'library';
+const LIB_TOC_BAR = 36;   // высота свёрнутого оглавления — под ним не должен прятаться заголовок
 
-let libraryPanelOpen = false;
 let libIndex   = null;              // распарсенный index.json (кэш на сессию)
 let libLoading = null;              // промис загрузки индекса (защита от гонок)
-let libView    = { screen: 'shelf', bookId: null, chapId: null };
 const libChapterCache = new Map();  // `${bookId}/${chapId}` → текст главы
-
-const libraryView = document.getElementById('v2-library-view');
 
 async function libDownload(path) {
   const { data, error } = await sb.storage.from(LIB_BUCKET).download(path);
@@ -1803,304 +1786,12 @@ async function libLoadChapter(bookId, chapId) {
 function libBook(id)          { return libIndex?.books.find(b => b.id === id); }
 function libChapter(bId, cId) { return libBook(bId)?.chapters.find(c => c.id === cId); }
 
-function openLibraryPanel() {
-  if (notesPanelOpen) closeNotesPanel();
-  libraryPanelOpen = true;
-  document.getElementById('v2-aspect-panel')?.classList.add('library-open');
-  document.getElementById('libraryToggleBtn')?.classList.add('active');
-  return libRefresh();
-}
-function closeLibraryPanel() {
-  libraryPanelOpen = false;
-  document.getElementById('v2-aspect-panel')?.classList.remove('library-open');
-  document.getElementById('libraryToggleBtn')?.classList.remove('active');
-}
-function toggleLibraryPanel() {
-  if (libraryPanelOpen) closeLibraryPanel();
-  else openLibraryPanel();
-}
-
-document.getElementById('libraryToggleBtn')?.addEventListener('click', toggleLibraryPanel);
-document.getElementById('lib-panel-close')?.addEventListener('click', closeLibraryPanel);
-
-function showLibMsg(msg) {
-  libraryView.classList.remove('reading');
-  libraryView.classList.add('msg-only');
-  document.getElementById('lib-msg').textContent = msg;
-}
-
-// Загрузить индекс (если нужно) и нарисовать текущий экран
-async function libRefresh() {
-  if (!currentUser) { showLibMsg(tr('libLoginFirst')); return; }
-  if (!libIndex) {
-    showLibMsg(tr('libLoading'));
-    try { await libLoadIndex(); }
-    catch (e) { console.error('library index:', e); showLibMsg(tr('libError')); return; }
-  }
-  if (!libIndex?.books?.length) { showLibMsg(tr('libEmpty')); return; }
-  libraryView.classList.remove('msg-only');
-  libRender();
-}
-
-function libGo(view) {
-  libView = { screen: 'shelf', bookId: null, chapId: null, ...view };
-  libRender();
-}
-
-function libBack() {
-  if (libView.screen === 'chapter') libGo({ screen: 'book', bookId: libView.bookId });
-  else libGo({ screen: 'shelf' });
-}
-document.getElementById('lib-back-btn')?.addEventListener('click', libBack);
-
-function libRender() {
-  const search = document.getElementById('lib-search');
-  const q = search.value.trim();
-  libraryView.classList.toggle('can-back', libView.screen !== 'shelf');
-  libraryView.classList.toggle('reading', libView.screen === 'chapter');
-
-  const title = document.getElementById('lib-panel-title');
-  if (libView.screen === 'shelf')      title.textContent = tr('library');
-  else if (libView.screen === 'book')  title.textContent = libBook(libView.bookId)?.title ?? tr('library');
-  else if (libView.screen === 'hits')  title.textContent = libView.label ?? tr('library');
-  else                                 title.textContent = libChapter(libView.bookId, libView.chapId)?.title ?? '';
-
-  if (libView.screen === 'chapter') { libRenderChapter(); return; }
-  if (q) libRenderSearch(q);
-  else if (libView.screen === 'hits') libRenderHits();
-  else if (libView.screen === 'book') libRenderBook();
-  else libRenderShelf();
-}
-
-function libItem({ title: t, meta, sub, aux, onClick }) {
-  const row = document.createElement('div');
-  row.className = 'lib-item' + (aux ? ' aux' : '');
-  const box = document.createElement('div');
-  box.style.cssText = 'flex:1;min-width:0';
-  const ttl = document.createElement('div');
-  ttl.className = 'lib-item-title';
-  ttl.textContent = t;
-  box.appendChild(ttl);
-  if (sub) {
-    const s = document.createElement('div');
-    s.className = 'lib-item-sub';
-    s.textContent = sub;
-    box.appendChild(s);
-  }
-  row.appendChild(box);
-  if (meta) {
-    const m = document.createElement('div');
-    m.className = 'lib-item-meta';
-    m.textContent = meta;
-    row.appendChild(m);
-  }
-  row.addEventListener('click', onClick);
-  return row;
-}
-
-function libListEl() {
-  const list = document.getElementById('lib-list');
-  list.innerHTML = '';
-  document.getElementById('lib-inner').scrollTop = 0;
-  return list;
-}
-
-// Полка: книги
-function libRenderShelf() {
-  const list = libListEl();
-  for (const b of libIndex.books) {
-    list.appendChild(libItem({
-      title: b.title,
-      sub: b.author,
-      meta: tr('libChapters').replace('{n}', b.chapters.length),
-      onClick: () => libGo({ screen: 'book', bookId: b.id }),
-    }));
-  }
-}
-
-// Оглавление книги: главы (служебные — в хвосте)
-function libRenderBook() {
-  const list = libListEl();
-  const b = libBook(libView.bookId);
-  if (!b) return libGo({ screen: 'shelf' });
-  const chapters = [...b.chapters].sort((x, y) => (x.aux ? 1 : 0) - (y.aux ? 1 : 0));
-  for (const c of chapters) {
-    list.appendChild(libItem({
-      title: c.title,
-      aux: c.aux,
-      meta: c.pages ? tr('libPages').replace('{p}', c.pages) : '',
-      onClick: () => libGo({ screen: 'chapter', bookId: b.id, chapId: c.id }),
-    }));
-  }
-}
-
-// Поиск по заголовкам глав и разделов (индекс уже в памяти)
-function libRenderSearch(q) {
-  const list = libListEl();
-  const needle = q.toLowerCase();
-  const hits = [];
-  for (const b of libIndex.books) {
-    if (libView.screen === 'book' && b.id !== libView.bookId) continue;
-    for (const c of b.chapters) {
-      if (c.title.toLowerCase().includes(needle))
-        hits.push({ book: b, chap: c, title: c.title, sub: b.title });
-      for (const s of c.sections)
-        if (s.title.toLowerCase().includes(needle))
-          hits.push({ book: b, chap: c, anchor: s.anchor, title: s.title, sub: `${b.title} · ${c.title}` });
-    }
-  }
-  if (!hits.length) {
-    const empty = document.createElement('div');
-    empty.id = 'notes-empty';
-    empty.textContent = tr('libNothingFound');
-    list.appendChild(empty);
-    return;
-  }
-  for (const h of hits.slice(0, 80)) {
-    list.appendChild(libItem({
-      title: h.title,
-      sub: h.sub,
-      onClick: () => libOpen(h.book.id, h.chap.id, h.anchor),
-    }));
-  }
-}
-
-let _libSearchTimer = null;
-document.getElementById('lib-search')?.addEventListener('input', () => {
-  clearTimeout(_libSearchTimer);
-  _libSearchTimer = setTimeout(libRender, 140);
-});
-
-// Открыть главу (опционально — сразу на разделе)
-function libOpen(bookId, chapId, anchor) {
-  libView = { screen: 'chapter', bookId, chapId, anchor };
-  const s = document.getElementById('lib-search');
-  if (s) s.value = '';
-  libRender();
-}
-
-let _libChapterToken = 0;   // защита от гонок: пока грузим главу, могли уйти на другую
-
-async function libRenderChapter() {
-  const b = libBook(libView.bookId), c = libChapter(libView.bookId, libView.chapId);
-  if (!b || !c) return libGo({ screen: 'shelf' });
-
-  const body = document.getElementById('lib-reader-body');
-  const toc  = document.getElementById('lib-reader-toc');
-  const token = ++_libChapterToken;
-  body.textContent = tr('libLoading');
-  toc.innerHTML = '';
-
-  let md;
-  try { md = await libLoadChapter(b.id, c.id); }
-  catch (e) { console.error('library chapter:', e); if (token === _libChapterToken) body.textContent = tr('libError'); return; }
-  if (token !== _libChapterToken) return;
-
-  body.innerHTML = renderMarkdown(md);
-
-  // Якоря берём из индекса по порядку заголовков — слаг не дублируем в двух местах
-  const heads = [...body.querySelectorAll('h2, h3, h4')];
-  heads.forEach((h, i) => { if (c.sections[i]) h.id = 'lib-' + c.sections[i].anchor; });
-
-  const meta = document.createElement('div');
-  meta.className = 'lib-chap-meta';
-  meta.textContent = [b.title, c.pages && tr('libPages').replace('{p}', c.pages)].filter(Boolean).join(' · ');
-  body.prepend(meta);
-
-  libRenderChapterToc(c, heads);
-
-  const target = libView.anchor && body.querySelector('#lib-' + CSS.escape(libView.anchor));
-  if (target) libScrollToHead(target);
-  else { document.getElementById('lib-inner').scrollTop = 0; libSyncToc(); }
-}
-
-const LIB_TOC_BAR = 36;   // высота свёрнутого оглавления — под ним не должен прятаться заголовок
-
-function libScrollToHead(h) {
-  if (!h) return;
-  libCollapseToc(true);                       // сначала свернуть — иначе съедет на высоту оглавления
-  h.scrollIntoView({ block: 'start' });        // отступ под липкую шапку — scroll-margin-top в CSS
-  libSyncToc();
-  libHoldAnchor(h);
-}
-
-// Глава длинная (десятки тысяч пикселей), и высоты ещё плывут после первой отрисовки —
-// пару секунд удерживаем нужный раздел у верхнего края, пока читатель не тронул скролл.
-let _libHold = null;
-function libHoldAnchor(h) {
-  clearInterval(_libHold?.timer);
-  const inner = document.getElementById('lib-inner');
-  const token = _libChapterToken;
-  const state = { until: Date.now() + 3000 };
-  state.timer = setInterval(() => {
-    if (token !== _libChapterToken || !h.isConnected || Date.now() > state.until) {
-      clearInterval(state.timer); return;
-    }
-    const drift = h.getBoundingClientRect().top - inner.getBoundingClientRect().top - LIB_TOC_BAR - 10;
-    if (Math.abs(drift) > 4) { h.scrollIntoView({ block: 'start' }); libSyncToc(); }
-  }, 120);
-  _libHold = state;
-}
-// любой ручной скролл отменяет удержание
-for (const ev of ['wheel', 'touchstart', 'keydown'])
-  document.getElementById('lib-inner')?.addEventListener(ev, () => { clearInterval(_libHold?.timer); }, { passive: true });
-
-function libCollapseToc(on) {
-  document.getElementById('lib-reader-toc')?.classList.toggle('collapsed', on);
-  libSyncToc();
-}
-
-function libRenderChapterToc(chap, heads) {
-  const toc = document.getElementById('lib-reader-toc');
-  toc.innerHTML = '';
-  toc.classList.remove('collapsed');
-  if (chap.sections.length < 2) return;
-
-  const cap = document.createElement('div');
-  cap.className = 'lib-toc-cap';
-  const capText = document.createElement('span');
-  capText.className = 'lib-toc-cap-text';
-  const caret = document.createElement('span');
-  caret.className = 'lib-toc-caret';
-  cap.append(capText, caret);
-  cap.addEventListener('click', () => libCollapseToc(!toc.classList.contains('collapsed')));
-  toc.appendChild(cap);
-
-  chap.sections.forEach((s, i) => {
-    const a = document.createElement('div');
-    a.className = 'lib-toc-link' + (s.level > 2 ? ' sub' : '');
-    a.textContent = s.title;
-    a.addEventListener('click', () => libScrollToHead(heads[i]));
-    toc.appendChild(a);
-  });
-}
-
-// Подсветка текущего раздела; в свёрнутом виде он же — заголовок шапки
-function libSyncToc() {
-  const toc   = document.getElementById('lib-reader-toc');
-  const inner = document.getElementById('lib-inner');
-  const body  = document.getElementById('lib-reader-body');
-  const links = [...toc.querySelectorAll('.lib-toc-link')];
-  if (!links.length) return;
-  const heads = [...body.querySelectorAll('h2, h3, h4')];
-  const y = inner.getBoundingClientRect().top + LIB_TOC_BAR + 12;
-  let cur = -1;
-  heads.forEach((h, i) => { if (h.getBoundingClientRect().top <= y) cur = i; });
-  links.forEach((a, i) => a.classList.toggle('current', i === cur));
-
-  const collapsed = toc.classList.contains('collapsed');
-  toc.querySelector('.lib-toc-cap-text').textContent =
-    collapsed && cur >= 0 ? links[cur].textContent : tr('libInThisChapter');
-  toc.querySelector('.lib-toc-caret').textContent = collapsed ? '▾' : '▴';
-}
-// ── Контекстные ссылки: клик по строке таблицы планет/домов → раздел книги ────
-// Разделы у Подводного названы предсказуемо («Луна в Скорпионе», «Пятый дом в
-// Овне»), поэтому цель ищется по точному заголовку в индексе — без карты соответствий.
-
-const LIB_SIGN_PREP  = ['Овне','Тельце','Близнецах','Раке','Льве','Деве',
-                        'Весах','Скорпионе','Стрельце','Козероге','Водолее','Рыбах'];
-const LIB_HOUSE_ORD  = ['Первый','Второй','Третий','Четвертый','Пятый','Шестой',
-                        'Седьмой','Восьмой','Девятый','Десятый','Одиннадцатый','Двенадцатый'];
+// Разделы у Подводного названы предсказуемо («Луна в Скорпионе», «Пятый дом в Овне»),
+// поэтому контекстные ссылки ищут цель по точному заголовку — без карты соответствий.
+const LIB_SIGN_PREP = ['Овне','Тельце','Близнецах','Раке','Льве','Деве',
+                       'Весах','Скорпионе','Стрельце','Козероге','Водолее','Рыбах'];
+const LIB_HOUSE_ORD = ['Первый','Второй','Третий','Четвертый','Пятый','Шестой',
+                       'Седьмой','Восьмой','Девятый','Десятый','Одиннадцатый','Двенадцатый'];
 
 // Все разделы с заголовком «<subject> в|во <знак>»
 function libFindSections(subject, signIdx) {
@@ -2115,41 +1806,350 @@ function libFindSections(subject, signIdx) {
   return hits;
 }
 
-// Открыть библиотеку на разделе о планете/доме в знаке
-async function libOpenSubject(subject, signIdx) {
-  if (!libraryPanelOpen) await openLibraryPanel(); else await libRefresh();
-  if (!libIndex) return;                       // не залогинен или не загрузилось
-  const hits = libFindSections(subject, signIdx);
-  if (!hits.length) return;
-  if (hits.length === 1) return libOpen(hits[0].book.id, hits[0].chap.id, hits[0].anchor);
-  libView = { screen: 'hits', hits, label: `${subject} в ${LIB_SIGN_PREP[signIdx]}` };
-  libRender();
+// Разметку строит сама фабрика — оба хоста получают одинаковую структуру
+function libBuildMarkup(root, { closable }) {
+  root.classList.add('library-view');
+  root.innerHTML =
+    '<div class="lib-head">' +
+      '<button class="lib-back v2-icon-btn" data-i18n-title="libBackTitle" title="Назад">←</button>' +
+      '<span class="lib-title"></span>' +
+      (closable ? '<button class="lib-close" title="Закрыть">✕</button>' : '') +
+    '</div>' +
+    '<div class="lib-search-row">' +
+      '<input class="lib-search" type="search" autocomplete="off" spellcheck="false" ' +
+             'data-i18n-placeholder="libSearchPlaceholder" placeholder="Поиск по оглавлению…">' +
+    '</div>' +
+    '<div class="lib-inner">' +
+      '<div class="lib-msg"></div>' +
+      '<div class="lib-list"></div>' +
+      '<div class="lib-reader"><div class="lib-toc"></div><div class="lib-body"></div></div>' +
+    '</div>';
 }
 
-function libRenderHits() {
-  const list = libListEl();
-  for (const h of libView.hits) {
-    list.appendChild(libItem({
-      title: h.title,
-      sub: h.sub,
-      onClick: () => libOpen(h.book.id, h.chap.id, h.anchor),
-    }));
+// root — контейнер читалки; onClose — если у хоста есть кнопка ✕
+function createLibraryUI(root, { onClose = null } = {}) {
+  libBuildMarkup(root, { closable: !!onClose });
+  const $ = sel => root.querySelector(sel);
+  const head = { title: $('.lib-title'), search: $('.lib-search'), inner: $('.lib-inner'),
+                 msg: $('.lib-msg'), list: $('.lib-list'), toc: $('.lib-toc'), body: $('.lib-body') };
+
+  let view = { screen: 'shelf', bookId: null, chapId: null };
+  let chapterToken = 0;   // защита от гонок: пока грузим главу, могли уйти на другую
+  let hold = null;        // удержание якоря после перехода к разделу
+  let searchTimer = null;
+
+  $('.lib-back').addEventListener('click', back);
+  $('.lib-close')?.addEventListener('click', onClose);
+  head.search.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(render, 140);
+  });
+  head.inner.addEventListener('scroll', e => {
+    if (view.screen !== 'chapter') return;
+    // у самого верха оглавление раскрыто, дальше — сворачивается в одну строку
+    head.toc.classList.toggle('collapsed', e.target.scrollTop >= 60);
+    syncToc();
+  }, { passive: true });
+  // любой ручной скролл отменяет удержание якоря
+  for (const ev of ['wheel', 'touchstart', 'keydown'])
+    head.inner.addEventListener(ev, () => clearInterval(hold?.timer), { passive: true });
+
+  function showMsg(msg) {
+    root.classList.remove('reading');
+    root.classList.add('msg-only');
+    head.msg.textContent = msg;
   }
+
+  // Загрузить индекс (если нужно) и нарисовать текущий экран
+  async function refresh() {
+    if (!currentUser) { showMsg(tr('libLoginFirst')); return; }
+    if (!libIndex) {
+      showMsg(tr('libLoading'));
+      try { await libLoadIndex(); }
+      catch (e) { console.error('library index:', e); showMsg(tr('libError')); return; }
+    }
+    if (!libIndex?.books?.length) { showMsg(tr('libEmpty')); return; }
+    root.classList.remove('msg-only');
+    render();
+  }
+
+  function go(next) {
+    view = { screen: 'shelf', bookId: null, chapId: null, ...next };
+    render();
+  }
+
+  function back() {
+    if (view.screen === 'chapter') go({ screen: 'book', bookId: view.bookId });
+    else go({ screen: 'shelf' });
+  }
+
+  function render() {
+    const q = head.search.value.trim();
+    root.classList.toggle('can-back', view.screen !== 'shelf');
+    root.classList.toggle('reading', view.screen === 'chapter');
+
+    if (view.screen === 'shelf')      head.title.textContent = tr('library');
+    else if (view.screen === 'book')  head.title.textContent = libBook(view.bookId)?.title ?? tr('library');
+    else if (view.screen === 'hits')  head.title.textContent = view.label ?? tr('library');
+    else                              head.title.textContent = libChapter(view.bookId, view.chapId)?.title ?? '';
+
+    if (view.screen === 'chapter') { renderChapter(); return; }
+    if (q) renderSearch(q);
+    else if (view.screen === 'hits') renderHits();
+    else if (view.screen === 'book') renderBook();
+    else renderShelf();
+  }
+
+  function listEl() {
+    head.list.innerHTML = '';
+    head.inner.scrollTop = 0;
+    return head.list;
+  }
+
+  function item({ title, meta, sub, aux, onClick }) {
+    const row = document.createElement('div');
+    row.className = 'lib-item' + (aux ? ' aux' : '');
+    const box = document.createElement('div');
+    box.className = 'lib-item-box';
+    const ttl = document.createElement('div');
+    ttl.className = 'lib-item-title';
+    ttl.textContent = title;
+    box.appendChild(ttl);
+    if (sub) {
+      const s = document.createElement('div');
+      s.className = 'lib-item-sub';
+      s.textContent = sub;
+      box.appendChild(s);
+    }
+    row.appendChild(box);
+    if (meta) {
+      const m = document.createElement('div');
+      m.className = 'lib-item-meta';
+      m.textContent = meta;
+      row.appendChild(m);
+    }
+    row.addEventListener('click', onClick);
+    return row;
+  }
+
+  // Полка: книги
+  function renderShelf() {
+    const list = listEl();
+    for (const b of libIndex.books)
+      list.appendChild(item({
+        title: b.title,
+        sub: b.author,
+        meta: tr('libChapters').replace('{n}', b.chapters.length),
+        onClick: () => go({ screen: 'book', bookId: b.id }),
+      }));
+  }
+
+  // Оглавление книги: главы (служебные — в хвосте)
+  function renderBook() {
+    const list = listEl();
+    const b = libBook(view.bookId);
+    if (!b) return go({ screen: 'shelf' });
+    const chapters = [...b.chapters].sort((x, y) => (x.aux ? 1 : 0) - (y.aux ? 1 : 0));
+    for (const c of chapters)
+      list.appendChild(item({
+        title: c.title,
+        aux: c.aux,
+        meta: c.pages ? tr('libPages').replace('{p}', c.pages) : '',
+        onClick: () => go({ screen: 'chapter', bookId: b.id, chapId: c.id }),
+      }));
+  }
+
+  // Поиск по заголовкам глав и разделов (индекс уже в памяти)
+  function renderSearch(q) {
+    const list = listEl();
+    const needle = q.toLowerCase();
+    const hits = [];
+    for (const b of libIndex.books) {
+      if (view.screen === 'book' && b.id !== view.bookId) continue;
+      for (const c of b.chapters) {
+        if (c.title.toLowerCase().includes(needle))
+          hits.push({ book: b, chap: c, title: c.title, sub: b.title });
+        for (const s of c.sections)
+          if (s.title.toLowerCase().includes(needle))
+            hits.push({ book: b, chap: c, anchor: s.anchor, title: s.title, sub: `${b.title} · ${c.title}` });
+      }
+    }
+    if (!hits.length) {
+      const empty = document.createElement('div');
+      empty.className = 'lib-empty';
+      empty.textContent = tr('libNothingFound');
+      list.appendChild(empty);
+      return;
+    }
+    for (const h of hits.slice(0, 80))
+      list.appendChild(item({ title: h.title, sub: h.sub, onClick: () => open(h.book.id, h.chap.id, h.anchor) }));
+  }
+
+  // Несколько подходящих разделов (одна тема в разных книгах)
+  function renderHits() {
+    const list = listEl();
+    for (const h of view.hits)
+      list.appendChild(item({ title: h.title, sub: h.sub, onClick: () => open(h.book.id, h.chap.id, h.anchor) }));
+  }
+
+  // Открыть главу (опционально — сразу на разделе)
+  function open(bookId, chapId, anchor) {
+    view = { screen: 'chapter', bookId, chapId, anchor };
+    head.search.value = '';
+    render();
+  }
+
+  // Открыть раздел о планете/доме в знаке; несколько попаданий — списком
+  function openSubject(subject, signIdx) {
+    if (!libIndex) return;
+    const hits = libFindSections(subject, signIdx);
+    if (!hits.length) return;
+    if (hits.length === 1) return open(hits[0].book.id, hits[0].chap.id, hits[0].anchor);
+    view = { screen: 'hits', hits, label: `${subject} в ${LIB_SIGN_PREP[signIdx]}` };
+    render();
+  }
+
+  async function renderChapter() {
+    const b = libBook(view.bookId), c = libChapter(view.bookId, view.chapId);
+    if (!b || !c) return go({ screen: 'shelf' });
+
+    const token = ++chapterToken;
+    head.body.textContent = tr('libLoading');
+    head.toc.innerHTML = '';
+
+    let md;
+    try { md = await libLoadChapter(b.id, c.id); }
+    catch (e) {
+      console.error('library chapter:', e);
+      if (token === chapterToken) head.body.textContent = tr('libError');
+      return;
+    }
+    if (token !== chapterToken) return;
+
+    head.body.innerHTML = renderMarkdown(md);
+
+    // Якоря берём из индекса по порядку заголовков — слаг не дублируем в двух местах
+    const heads = [...head.body.querySelectorAll('h2, h3, h4')];
+    heads.forEach((h, i) => { if (c.sections[i]) h.dataset.anchor = c.sections[i].anchor; });
+
+    const meta = document.createElement('div');
+    meta.className = 'lib-chap-meta';
+    meta.textContent = [b.title, c.pages && tr('libPages').replace('{p}', c.pages)].filter(Boolean).join(' · ');
+    head.body.prepend(meta);
+
+    renderChapterToc(c, heads);
+
+    const target = view.anchor && heads.find(h => h.dataset.anchor === view.anchor);
+    if (target) scrollToHead(target);
+    else { head.inner.scrollTop = 0; syncToc(); }
+  }
+
+  function scrollToHead(h) {
+    if (!h) return;
+    collapseToc(true);                     // сначала свернуть — иначе съедет на высоту оглавления
+    h.scrollIntoView({ block: 'start' });   // отступ под липкую шапку — scroll-margin-top в CSS
+    syncToc();
+    holdAnchor(h);
+  }
+
+  // Глава длинная (десятки тысяч пикселей), и высоты ещё плывут после первой отрисовки —
+  // пару секунд удерживаем нужный раздел у верхнего края, пока читатель не тронул скролл.
+  function holdAnchor(h) {
+    clearInterval(hold?.timer);
+    const token = chapterToken;
+    const state = { until: Date.now() + 3000 };
+    state.timer = setInterval(() => {
+      if (token !== chapterToken || !h.isConnected || Date.now() > state.until) {
+        clearInterval(state.timer); return;
+      }
+      const drift = h.getBoundingClientRect().top - head.inner.getBoundingClientRect().top - LIB_TOC_BAR - 10;
+      if (Math.abs(drift) > 4) { h.scrollIntoView({ block: 'start' }); syncToc(); }
+    }, 120);
+    hold = state;
+  }
+
+  function collapseToc(on) {
+    head.toc.classList.toggle('collapsed', on);
+    syncToc();
+  }
+
+  function renderChapterToc(chap, heads) {
+    head.toc.innerHTML = '';
+    head.toc.classList.remove('collapsed');
+    if (chap.sections.length < 2) return;
+
+    const cap = document.createElement('div');
+    cap.className = 'lib-toc-cap';
+    const capText = document.createElement('span');
+    capText.className = 'lib-toc-cap-text';
+    const caret = document.createElement('span');
+    caret.className = 'lib-toc-caret';
+    cap.append(capText, caret);
+    cap.addEventListener('click', () => collapseToc(!head.toc.classList.contains('collapsed')));
+    head.toc.appendChild(cap);
+
+    chap.sections.forEach((s, i) => {
+      const a = document.createElement('div');
+      a.className = 'lib-toc-link' + (s.level > 2 ? ' sub' : '');
+      a.textContent = s.title;
+      a.addEventListener('click', () => scrollToHead(heads[i]));
+      head.toc.appendChild(a);
+    });
+  }
+
+  // Подсветка текущего раздела; в свёрнутом виде он же — заголовок шапки
+  function syncToc() {
+    const links = [...head.toc.querySelectorAll('.lib-toc-link')];
+    if (!links.length) return;
+    const heads = [...head.body.querySelectorAll('h2, h3, h4')];
+    const y = head.inner.getBoundingClientRect().top + LIB_TOC_BAR + 12;
+    let cur = -1;
+    heads.forEach((h, i) => { if (h.getBoundingClientRect().top <= y) cur = i; });
+    links.forEach((a, i) => a.classList.toggle('current', i === cur));
+
+    const collapsed = head.toc.classList.contains('collapsed');
+    head.toc.querySelector('.lib-toc-cap-text').textContent =
+      collapsed && cur >= 0 ? links[cur].textContent : tr('libInThisChapter');
+    head.toc.querySelector('.lib-toc-caret').textContent = collapsed ? '▾' : '▴';
+  }
+
+  return { refresh, go, open, openSubject, back };
 }
 
-// Строки таблицы планет и домов кликабельны (разметку ставит buildInfoTable)
-document.getElementById('tableBody')?.addEventListener('click', e => {
+// ── Библиотека: выдвижная панель у карты ─────────────────────────────────────
+// Делит место с заметками: открытие одной закрывает другую.
+
+let libraryPanelOpen = false;
+const libPanel = createLibraryUI(document.getElementById('v2-library-view'),
+                                { onClose: () => closeLibraryPanel() });
+
+function openLibraryPanel() {
+  if (notesPanelOpen) closeNotesPanel();
+  libraryPanelOpen = true;
+  document.getElementById('v2-aspect-panel')?.classList.add('library-open');
+  document.getElementById('libraryToggleBtn')?.classList.add('active');
+  return libPanel.refresh();
+}
+function closeLibraryPanel() {
+  libraryPanelOpen = false;
+  document.getElementById('v2-aspect-panel')?.classList.remove('library-open');
+  document.getElementById('libraryToggleBtn')?.classList.remove('active');
+}
+function toggleLibraryPanel() {
+  if (libraryPanelOpen) closeLibraryPanel();
+  else openLibraryPanel();
+}
+
+document.getElementById('libraryToggleBtn')?.addEventListener('click', toggleLibraryPanel);
+
+// Строки таблицы планет и домов ведут в нужный раздел (разметку ставит buildInfoTable)
+document.getElementById('tableBody')?.addEventListener('click', async e => {
   const row = e.target.closest('tr[data-lib-sign]');
   if (!row) return;
-  libOpenSubject(row.dataset.libSubject, +row.dataset.libSign);
+  if (!libraryPanelOpen) await openLibraryPanel(); else await libPanel.refresh();
+  libPanel.openSubject(row.dataset.libSubject, +row.dataset.libSign);
 });
 
-document.getElementById('lib-inner')?.addEventListener('scroll', e => {
-  if (libView.screen !== 'chapter') return;
-  // у самого верха оглавление раскрыто, дальше — сворачивается в одну строку
-  document.getElementById('lib-reader-toc')?.classList.toggle('collapsed', e.target.scrollTop >= 60);
-  libSyncToc();
-}, { passive: true });
 
 function noteById(id) { return notesCache?.find(n => n.id === id); }
 

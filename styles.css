@@ -1515,6 +1515,64 @@
     box-shadow: -4px 0 18px rgba(0,0,0,0.10);
   }
   #v2-aspect-panel.library-open #v2-library-view { transform: translateX(0); }
+  .lib-popout {
+    flex: 0 0 auto;
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; border-radius: 5px;
+    font-size: 0.9em; color: var(--tx-6); cursor: pointer;
+  }
+  .lib-popout:hover { background: var(--bg-hover); color: var(--tx-2); }
+
+  /* хост «вкладка»: полотно на всё окно под шапкой */
+  #library-tab-view {
+    display: none;
+    position: fixed;
+    top: var(--hdr-h); left: var(--sidebar-w); right: 0; bottom: 0;
+    z-index: 100;
+    background: var(--bg-app);
+  }
+  #library-tab-view.open { display: flex; }
+  #library-tab-view .lib-head,
+  #library-tab-view .lib-search-row { max-width: 1080px; width: 100%; margin: 0 auto; box-sizing: border-box; }
+  #library-tab-view .lib-head { flex: 0 0 44px; padding: 0 10px; border-bottom: none; }
+  #library-tab-view .lib-title { font-size: 1em; }
+  #library-tab-view .lib-search-row { padding: 0 10px 8px; }
+  #library-tab-view .lib-search { font-size: 0.9em; padding: 7px 10px; }
+  #library-tab-view .lib-inner { padding: 0 10px 40px; }
+  #library-tab-view .lib-list { max-width: 1080px; margin: 0 auto; }
+  #library-tab-view .lib-item { padding: 10px 8px; }
+  #library-tab-view .lib-item-title { font-size: 0.95em; }
+  #library-tab-view .lib-item-sub, #library-tab-view .lib-item-meta { font-size: 0.8em; }
+
+  /* широкий режим: оглавление колонкой слева, текст — колонкой читаемой ширины */
+  /* .reading в селекторе обязателен: правило перебивает базовое .lib-reader { display: none } */
+  #library-tab-view.reading .lib-reader {
+    max-width: 1080px; margin: 0 auto;
+    display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 28px;
+    align-items: start;
+  }
+  #library-tab-view .lib-toc {
+    position: sticky; top: 0;
+    max-height: calc(100vh - var(--hdr-h) - 80px);
+    overflow-y: auto;
+    margin: 0; padding: 8px 0 12px;
+    border-bottom: none; border-right: 1px solid var(--bd-light);
+  }
+  #library-tab-view .lib-toc .lib-toc-caret { display: none; }
+  #library-tab-view .lib-toc-cap { cursor: default; }
+  #library-tab-view .lib-toc-link { font-size: 0.8em; padding: 3px 6px 3px 4px; }
+  #library-tab-view .lib-body {
+    max-width: 68ch;
+    font-size: 1.02em; line-height: 1.62;
+    padding: 8px 0 60px;
+  }
+  #library-tab-view .lib-body h2, #library-tab-view .lib-body h3,
+  #library-tab-view .lib-body h4 { scroll-margin-top: 12px; }
+  @media (max-width: 900px) {
+    #library-tab-view.reading .lib-reader { grid-template-columns: minmax(0, 1fr); }
+    #library-tab-view .lib-toc { position: static; border-right: none; max-height: 40vh; }
+  }
   .lib-head {
     flex: 0 0 var(--tab-h);
     display: flex; align-items: center; gap: 4px;

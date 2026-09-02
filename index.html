@@ -472,11 +472,16 @@
       <button class="palette-cmd" data-cmd="election">
         <span class="palette-cmd-glyph">⏱&#xFE0E;</span><span data-i18n="paletteCmdElection">Элекция</span>
       </button>
+      <button class="palette-cmd" data-cmd="library">
+        <span class="palette-cmd-glyph">📖&#xFE0E;</span><span data-i18n="library">Библиотека</span>
+      </button>
     </div>
     <input id="palette-search" data-i18n-placeholder="paletteSearchPh" placeholder="Открыть карту…" autocomplete="off">
     <div id="palette-list"></div>
   </div>
 </div>
+<!-- ── Библиотека вкладкой: полотно на всё окно (разметку строит createLibraryUI) ── -->
+<div id="library-tab-view"></div>
 <!-- ── Sky Now Layout ────────────────────────────────────────────────────────── -->
 <div id="sky-layout">
   <div id="sky-top">
@@ -581,7 +586,7 @@ import { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff }
 import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          transitOrbFactor } from './js/timeline-calc.js?v=1';
-import { STRINGS } from './js/strings.js?v=4';
+import { STRINGS } from './js/strings.js?v=5';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -1807,12 +1812,13 @@ function libFindSections(subject, signIdx) {
 }
 
 // Разметку строит сама фабрика — оба хоста получают одинаковую структуру
-function libBuildMarkup(root, { closable }) {
+function libBuildMarkup(root, { closable, popout }) {
   root.classList.add('library-view');
   root.innerHTML =
     '<div class="lib-head">' +
       '<button class="lib-back v2-icon-btn" data-i18n-title="libBackTitle" title="Назад">←</button>' +
       '<span class="lib-title"></span>' +
+      (popout ? '<button class="lib-popout" data-i18n-title="libOpenTab" title="Открыть вкладкой">⤢</button>' : '') +
       (closable ? '<button class="lib-close" title="Закрыть">✕</button>' : '') +
     '</div>' +
     '<div class="lib-search-row">' +
@@ -1826,9 +1832,11 @@ function libBuildMarkup(root, { closable }) {
     '</div>';
 }
 
-// root — контейнер читалки; onClose — если у хоста есть кнопка ✕
-function createLibraryUI(root, { onClose = null } = {}) {
-  libBuildMarkup(root, { closable: !!onClose });
+// root — контейнер читалки; onClose — если у хоста есть кнопка ✕;
+// wide — широкое полотно (вкладка): оглавление колонкой, а не сворачивающейся строкой
+function createLibraryUI(root, { onClose = null, onPopOut = null, wide = false } = {}) {
+  libBuildMarkup(root, { closable: !!onClose, popout: !!onPopOut });
+  if (wide) root.classList.add('lib-wide');
   const $ = sel => root.querySelector(sel);
   const head = { title: $('.lib-title'), search: $('.lib-search'), inner: $('.lib-inner'),
                  msg: $('.lib-msg'), list: $('.lib-list'), toc: $('.lib-toc'), body: $('.lib-body') };
@@ -1837,17 +1845,20 @@ function createLibraryUI(root, { onClose = null } = {}) {
   let chapterToken = 0;   // защита от гонок: пока грузим главу, могли уйти на другую
   let hold = null;        // удержание якоря после перехода к разделу
   let searchTimer = null;
+  let pendingScroll = null;   // восстановление позиции чтения вместо перехода к якорю
 
   $('.lib-back').addEventListener('click', back);
   $('.lib-close')?.addEventListener('click', onClose);
+  $('.lib-popout')?.addEventListener('click', onPopOut);
   head.search.addEventListener('input', () => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(render, 140);
   });
   head.inner.addEventListener('scroll', e => {
     if (view.screen !== 'chapter') return;
-    // у самого верха оглавление раскрыто, дальше — сворачивается в одну строку
-    head.toc.classList.toggle('collapsed', e.target.scrollTop >= 60);
+    // в узкой панели у самого верха оглавление раскрыто, дальше — сворачивается в строку;
+    // на широком полотне оно стоит колонкой и не сворачивается
+    if (!wide) head.toc.classList.toggle('collapsed', e.target.scrollTop >= 60);
     syncToc();
   }, { passive: true });
   // любой ручной скролл отменяет удержание якоря
@@ -1870,7 +1881,7 @@ function createLibraryUI(root, { onClose = null } = {}) {
     }
     if (!libIndex?.books?.length) { showMsg(tr('libEmpty')); return; }
     root.classList.remove('msg-only');
-    render();
+    return render();
   }
 
   function go(next) {
@@ -1893,7 +1904,7 @@ function createLibraryUI(root, { onClose = null } = {}) {
     else if (view.screen === 'hits')  head.title.textContent = view.label ?? tr('library');
     else                              head.title.textContent = libChapter(view.bookId, view.chapId)?.title ?? '';
 
-    if (view.screen === 'chapter') { renderChapter(); return; }
+    if (view.screen === 'chapter') return renderChapter();
     if (q) renderSearch(q);
     else if (view.screen === 'hits') renderHits();
     else if (view.screen === 'book') renderBook();
@@ -2039,6 +2050,13 @@ function createLibraryUI(root, { onClose = null } = {}) {
 
     renderChapterToc(c, heads);
 
+    if (pendingScroll != null) {           // вернулись на вкладку — продолжаем с того же места
+      head.inner.scrollTop = pendingScroll;
+      pendingScroll = null;
+      if (!wide && head.inner.scrollTop >= 60) collapseToc(true);
+      syncToc();
+      return;
+    }
     const target = view.anchor && heads.find(h => h.dataset.anchor === view.anchor);
     if (target) scrollToHead(target);
     else { head.inner.scrollTop = 0; syncToc(); }
@@ -2046,7 +2064,7 @@ function createLibraryUI(root, { onClose = null } = {}) {
 
   function scrollToHead(h) {
     if (!h) return;
-    collapseToc(true);                     // сначала свернуть — иначе съедет на высоту оглавления
+    if (!wide) collapseToc(true);          // сначала свернуть — иначе съедет на высоту оглавления
     h.scrollIntoView({ block: 'start' });   // отступ под липкую шапку — scroll-margin-top в CSS
     syncToc();
     holdAnchor(h);
@@ -2113,7 +2131,21 @@ function createLibraryUI(root, { onClose = null } = {}) {
     head.toc.querySelector('.lib-toc-caret').textContent = collapsed ? '▾' : '▴';
   }
 
-  return { refresh, go, open, openSubject, back };
+  // Где читатель остановился — для переключения вкладок и localStorage.
+  // Пока глава грузится, позиция ещё не применена — отдаём цель, а не нулевой скролл.
+  function state() { return { ...view, scroll: pendingScroll ?? head.inner.scrollTop }; }
+  function restore(v) {
+    if (!v?.screen) return;
+    const { scroll, ...rest } = v;
+    view = rest;
+    pendingScroll = (view.screen === 'chapter' && scroll) ? scroll : null;
+    if (!libIndex) return;      // книги не загрузились — положение сохраняем, рисовать нечего
+    const done = render();
+    if (view.screen !== 'chapter' && scroll) head.inner.scrollTop = scroll;
+    return done;
+  }
+
+  return { refresh, go, open, openSubject, back, state, restore };
 }
 
 // ── Библиотека: выдвижная панель у карты ─────────────────────────────────────
@@ -2121,7 +2153,8 @@ function createLibraryUI(root, { onClose = null } = {}) {
 
 let libraryPanelOpen = false;
 const libPanel = createLibraryUI(document.getElementById('v2-library-view'),
-                                { onClose: () => closeLibraryPanel() });
+                                { onClose: () => closeLibraryPanel(),
+                                  onPopOut: () => libraryPanelToTab() });
 
 function openLibraryPanel() {
   if (notesPanelOpen) closeNotesPanel();
@@ -2141,6 +2174,44 @@ function toggleLibraryPanel() {
 }
 
 document.getElementById('libraryToggleBtn')?.addEventListener('click', toggleLibraryPanel);
+
+// ── Библиотека вкладкой ──────────────────────────────────────────────────────
+// Полотно на всё окно: оглавление колонкой, колонка текста комфортной ширины.
+// Вкладка помнит, где читатель остановился (TAB_KINDS.library ниже).
+
+const libTab = createLibraryUI(document.getElementById('library-tab-view'), { wide: true });
+
+function showLibraryTabView(t) {
+  hideHome();
+  document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', 'chart-expanded', ...V2_TL_STATES);
+  layout2Active = false;
+  document.getElementById('library-tab-view').classList.add('open');
+  const want = t.lib;   // считать до асинхронной загрузки: showTab по пути перезапишет t.lib
+  libTab.refresh()
+    .then(() => want && libTab.restore(want))
+    .then(persistTabs);   // позиция применилась — только теперь она верна и в localStorage
+}
+
+// Палитра превращается в библиотеку в том же слоте — как и любой конструктор
+function becomeLibraryTab() {
+  const t = tabs[activeTab];
+  if (!t) return;
+  t.kind = 'library';
+  t.lib  = null;
+  hideKindViews();
+  showLibraryTabView(t);
+  renderTabBar();
+  persistTabs();
+}
+
+// Из панели — «раскрыть вкладкой», с того же места
+function libraryPanelToTab() {
+  const st = libPanel.state();
+  closeLibraryPanel();
+  if (!dashboardOpen && activeTab >= 0) snapshotActiveTab();
+  tabs.push({ uid: ++_tabUid, kind: 'library', lib: st });
+  showTab(tabs.length - 1);
+}
 
 // Строки таблицы планет и домов ведут в нужный раздел (разметку ставит buildInfoTable)
 document.getElementById('tableBody')?.addEventListener('click', async e => {
@@ -2689,7 +2760,8 @@ function applyState(s) {
 
 function snapshotActiveTab() {
   if (activeTab < 0 || !tabs[activeTab]) return;
-  if (tabs[activeTab].kind) return;   // служебная вкладка — состояния кейса нет
+  const kind = tabKind(tabs[activeTab]);
+  if (kind) { kind.snapshot?.(tabs[activeTab]); return; }   // служебная вкладка — кейса нет
   const t = tabs[activeTab];
   t.chartId = currentChartId;
   t.st      = captureState();
@@ -2755,6 +2827,14 @@ const TAB_KINDS = {
     label: () => tr('paletteNewTab'),
     show:  showPaletteView,
     hide:  hidePaletteView,
+  },
+  library: {
+    label:     () => tr('library'),
+    show:      showLibraryTabView,
+    hide:      () => document.getElementById('library-tab-view')?.classList.remove('open'),
+    snapshot:  t => { t.lib = libTab.state(); },
+    serialize: t => ({ lib: t.lib?.screen === 'hits' ? null : t.lib ?? null }),
+    hydrate:   d => ({ lib: d.lib ?? null }),
   },
 };
 
@@ -3042,6 +3122,8 @@ document.getElementById('palette-cmds').addEventListener('click', e => {
     prefillHoraryForm();   // момент = сейчас, место = место астролога (skyPlace)
   } else if (btn.dataset.cmd === 'synastry') {
     openSynForm();
+  } else if (btn.dataset.cmd === 'library') {
+    becomeLibraryTab();   // палитра превращается в библиотеку в том же слоте
   }
 });
 
@@ -3496,7 +3578,11 @@ function stateToView(s) {
 }
 
 function tabToStorage(t, live) {
-  if (t.kind) return { kind: t.kind, ...(tabKind(t)?.serialize?.(t) ?? {}) };
+  if (t.kind) {
+    const kind = tabKind(t);
+    if (live) kind?.snapshot?.(t);   // активную вкладку сериализуем по живому состоянию
+    return { kind: t.kind, ...(kind?.serialize?.(t) ?? {}) };
+  }
   if (live) {
     return { chartId: currentChartId ?? null, fields: readFormFields(), header: readHeader(), view: stateToView(captureState()), type: t.type ?? 'natal', outcome: t.outcome ?? null, snapshots: t.snapshots ?? [], refs: t.refs ?? null, houseSystem: t.houseSystem ?? null };
   }

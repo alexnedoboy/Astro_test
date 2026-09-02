@@ -1557,15 +1557,20 @@
     max-height: calc(100vh - var(--hdr-h) - 80px);
     overflow-y: auto;
     margin: 0; padding: 8px 0 12px;
-    border-bottom: none; border-right: 1px solid var(--bd-light);
+    background: none;
+    border-bottom: none; border-right: none;
   }
   #library-tab-view .lib-toc .lib-toc-caret { display: none; }
-  #library-tab-view .lib-toc-cap { cursor: default; }
+  #library-tab-view .lib-toc-cap { cursor: default; background: none; }
   #library-tab-view .lib-toc-link { font-size: 0.8em; padding: 3px 6px 3px 4px; }
+  /* текст — белой плашкой поверх фона приложения */
   #library-tab-view .lib-body {
-    max-width: 68ch;
+    max-width: 72ch;
     font-size: 1.02em; line-height: 1.62;
-    padding: 8px 0 60px;
+    background: var(--bg);
+    border-radius: var(--panel-radius);
+    padding: 26px 34px 44px;
+    margin-bottom: 40px;
   }
   #library-tab-view .lib-body h2, #library-tab-view .lib-body h3,
   #library-tab-view .lib-body h4 { scroll-margin-top: 12px; }

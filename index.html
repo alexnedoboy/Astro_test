@@ -1679,7 +1679,7 @@ async function saveCurrentChartToDb(extra = {}, targetTab = null, fields = null)
 // «сохранить» не нужно). Sky — transient (§14: 💾 превращает его в элекцию),
 // синастрия — свой путь (saveSynastryToDb), палитра — не кейс.
 function persistCaseToDb(t, fields = null) {
-  if (!currentUser || !t || t.kind === 'palette' || t.type === 'sky' || t.type === 'synastry') return;
+  if (!currentUser || !t || t.kind || t.type === 'sky' || t.type === 'synastry') return;
   const f = fields ?? t.fields ?? null;
   saveCurrentChartToDb(caseExtraColumns(t, f), t, f).then(({ error }) => {
     if (error) { showSaveConfirm(tr('saveError'), true); return; }
@@ -2689,7 +2689,7 @@ function applyState(s) {
 
 function snapshotActiveTab() {
   if (activeTab < 0 || !tabs[activeTab]) return;
-  if (tabs[activeTab].kind === 'palette') return;   // у палитры нет состояния кейса
+  if (tabs[activeTab].kind) return;   // служебная вкладка — состояния кейса нет
   const t = tabs[activeTab];
   t.chartId = currentChartId;
   t.st      = captureState();
@@ -2701,7 +2701,7 @@ function snapshotActiveTab() {
 function applyLayout2Classes() {
   const v2 = document.getElementById('layout-v2');
   hideHome();
-  hidePaletteView();
+  hideKindViews();
   v2.classList.add('v2-visible');
   v2.classList.remove(...V2_TL_STATES, 'tl-hidden', 'chart-expanded');
   if (chartExpanded) {
@@ -2741,6 +2741,26 @@ function paintActiveChart() {
   }
 }
 
+// ── Виды вкладок ──────────────────────────────────────────────────────────────
+// У вкладки два независимых измерения: `type` — тип кейса (natal/horary/synastry/…),
+// `kind` — вид вкладки, которая кейсом не является. Кейс — вкладка без `kind`.
+// Запись реестра:
+//   label(t)      имя во вкладке
+//   show(t)       показать полотно (остальные полотна снимает hideKindViews)
+//   hide()        убрать полотно
+//   serialize(t)  что положить в localStorage; нет — вкладка безлична (палитра)
+//   hydrate(d)    поля вкладки из сохранённого
+const TAB_KINDS = {
+  palette: {
+    label: () => tr('paletteNewTab'),
+    show:  showPaletteView,
+    hide:  hidePaletteView,
+  },
+};
+
+const tabKind = t => (t?.kind ? TAB_KINDS[t.kind] ?? null : null);
+function hideKindViews() { for (const k of Object.values(TAB_KINDS)) k.hide?.(); }
+
 function renderTabBar() {
   const bar = document.getElementById('tab-bar');
   bar.innerHTML = '';
@@ -2749,7 +2769,7 @@ function renderTabBar() {
     tab.className = 'app-tab' + (!dashboardOpen && i === activeTab ? ' active' : '');
     tab.innerHTML = `<span class="app-tab-name"></span><button class="app-tab-close" title="Закрыть">✕</button>`;
     tab.querySelector('.app-tab-name').textContent =
-      t.kind === 'palette' ? tr('paletteNewTab') : (t.header?.name || t.fields?.name || '—');
+      tabKind(t)?.label(t) ?? (t.header?.name || t.fields?.name || '—');
     tab.addEventListener('click', () => switchTab(i));
     tab.querySelector('.app-tab-close').addEventListener('click', e => {
       e.stopPropagation();
@@ -2765,14 +2785,16 @@ function showTab(i) {
   if (!t) return;
   activeTab = i;
   dashboardOpen = false;
-  if (t.kind === 'palette') {
-    showPaletteView();
+  const kind = tabKind(t);
+  if (kind) {
+    hideKindViews();
+    kind.show(t);
     updateHashForActiveTab(false);
     renderTabBar();
     persistTabs();
     return;
   }
-  hidePaletteView();
+  hideKindViews();
   writeFormFields(t.fields);
   currentChartId = t.chartId ?? null;
   setV2ChartInfo(t.header?.name, t.header?.dateTime, t.header?.city);
@@ -2856,7 +2878,7 @@ function goDashboard(push = true) {
   dashboardOpen = true;
   document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', 'chart-expanded', ...V2_TL_STATES);
   layout2Active = false;
-  hidePaletteView();
+  hideKindViews();
   closeNotesPanel();
   closeLibraryPanel();
   resetNotesState();
@@ -2871,7 +2893,7 @@ function fullExitToHome(push = true) {
   closeNotesPanel();
   closeLibraryPanel();
   resetNotesState();
-  hidePaletteView();
+  hideKindViews();
   currentChartId = null;
   if (push) history.pushState('', document.title, window.location.pathname + window.location.search);
   document.getElementById('layout-v2').classList.remove('v2-visible', 'tl-hidden', 'chart-expanded', ...V2_TL_STATES);
@@ -2969,7 +2991,7 @@ function choosePaletteChart(c) {
   const ex = tabs.findIndex(t => t.chartId && t.chartId === c.id);
   if (ex >= 0 && ex !== cur) {
     tabs.splice(cur, 1);
-    hidePaletteView();
+    hideKindViews();
     markChartOpened(c);
     showTab(ex > cur ? ex - 1 : ex);
     return;
@@ -3068,7 +3090,7 @@ function setSynStatus(msg) {
 }
 
 function openSynForm() {
-  hidePaletteView();
+  hideKindViews();
   const fw = document.getElementById('syn-form');
   document.getElementById('edit-backdrop').classList.add('visible');
   // сброс слотов
@@ -3089,7 +3111,8 @@ function closeSynForm() {
   document.getElementById('syn-form').classList.remove('open');
   document.getElementById('edit-backdrop').classList.remove('visible');
   // осиротевшую палитру (вкладку) вернуть на экран
-  if (!dashboardOpen && tabs[activeTab]?.kind === 'palette') showPaletteView();
+  const t = tabs[activeTab];
+  if (!dashboardOpen && tabKind(t)) tabKind(t).show(t);
 }
 
 // Список сохранённых карт для слота (натал/без типа — субъекты; не композиты)
@@ -3473,7 +3496,7 @@ function stateToView(s) {
 }
 
 function tabToStorage(t, live) {
-  if (t.kind === 'palette') return { kind: 'palette' };
+  if (t.kind) return { kind: t.kind, ...(tabKind(t)?.serialize?.(t) ?? {}) };
   if (live) {
     return { chartId: currentChartId ?? null, fields: readFormFields(), header: readHeader(), view: stateToView(captureState()), type: t.type ?? 'natal', outcome: t.outcome ?? null, snapshots: t.snapshots ?? [], refs: t.refs ?? null, houseSystem: t.houseSystem ?? null };
   }
@@ -3496,8 +3519,11 @@ function restoreTabs() {
   let data;
   try { data = JSON.parse(localStorage.getItem(TABS_LS_KEY)); } catch { return; }
   if (!data || !Array.isArray(data.tabs) || !data.tabs.length) return;
-  tabs = data.tabs.map(d => d.kind === 'palette'
-    ? { uid: ++_tabUid, kind: 'palette' }
+  tabs = data.tabs.map(d => d.kind
+    // вид вкладки мог исчезнуть из кода — такую запись просто выбрасываем
+    ? (TAB_KINDS[d.kind]
+        ? { uid: ++_tabUid, kind: d.kind, ...(TAB_KINDS[d.kind].hydrate?.(d) ?? {}) }
+        : null)
     : {
         uid: ++_tabUid,
         chartId: d.chartId ?? null,
@@ -3510,7 +3536,8 @@ function restoreTabs() {
         snapshots: Array.isArray(d.snapshots) ? d.snapshots : [],
         refs: d.refs ?? null,
         houseSystem: d.houseSystem ?? null,
-      });
+      }).filter(Boolean);
+  if (!tabs.length) return;
   activeTab = (typeof data.activeTab === 'number' && data.activeTab < tabs.length) ? data.activeTab : 0;
   dashboardOpen = data.dashboardOpen !== false;   // по умолчанию показываем дашборд
   renderTabBar();
@@ -3573,7 +3600,7 @@ function syncHouseSysChip() {
 
 document.getElementById('v2-house-sys').addEventListener('change', async e => {
   const t = tabs?.[activeTab];
-  if (!t || t.kind === 'palette' || t.type === 'synastry') return;
+  if (!t || t.kind || t.type === 'synastry') return;
   t.houseSystem = e.target.value;
   if (t.fields) {
     t.view = stateToView(captureState());   // сохранить вид (режим, T, раскрытия)

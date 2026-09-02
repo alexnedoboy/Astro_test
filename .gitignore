@@ -1,0 +1,6 @@
+# Собранная библиотека: тексты книг под авторским правом.
+# Репозиторий публичный (GitHub Pages) — содержимое живёт только в приватном
+# бакете Supabase Storage, см. supabase_library.sql и tools/upload-library.mjs.
+library-dist/
+
+.DS_Store

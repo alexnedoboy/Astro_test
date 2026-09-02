@@ -1841,6 +1841,8 @@ function createLibraryUI(root, { onClose = null, onPopOut = null, wide = false }
   const head = { title: $('.lib-title'), search: $('.lib-search'), inner: $('.lib-inner'),
                  msg: $('.lib-msg'), list: $('.lib-list'), toc: $('.lib-toc'), body: $('.lib-body') };
 
+  head.title.textContent = tr('library');   // до первой отрисовки (например, «войдите»)
+
   let view = { screen: 'shelf', bookId: null, chapId: null };
   let chapterToken = 0;   // защита от гонок: пока грузим главу, могли уйти на другую
   let hold = null;        // удержание якоря после перехода к разделу

@@ -4382,12 +4382,12 @@ function drawZodiacRing(g) {
     return;
   }
   for (let i = 0; i < 12; i++) {
-    const a1 = lonToRad(i * 30, 0);
-    const a2 = lonToRad((i + 1) * 30, 0);
-    const x1 = CX + R_RING * Math.cos(a1), y1 = CY - R_RING * Math.sin(a1);
-    const x2 = CX + R_RING * Math.cos(a2), y2 = CY - R_RING * Math.sin(a2);
+    // Через polar(), как везде в проекте; долгота растёт против часовой,
+    // поэтому sweep-flag = 0 (в SVG y направлен вниз).
+    const p1 = polar(lonToRad(i * 30, 0), R_RING);
+    const p2 = polar(lonToRad((i + 1) * 30, 0), R_RING);
     g.appendChild(el('path', {
-      d: `M ${x1} ${y1} A ${R_RING} ${R_RING} 0 0 1 ${x2} ${y2}`,
+      d: `M ${p1.x} ${p1.y} A ${R_RING} ${R_RING} 0 0 0 ${p2.x} ${p2.y}`,
       fill: 'none', stroke: SIGN_ELEM_COLORS[i], 'stroke-width': RING_W,
     }));
   }

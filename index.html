@@ -586,7 +586,7 @@ import { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff }
 import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          transitOrbFactor } from './js/timeline-calc.js?v=1';
-import { STRINGS } from './js/strings.js?v=5';
+import { STRINGS } from './js/strings.js?v=6';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -701,6 +701,7 @@ async function loadHomeCharts() {
   if (!currentUser) return;
   const { data, error } = await sb.from('charts').select('*');
   _homeCharts = (error || !data) ? [] : data;
+  await backfillNatalFolder();
   renderHomeGroups();
   renderHomeList();
   renderHomeEvents();
@@ -708,6 +709,20 @@ async function loadHomeCharts() {
     renderLeftPanelGroups();
     renderLeftPanelList();
   }
+}
+
+// Наталы, записанные до появления автопапки (в том числе старые строки без
+// case_type), раскладываются в «Наталы» при первой же загрузке списка.
+// Толерантно к отсутствию колонки folder: ошибка — просто выходим.
+async function backfillNatalFolder() {
+  const folder = tr('natalFolder');
+  const ids = _homeCharts
+    .filter(c => !c.folder && (c.case_type == null || c.case_type === 'natal'))
+    .map(c => c.id);
+  if (!ids.length) return;
+  const { error } = await sb.from('charts').update({ folder }).in('id', ids);
+  if (error) { console.warn('natal folder backfill failed:', error.message); return; }
+  for (const c of _homeCharts) if (ids.includes(c.id)) c.folder = folder;
 }
 
 function homeChartTs(c) {
@@ -1693,7 +1708,12 @@ function caseExtraColumns(t, fields = null) {
   // Фактическая система домов пишется в кейс всегда (кроме композитов):
   // смена глобального дефолта не должна тихо пересчитать сохранённые карты
   if (type !== 'synastry') extra.house_system = houseSysFor(t);
-  if (type === 'horary') {
+  if (type === 'natal') {
+    // Все наталы лежат в папке. Своя папка карты (переложили вручную) —
+    // сильнее дефолта: перезаписываем только пустую.
+    const cur = _homeCharts?.find(c => c.id === t?.chartId)?.folder;
+    if (!cur) extra.folder = tr('natalFolder');
+  } else if (type === 'horary') {
     extra.question = qName();
     extra.folder   = tr('horaryFolder');
     if (t?.outcome) extra.outcome = t.outcome;

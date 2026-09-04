@@ -586,7 +586,7 @@ import { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff }
 import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          transitOrbFactor } from './js/timeline-calc.js?v=1';
-import { STRINGS } from './js/strings.js?v=6';
+import { STRINGS } from './js/strings.js?v=7';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -1010,6 +1010,10 @@ defineSettings([
   { id: 'elementColors', section: 'chart', type: 'toggle', default: false,
     lsKey: 'elementColors', lsKind: 'bool01', labelKey: 'elements',
     onChange: v => { elementColorsMode = v; reRenderCurrentChart(); } },
+  { id: 'speedFormat', section: 'chart', type: 'select',
+    options: [['pct', 'speedPct'], ['deg', 'speedDeg'], ['both', 'speedBoth']],
+    default: 'pct', lsKey: 'speedFormat', lsKind: 'string', labelKey: 'speedFormat',
+    onChange: () => applySpeedFormat() },
   { id: 'natalPlanets', section: 'chart', type: 'custom', wide: true, labelKey: 'planetVisibility',
     render: () => {
       const wrap = document.createElement('div');
@@ -4874,9 +4878,11 @@ function buildInfoTable(planets, cusps) {
     tr.innerHTML =
       `<td class="info-glyph">${p.hamburgGlyph}</td>` +
       `<td class="info-pos">${fmtDeg(p.longitude)}${retro} ${SIGNS[si]}</td>` +
-      `<td class="info-speed">${p.speed != null ? fmtSpeedDeg(p.speed) : ''}</td>` +
-      `<td class="info-speed" style="color:var(--tx-8)">${p.speed != null ? fmtSpeed(p.speed, p.id) : ''}</td>` +
-      `<td class="col-second col-divider info-pos" id="info-sp-${p.id}"></td>`;
+      `<td class="info-speed info-speed-deg">${p.speed != null ? fmtSpeedDeg(p.speed) : ''}</td>` +
+      `<td class="info-speed info-speed-pct">${p.speed != null ? fmtSpeed(p.speed, p.id) : ''}</td>` +
+      `<td class="col-second col-divider info-pos" id="info-sp-${p.id}"></td>` +
+      `<td class="col-second info-speed info-speed-deg" id="info-sp2deg-${p.id}"></td>` +
+      `<td class="col-second info-speed info-speed-pct" id="info-sp2pct-${p.id}"></td>`;
     tbody.appendChild(tr);
   });
   const sep = document.createElement('tr');
@@ -4892,19 +4898,29 @@ function buildInfoTable(planets, cusps) {
     tr.innerHTML =
       `<td class="info-house-lbl ${cls}">${HOUSE_LABELS[i]}</td>` +
       `<td class="info-pos">${fmtDeg(lon)} ${SIGNS[si]}</td>` +
-      `<td class="info-speed"></td><td class="info-speed"></td>` +   // держат колонки скоростей
-      `<td class="col-second-house col-divider info-pos" id="info-shp-${i}"></td>`;
+      `<td class="info-speed info-speed-deg"></td><td class="info-speed info-speed-pct"></td>` +
+      `<td class="col-second-house col-divider info-pos" id="info-shp-${i}"></td>` +
+      `<td class="col-second-house info-speed info-speed-deg"></td>` +
+      `<td class="col-second-house info-speed info-speed-pct"></td>`;
     tbody.appendChild(tr);
   });
+  applySpeedFormat();
 }
 
-function updateSecondColumn(planets) {
+// speed:false — у символических дирекций скорость наталья (планета «едет» дугой,
+// а не своим ходом), показывать её как скорость второй карты нечестно
+function updateSecondColumn(planets, { speed = true } = {}) {
   planets.forEach(p => {
     const posEl = document.getElementById(`info-sp-${p.id}`);
     if (!posEl) return;
     const si = Math.floor(p.longitude / 30) % 12;
     const retro = p.retrograde ? ' <span class="info-retro">R</span>' : '';
     posEl.innerHTML = `${fmtDeg(p.longitude)}${retro} ${SIGNS[si]}`;
+    const degEl = document.getElementById(`info-sp2deg-${p.id}`);
+    const pctEl = document.getElementById(`info-sp2pct-${p.id}`);
+    const has = speed && p.speed != null;
+    if (degEl) degEl.textContent = has ? fmtSpeedDeg(p.speed) : '';
+    if (pctEl) pctEl.textContent = has ? fmtSpeed(p.speed, p.id) : '';
   });
 }
 
@@ -4915,6 +4931,17 @@ function updateSecondHouses(cusps) {
     const si = Math.floor(lon / 30) % 12;
     posEl.textContent = `${fmtDeg(lon)} ${SIGNS[si]}`;
   });
+}
+
+// Формат колонки скорости: проценты от средней / градусы в сутки / обе (настройка «Карта»).
+// Обе ячейки всегда в разметке — переключает класс на таблице, без перестроения.
+function applySpeedFormat() {
+  const t = document.getElementById('info-table');
+  if (!t) return;
+  const v = getSetting('speedFormat') || 'pct';
+  t.classList.toggle('speed-deg',  v === 'deg');
+  t.classList.toggle('speed-pct',  v === 'pct');
+  t.classList.toggle('speed-both', v === 'both');
 }
 
 function setInfoTableMode(mode) {
@@ -5726,7 +5753,7 @@ function renderDirectionBiwheel(jd = null) {
   const directedCusps = natalCusps.map(c => ((c + ageInYears) % 360 + 360) % 360);
   renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc);
   buildInfoTable(natal, natalCusps);
-  updateSecondColumn(directed);
+  updateSecondColumn(directed, { speed: false });
   updateSecondHouses(directedCusps);
   setInfoTableMode('biwheel-houses');
   buildAspectGrid(addSouthNode(natal, natalCusps), addSouthNode(directed), 'direction');

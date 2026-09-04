@@ -27,6 +27,8 @@ const APP_STATE = {
   natEvRange: '1M',        // диапазон виджета «События» в наталах: '1M'|'1Y'|'2Y'|'10Y'
   natEvMoon: true,         // «События»: показывать Луну в месячном обзоре
   natEvMars: true,         // «События»: показывать Марс в обзоре на год / 2 года
+  asstQuery: '',           // виджет «Ассистент»: строка запроса на естественном языке
+  asstRange: '10Y',        // «Ассистент»: окно поиска '1Y'|'10Y'|'life' (перекрывается запросом)
   currentChartId: null,    // Supabase id открытого кейса
   currentCaseType: 'natal',
   currentMode: 'transit',  // 'natal' | 'transit' | 'progressed' | 'direction' | 'solar'

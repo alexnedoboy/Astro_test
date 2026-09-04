@@ -422,6 +422,7 @@
         <div id="dignities-view"></div>
         <div id="dispositors-view"></div>
         <div id="aspflow-view"></div>
+        <div id="assistant-view"></div>
       </div>
       <div id="v2-notes-view">
         <div id="notes-panel-head">
@@ -584,14 +585,14 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // Локальные модули версионируются (?v=N): index.html всегда свежий (SW network-first),
 // а модули кэшируются браузером/CDN — при изменении СОСТАВА ЭКСПОРТОВ бампните версию,
 // иначе свежий index.html слинкуется со старым кэшем модуля и приложение умрёт.
-import './js/state.js?v=3';   // леджер разделяемого состояния — до всех модулей
+import './js/state.js?v=4';   // леджер разделяемого состояния — до всех модулей
 import { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff }
   from './js/astro-core.js?v=1';
 import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
-         transitOrbFactor } from './js/timeline-calc.js?v=3';
-import { STRINGS } from './js/strings.js?v=9';
+         transitOrbFactor } from './js/timeline-calc.js?v=4';
+import { STRINGS } from './js/strings.js?v=10';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -2764,6 +2765,7 @@ function captureState() {
       synView,   // вид карты синастрии
       solarView, // вид соляра: отдельно / с наталом
       natEvRange, natEvMoon, natEvMars, // виджет «События»: диапазон и отключаемые планеты
+      asstQuery, asstRange,             // виджет «Ассистент»: запрос и окно поиска
     },
   };
 }
@@ -2794,6 +2796,8 @@ function applyState(s) {
   natEvRange       = u.natEvRange || '1M';
   natEvMoon        = u.natEvMoon !== false;
   natEvMars        = u.natEvMars !== false;
+  asstQuery        = u.asstQuery || '';
+  asstRange        = u.asstRange || '10Y';
 }
 
 function snapshotActiveTab() {
@@ -3587,6 +3591,8 @@ function rebuildTabFromFields(t) {
   natEvRange = v.natEvRange || '1M';
   natEvMoon  = v.natEvMoon !== false;
   natEvMars  = v.natEvMars !== false;
+  asstQuery  = v.asstQuery || '';
+  asstRange  = v.asstRange || '10Y';
   if (t.header) setV2ChartInfo(t.header.name, t.header.dateTime, t.header.city);
   applyCaseType(t.type);
   cachedTimeline = null;
@@ -3624,6 +3630,8 @@ function stateToView(s) {
     natEvRange: u.natEvRange,
     natEvMoon: u.natEvMoon,
     natEvMars: u.natEvMars,
+    asstQuery: u.asstQuery,
+    asstRange: u.asstRange,
     solarView: u.solarView,
   };
 }
@@ -3824,6 +3832,7 @@ const RP_WIDGETS = {
   dignities:   { i18n: 'panelTabDignities'   },
   dispositors: { i18n: 'panelTabDispositors' },
   aspflow:     { i18n: 'panelTabAspFlow'     },
+  assistant:   { i18n: 'panelTabAssistant'   },
 };
 const RP_DEFAULT_TABS = ['grades', 'aspects'];
 rightPanelTabs = [...RP_DEFAULT_TABS];
@@ -3849,12 +3858,14 @@ function applyRightPanelTab() {
   }
   const content   = document.getElementById('right-info-content');
   if (content) {
-    content.classList.remove('rp-grades', 'rp-aspects', 'rp-dignities', 'rp-dispositors', 'rp-aspflow');
+    content.classList.remove('rp-grades', 'rp-aspects', 'rp-dignities', 'rp-dispositors',
+                             'rp-aspflow', 'rp-assistant');
     content.classList.add('rp-' + (RP_WIDGETS[rightPanelTab] ? rightPanelTab : 'grades'));
   }
   if (rightPanelTab === 'dignities') renderDignities();
   if (rightPanelTab === 'dispositors') renderDispositors();
   if (rightPanelTab === 'aspflow') renderAspFlow();
+  if (rightPanelTab === 'assistant') renderAssistant();
   const addBtn = document.getElementById('rp-add-btn');
   if (addBtn) addBtn.style.display =
     Object.keys(RP_WIDGETS).some(id => !rightPanelTabs.includes(id)) ? '' : 'none';
@@ -5701,6 +5712,399 @@ function renderHoraryAspFlow(view) {
   section(tr('afFutureEvents'));
   mkTable(events.filter(e => e.jd >= jd0));
 }
+
+/* ── Виджет «Ассистент»: запрос простым языком → даты → прыжок по клику ──────
+   Разбор — детерминированный, без ИИ: словарь домена закрыт (планеты, аспекты,
+   знаки, диапазоны), поэтому слот-парсер точнее модели и работает офлайн.
+   Словарь переиспользуется из аспект-поиска в табе карт (LP_*_TOKENS).
+   Расчёт — существующий computeTransits, сужённый через opts (см. timeline-calc). */
+
+// Матч слова со словарной формой: точное совпадение, ввод по префиксу или
+// русская словоформа («венеру», «сатурном», «луне») — по длине общего префикса.
+function asstHit(w, tok) {
+  if (w === tok) return true;
+  const n = Math.min(w.length, tok.length);
+  if (n < 3) return false;
+  let i = 0;
+  while (i < n && w[i] === tok[i]) i++;
+  return i >= Math.max(3, n - 2);
+}
+
+// Те же словари, что у аспект-поиска в табе карт, но матч по asstHit: пользователь
+// пишет фразой, а не запросом («венеру», «Сатурном»), а lp*-матчеры знают только
+// точную форму и ввод по префиксу.
+function asstMatchPlanet(w) {
+  const hit = LP_PLANET_TOKENS.find(p => p.tokens.some(t => asstHit(w, t)));
+  return hit ? hit.id : null;
+}
+function asstMatchAspect(w) {
+  const hit = LP_ASPECT_TOKENS.find(a => a.tokens.some(t => asstHit(w, t)));
+  return hit ? hit.angle : null;
+}
+
+// Группы транзитных источников. Только медленные: быстрые планеты дают тысячи
+// попаданий и для такого поиска бессмысленны (для них есть виджет «События»).
+const ASST_GROUPS = [
+  { ids: SLOW_IDS, tokens: ['медленные', 'медленных', 'slow'] },
+  { ids: SLOW_IDS, tokens: ['планеты', 'планет', 'planets'] },
+];
+// Служебные слова: молча игнорируются, чтобы фраза читалась естественно
+const ASST_NOISE = ['найди', 'найти', 'покажи', 'показать', 'дай', 'все', 'всех', 'всю', 'даты',
+  'дат', 'дату', 'когда', 'было', 'был', 'была', 'были', 'мне', 'у', 'меня', 'моей', 'моему',
+  'в', 'во', 'за', 'по', 'из', 'от', 'до', 'и', 'а',
+  'find', 'show', 'me', 'all', 'dates', 'date', 'when', 'the', 'of', 'my', 'a', 'was', 'were',
+  'in', 'from', 'during', 'over', 'past', 'next', 'last', 'and'];
+// Предлоги: переключают разбор на натальную сторону
+const ASST_TO = ['к', 'ко', 'на', 'с', 'со', 'to', 'with'];
+const ASST_RANGE_TOKENS = [
+  { range: 'life', tokens: ['жизнь', 'жизни', 'всегда', 'life', 'lifetime', 'ever'] },
+  { range: '10Y',  tokens: ['десятилетие', 'decade'] },
+  { range: '1Y',   tokens: ['год', 'года', 'году', 'year'] },
+];
+const ASST_RANGES = ['1Y', '10Y', 'life'];
+
+// Строка запроса → { sources, targets, angles, range, unknown }.
+// targets — id планет и/или 'asc'/'mc'; пустой = все натальные точки.
+function asstParse(text) {
+  const words = String(text || '').toLowerCase()
+    .replace(/[«»"“”(),.;!?]/g, ' ').split(/\s+/).filter(Boolean);
+  const src = [], tgt = [], angles = [], unknown = [], years = [];
+  let range = null;
+  let side = 'src';        // до аспекта/предлога слова относятся к транзитам
+  let sawSide = false;     // была ли явная смена стороны
+
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+
+    // «10 лет», «за 10 лет»
+    if (/^\d+$/.test(w)) {
+      const n = Number(w);
+      if (n >= 1500 && n <= 2400) { years.push(n); continue; }
+      // Аспект числом: «сатурн 90 венера»
+      if (ASPECTS.some(a => a.angle === n)) {
+        angles.push(n); side = 'tgt'; sawSide = true; continue;
+      }
+      const next = words[i + 1] || '';
+      if (n === 10 && (asstHit(next, 'лет') || asstHit(next, 'years'))) { range = '10Y'; i++; continue; }
+      if (n === 1  && (asstHit(next, 'год') || asstHit(next, 'year')))  { range = '1Y';  i++; continue; }
+      continue;
+    }
+    if (ASST_NOISE.includes(w)) continue;
+    if (asstHit(w, 'лет') || asstHit(w, 'years')) { range = range || '10Y'; continue; }
+
+    const rg = ASST_RANGE_TOKENS.find(r => r.tokens.some(t => asstHit(w, t)));
+    if (rg) { range = rg.range; continue; }
+
+    // Явные маркеры стороны
+    if (asstHit(w, 'транзитные') || asstHit(w, 'транзиты') || asstHit(w, 'transiting')) {
+      side = 'src'; sawSide = true; continue;
+    }
+    if (asstHit(w, 'натальной') || asstHit(w, 'натальные') || asstHit(w, 'natal')) {
+      side = 'tgt'; sawSide = true; continue;
+    }
+    if (ASST_TO.includes(w)) { side = 'tgt'; sawSide = true; continue; }
+
+    // Аспект: именованный, «аспектировали»/«аспекты» = любой мажорный
+    if (asstHit(w, 'аспект') || asstHit(w, 'аспектировали') || asstHit(w, 'aspect')) {
+      side = 'tgt'; sawSide = true; continue;
+    }
+    const angle = asstMatchAspect(w);
+    if (angle !== null && angle !== -1) {
+      angles.push(angle); side = 'tgt'; sawSide = true; continue;
+    }
+
+    const grp = ASST_GROUPS.find(g => g.tokens.some(t => asstHit(w, t)));
+    if (grp) { src.push(...grp.ids); continue; }   // группа — всегда источник
+
+    const pid = asstMatchPlanet(w);
+    if (pid !== null) { (side === 'src' ? src : tgt).push(pid); continue; }
+
+    unknown.push(w);
+  }
+
+  // Годы: «в 2020», «с 1990 по 2035»
+  if (years.length) {
+    const y1 = Math.min(...years), y2 = Math.max(...years);
+    range = { fromY: y1, toY: y2 + 1 };
+  }
+
+  // Разрешение сторон. Одиночное упоминание планеты без аспекта/предлога — это
+  // натальная цель («аспекты к Венере», просто «Венера»), источники — медленные.
+  let sources = [...new Set(src)], targets = [...new Set(tgt)];
+  if (!sources.length && targets.length) sources = [...SLOW_IDS];
+  if (!targets.length && sources.length && !sawSide && src.some(id => !SLOW_IDS.includes(id))) {
+    targets = sources.filter(id => !SLOW_IDS.includes(id));
+    sources = [...SLOW_IDS];
+  }
+  if (!sources.length) sources = [...SLOW_IDS];
+  // Транзитом может быть только медленная планета (ограничение computeTransits)
+  sources = sources.filter(id => SLOW_IDS.includes(id));
+
+  return { sources, targets, angles: [...new Set(angles)], range, unknown };
+}
+
+// Окно поиска → { jdStart, jdEnd }
+function asstWindow(range) {
+  const jd0 = currentTransitJD ?? computeJDNow();
+  if (range && typeof range === 'object') {
+    return { jdStart: swe.julday(range.fromY, 1, 1, 0), jdEnd: swe.julday(range.toY, 1, 1, 0) };
+  }
+  if (range === 'life' && natalData?.birthJD) {
+    return { jdStart: natalData.birthJD, jdEnd: Math.max(jd0, computeJDNow()) + 1826 };
+  }
+  const half = range === '1Y' ? 183 : 1826;
+  return { jdStart: jd0 - half, jdEnd: jd0 + half };
+}
+
+// Разобранный запрос → отсортированный список { jd, tPlanet, na, asp }
+function asstRun(q, jdStart, jdEnd) {
+  const wantIds  = q.targets.filter(t => typeof t === 'number');
+  const allNatal = filterNatalPlanets(natalData.planets);
+  const natalPts = q.targets.length ? allNatal.filter(p => wantIds.includes(p.id)) : allNatal;
+  // As / Mc — только если названы явно (иначе поиск засоряется соединениями с углами)
+  const cuspIdx = natalData.cusps
+    ? q.targets.filter(t => t === 'asc' || t === 'mc').map(t => (t === 'asc' ? 0 : 9))
+    : [];
+  const angleTargets = cuspIdx.map(i => ({
+    id: TL_ANGLE_ID, isAngle: true, glyph: ANGULAR[i], name: ANGULAR_NAMES[i],
+    longitude: natalData.cusps[i],
+  }));
+  if (!natalPts.length && !angleTargets.length) return [];
+
+  const { periods } = computeTransits(natalPts, jdStart, jdEnd, angleTargets, {
+    sourceIds: q.sources,
+    aspectAngles: q.angles.length ? q.angles : null,
+  });
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const out = [];
+  for (const p of periods) {
+    for (const jd of p.exactJDs) {
+      // Позиция транзитной планеты в момент точного аспекта — единственное, что
+      // меняется от строки к строке (натальная цель у всех одна и та же)
+      const r = safeCalcUt(jd, p.tPlanet.id, flags);
+      out.push({ jd, tPlanet: p.tPlanet, na: p.na, asp: p.asp,
+                 pos: r ? ((r[0] % 360) + 360) % 360 : null,
+                 rx: r ? r[3] < 0 : false });
+    }
+  }
+  out.sort((a, b) => a.jd - b.jd);
+  return out;
+}
+
+// Глиф натальной цели (планета или угол)
+function asstTargetGlyph(na) {
+  return na.isAngle ? na.glyph : (PLANETS.find(p => p.id === na.id)?.glyph ?? '?');
+}
+
+// Человекочитаемая расшифровка разобранного запроса — пользователь видит, что понято
+function asstInterpretation(q) {
+  const g = id => (id === 'asc' ? 'As' : id === 'mc' ? 'Mc'
+                                : PLANETS.find(p => p.id === id)?.glyph ?? '?');
+  const srcTxt = q.sources.length === SLOW_IDS.length
+    ? tr('asstSlowPlanets') : q.sources.map(g).join(' ');
+  const aspTxt = q.angles.length
+    ? q.angles.map(a => ASPECTS.find(x => x.angle === a)?.symbol ?? '∠').join(' ')
+    : T_ASPECTS.map(a => a.symbol).join(' ');
+  const tgtTxt = q.targets.length ? q.targets.map(g).join(' ') : tr('asstAllNatal');
+  return `${srcTxt}  ${aspTxt}  →  ${tgtTxt}`;
+}
+
+let _asstCache = { key: null, rows: null };
+
+function renderAssistant() {
+  const view = document.getElementById('assistant-view');
+  if (!view) return;
+  view.innerHTML = '';
+  if (!natalData || !swe) return;
+
+  // Строка запроса
+  const bar = document.createElement('div');
+  bar.className = 'asst-bar';
+  const input = document.createElement('input');
+  input.id = 'asst-input';
+  input.type = 'text';
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.placeholder = tr('asstPlaceholder');
+  input.value = asstQuery;
+  bar.appendChild(input);
+  view.appendChild(bar);
+
+  // Подсказки автодополнения — рисуются под строкой при вводе
+  const sugg = document.createElement('div');
+  sugg.className = 'asst-sugg';
+  view.appendChild(sugg);
+
+  const q = asstQuery.trim() ? asstParse(asstQuery) : null;
+  // Диапазон из запроса («за 10 лет», «в 2020», «всю жизнь») бьёт чип
+  const effRange = q?.range ?? asstRange;
+
+  // Чипы диапазона; при явном диапазоне в запросе подсветка снимается
+  const ranges = document.createElement('div');
+  ranges.className = 'af-ranges asst-ranges';
+  for (const r of ASST_RANGES) {
+    const b = document.createElement('button');
+    b.className = 'af-range' + (r === effRange ? ' active' : '');
+    b.dataset.asstrange = r;
+    b.textContent = tr('asstRange' + r);
+    ranges.appendChild(b);
+  }
+  if (q?.range && typeof q.range === 'object') {
+    const y = document.createElement('span');
+    y.className = 'asst-years';
+    y.textContent = q.range.toY - q.range.fromY === 1
+      ? String(q.range.fromY) : `${q.range.fromY}–${q.range.toY - 1}`;
+    ranges.appendChild(y);
+  }
+  view.appendChild(ranges);
+
+  const info = document.createElement('div');
+  info.className = 'asst-info';
+  view.appendChild(info);
+  const body = document.createElement('div');
+  view.appendChild(body);
+
+  if (!q) {
+    info.innerHTML = '';
+    body.innerHTML = `<div class="asst-empty">${tr('asstHint')}</div>`;
+    asstRenderExamples(body);
+    return;
+  }
+
+  info.textContent = asstInterpretation(q);
+  if (q.unknown.length) {
+    const u = document.createElement('div');
+    u.className = 'asst-unknown';
+    u.textContent = tr('asstUnknown') + ' ' + q.unknown.join(', ');
+    info.appendChild(u);
+  }
+
+  const { jdStart, jdEnd } = asstWindow(effRange);
+  const utcOff = natalData.utcOff ?? 0;
+  const key = [natalData.birthJD, natalData.cusps?.[0], asstQuery.trim(),
+               jdStart.toFixed(3), jdEnd.toFixed(3)].join('|');
+
+  const paint = rows => {
+    body.innerHTML = '';
+    if (!rows.length) { body.innerHTML = `<div class="asst-empty">${tr('asstNothing')}</div>`; return; }
+    const cnt = document.createElement('div');
+    cnt.className = 'af-section';
+    cnt.textContent = `${tr('asstFound')} ${rows.length}`;
+    body.appendChild(cnt);
+    const jd0 = currentTransitJD ?? computeJDNow();
+    const t = document.createElement('table');
+    t.className = 'af-table asst-table';
+    for (const r of rows) {
+      const row = document.createElement('tr');
+      row.className = 'asst-row' + (r.jd < jd0 ? ' asst-past' : '');
+      row.dataset.jd = r.jd;
+      const td = (text, cls) => {
+        const c = document.createElement('td');
+        c.textContent = text;
+        if (cls) c.className = cls;
+        row.appendChild(c);
+        return c;
+      };
+      td(fmtJdLocal(r.jd, utcOff), 'af-date');
+      const ev = td(`${r.tPlanet.glyph}${r.rx ? 'R' : ''} ${r.asp.symbol} ${asstTargetGlyph(r.na)}`, 'af-ev');
+      ev.style.color = r.asp.color;
+      td(r.pos != null ? fmtEvPos(r.pos) : '', 'af-pos');
+      t.appendChild(row);
+    }
+    body.appendChild(t);
+  };
+
+  if (_asstCache.key === key) { paint(_asstCache.rows); return; }
+  body.innerHTML = `<div class="tl-status">${tr('asstSearching')}</div>`;
+  setTimeout(() => {
+    try {
+      const rows = asstRun(q, jdStart, jdEnd);
+      _asstCache = { key, rows };
+      if (body.isConnected) paint(rows);
+    } catch (e) {
+      if (body.isConnected) body.innerHTML = `<div class="tl-status">${tr('error')}${e.message}</div>`;
+    }
+  }, 30);
+}
+
+// Примеры запросов — кликабельны, заодно объясняют синтаксис
+function asstRenderExamples(host) {
+  const box = document.createElement('div');
+  box.className = 'asst-examples';
+  for (const key of ['asstEx1', 'asstEx2', 'asstEx3']) {
+    const b = document.createElement('button');
+    b.className = 'asst-example';
+    b.dataset.asstex = tr(key);
+    b.textContent = tr(key);
+    box.appendChild(b);
+  }
+  host.appendChild(box);
+}
+
+// Автодополнение последнего слова по словарю домена
+function asstSuggest(text) {
+  const m = String(text).match(/([^\s]*)$/);
+  const prefix = (m ? m[1] : '').toLowerCase();
+  if (prefix.length < 2) return [];
+  const ru = currentLang === 'ru';
+  const pool = [];
+  for (const p of LP_PLANET_TOKENS) {
+    const word = p.tokens.find(t => (ru ? /[а-яё]/.test(t) : /^[a-z]/.test(t)));
+    if (word) pool.push(word);
+  }
+  for (const a of LP_ASPECT_TOKENS) {
+    if (a.angle === -1) continue;
+    const word = a.tokens.find(t => (ru ? /[а-яё]/.test(t) : /^[a-z]/.test(t)));
+    if (word) pool.push(word);
+  }
+  pool.push(...(ru ? ['медленные', 'аспекты', 'жизнь', 'год'] : ['slow', 'aspects', 'life', 'year']));
+  return pool.filter(w => w.startsWith(prefix) && w !== prefix).slice(0, 6);
+}
+
+function asstApplySuggestion(word) {
+  asstQuery = asstQuery.replace(/([^\s]*)$/, word) + ' ';
+  renderAssistant();
+  document.getElementById('asst-input')?.focus();
+}
+
+document.getElementById('assistant-view')?.addEventListener('input', e => {
+  if (e.target.id !== 'asst-input') return;
+  asstQuery = e.target.value;
+  const sugg = document.querySelector('.asst-sugg');
+  if (sugg) {
+    sugg.innerHTML = '';
+    for (const w of asstSuggest(asstQuery)) {
+      const b = document.createElement('button');
+      b.className = 'asst-sugg-item';
+      b.dataset.asstsugg = w;
+      b.textContent = w;
+      sugg.appendChild(b);
+    }
+  }
+});
+
+document.getElementById('assistant-view')?.addEventListener('keydown', e => {
+  if (e.target.id !== 'asst-input' || e.key !== 'Enter') return;
+  asstQuery = e.target.value;
+  renderAssistant();
+  persistTabs();
+});
+
+document.getElementById('assistant-view')?.addEventListener('click', e => {
+  const sg = e.target.closest('.asst-sugg-item');
+  if (sg) { asstApplySuggestion(sg.dataset.asstsugg); return; }
+  const ex = e.target.closest('.asst-example');
+  if (ex) { asstQuery = ex.dataset.asstex; renderAssistant(); persistTabs(); return; }
+  const rb = e.target.closest('.af-range');
+  if (rb && rb.dataset.asstrange) {
+    asstRange = rb.dataset.asstrange;
+    renderAssistant();
+    persistTabs();
+    return;
+  }
+  const row = e.target.closest('.asst-row');
+  if (row) switchModeAndNavigate('transit', Number(row.dataset.jd));
+});
 
 function findGridAspect(lon1, lon2, id1, id2, orbMode) {
   const diff = angDiff(lon1, lon2);

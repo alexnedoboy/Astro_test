@@ -339,7 +339,10 @@ function computeDirectionEvents(natalPlanets, natalCusps, birthJD, jdStart, jdEn
   return events;
 }
 
-function computeTransits(natalPlanets, jdWindowStart, jdWindowEnd, angleTargets = []) {
+// opts.sourceIds / opts.aspectAngles — необязательное сужение расчёта (виджет
+// «Ассистент»: запрос про один транзит не должен считать все восемь медленных).
+// Пусто/не задано — прежнее поведение таймлайна.
+function computeTransits(natalPlanets, jdWindowStart, jdWindowEnd, angleTargets = [], opts = {}) {
   const now     = new Date();
   const jdToday = swe.julday(now.getUTCFullYear(), now.getUTCMonth() + 1,
     now.getUTCDate(), now.getUTCHours() + now.getUTCMinutes() / 60);
@@ -350,7 +353,8 @@ function computeTransits(natalPlanets, jdWindowStart, jdWindowEnd, angleTargets 
 
   // Mars is timeline-worthy only against angular cusps (fast elsewhere)
   // Тела, недоступные на эту эпоху (Хирон < 1800), отбрасываем целиком.
-  const transitIds = (angleTargets.length ? [...SLOW_IDS, 4] : SLOW_IDS)
+  const baseIds = angleTargets.length ? [...SLOW_IDS, 4] : SLOW_IDS;
+  const transitIds = (opts.sourceIds ? baseIds.filter(id => opts.sourceIds.includes(id)) : baseIds)
     .filter(id => safeCalcUt(jdStart, id, flags));
 
   // Precompute slow planet longitudes for every day
@@ -387,9 +391,10 @@ function computeTransits(natalPlanets, jdWindowStart, jdWindowEnd, angleTargets 
 
     for (const na of targets) {
       // Angular cusps and Node / Lilith (transiting OR natal) → only conjunctions
-      const aspects = (na.isAngle || id === 10 || id === 12 || na.id === 10 || na.id === 12)
+      let aspects = (na.isAngle || id === 10 || id === 12 || na.id === 10 || na.id === 12)
         ? T_ASPECTS.filter(a => a.angle === 0)
         : T_ASPECTS;
+      if (opts.aspectAngles) aspects = aspects.filter(a => opts.aspectAngles.includes(a.angle));
       for (const asp of aspects) {
         let inPeriod = false, pStart = 0;
         let prevDiff = Infinity, wasDecreasing = false;

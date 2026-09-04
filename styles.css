@@ -1319,6 +1319,7 @@
   .panel-tab.active + .panel-tab::before { background: transparent; }
   #right-info-content #dignities-view,
   #right-info-content #dispositors-view,
+  #right-info-content #assistant-view,
   #right-info-content #aspflow-view { display: none; }
   #right-info-content.rp-aspects #info-table { display: none; }
   #right-info-content.rp-grades  #aspect-grid { display: none; }
@@ -1328,7 +1329,10 @@
   #right-info-content.rp-dispositors #info-table,
   #right-info-content.rp-dispositors #aspect-grid,
   #right-info-content.rp-aspflow #info-table,
-  #right-info-content.rp-aspflow #aspect-grid { display: none; }
+  #right-info-content.rp-aspflow #aspect-grid,
+  #right-info-content.rp-assistant #info-table,
+  #right-info-content.rp-assistant #aspect-grid { display: none; }
+  #right-info-content.rp-assistant #assistant-view { display: block; }
   #right-info-content.rp-dignities #dignities-view { display: block; }
   #right-info-content.rp-dispositors #dispositors-view { display: block; }
   #right-info-content.rp-aspflow #aspflow-view { display: block; }
@@ -1370,6 +1374,41 @@
   /* Тумблер планеты диапазона (Луна в месяце, Марс в год/2 года) */
   .af-toggle { flex: 0 0 auto; min-width: 22px; font-size: 0.85em; }
   .af-toggle:not(.active) { color: var(--tx-8); text-decoration: line-through; }
+  /* Виджет «Ассистент»: запрос простым языком → кликабельные даты */
+  #assistant-view { padding: 6px 10px 12px; }
+  .asst-bar { position: sticky; top: 0; z-index: 3; background: var(--bg); padding: 4px 0 2px; }
+  #asst-input {
+    width: 100%; box-sizing: border-box; padding: 5px 8px; font-size: 0.86em;
+    background: var(--bg-input); color: var(--tx-2);
+    border: 1px solid var(--bd-input); border-radius: 4px;
+  }
+  #asst-input:focus { outline: none; border-color: var(--accent); }
+  .asst-sugg { display: flex; flex-wrap: wrap; gap: 3px; }
+  .asst-sugg:not(:empty) { padding: 3px 0; }
+  .asst-sugg-item {
+    padding: 1px 6px; font-size: 0.74em; cursor: pointer;
+    background: var(--bg-input); color: var(--tx-4);
+    border: 1px solid var(--bd-input); border-radius: 9px;
+  }
+  .asst-sugg-item:hover { background: var(--bg-hover); color: var(--tx-2); }
+  .asst-ranges { top: 34px; }
+  .asst-years { align-self: center; font-size: 0.72em; color: var(--tx-5); padding-left: 4px; }
+  .asst-info {
+    padding: 6px 0 2px; font-size: 0.86em; color: var(--tx-4); letter-spacing: 0.04em;
+  }
+  .asst-unknown { font-size: 0.82em; color: var(--err); letter-spacing: 0; padding-top: 2px; }
+  .asst-empty { padding: 10px 0; font-size: 0.8em; color: var(--tx-6); line-height: 1.45; }
+  .asst-examples { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+  .asst-example {
+    padding: 3px 8px; font-size: 0.76em; cursor: pointer; text-align: left;
+    background: var(--bg-input); color: var(--tx-4);
+    border: 1px solid var(--bd-input); border-radius: 4px;
+  }
+  .asst-example:hover { background: var(--bg-hover); color: var(--tx-2); }
+  .asst-table .asst-row { cursor: pointer; }
+  .asst-table .asst-row:hover td { background: var(--bg-hover); }
+  .asst-table .asst-past td.af-date { color: var(--tx-8); }
+  .asst-table .asst-past td.af-ev { opacity: 0.65; }
   /* Таблицы достоинств (виджет и хорар-блок) */
   #dig-daynight { font-size: 0.76em; color: var(--tx-7); padding: 8px 10px 2px; }
   .dig-table { width: 100%; border-collapse: collapse; font-size: 0.8em; }

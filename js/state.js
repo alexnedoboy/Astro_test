@@ -24,6 +24,9 @@ const APP_STATE = {
   synastryB: null,         // субъект B (только в синастрии)
   synView: 'both',         // вид карты синастрии: 'a' | 'b' | 'both'
   solarView: 'single',     // вид соляра: 'single' (отдельно) | 'overlay' (наложение на натал)
+  natEvRange: '1M',        // диапазон виджета «События» в наталах: '1M'|'1Y'|'2Y'|'10Y'
+  natEvMoon: true,         // «События»: показывать Луну в месячном обзоре
+  natEvMars: true,         // «События»: показывать Марс в обзоре на год / 2 года
   currentChartId: null,    // Supabase id открытого кейса
   currentCaseType: 'natal',
   currentMode: 'transit',  // 'natal' | 'transit' | 'progressed' | 'direction' | 'solar'

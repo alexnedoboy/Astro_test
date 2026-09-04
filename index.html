@@ -589,8 +589,9 @@ import { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff }
   from './js/astro-core.js?v=1';
 import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
-         transitOrbFactor } from './js/timeline-calc.js?v=1';
-import { STRINGS } from './js/strings.js?v=7';
+         computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
+         transitOrbFactor } from './js/timeline-calc.js?v=3';
+import { STRINGS } from './js/strings.js?v=9';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -2762,6 +2763,7 @@ function captureState() {
       chartModeTabs: [...chartModeTabs],
       synView,   // вид карты синастрии
       solarView, // вид соляра: отдельно / с наталом
+      natEvRange, natEvMoon, natEvMars, // виджет «События»: диапазон и отключаемые планеты
     },
   };
 }
@@ -2789,6 +2791,9 @@ function applyState(s) {
   chartModeTabs    = sanitizeChartModeTabs(u.chartModeTabs);
   synView          = u.synView || 'both';
   solarView        = u.solarView || 'single';
+  natEvRange       = u.natEvRange || '1M';
+  natEvMoon        = u.natEvMoon !== false;
+  natEvMars        = u.natEvMars !== false;
 }
 
 function snapshotActiveTab() {
@@ -3579,6 +3584,9 @@ function rebuildTabFromFields(t) {
   rightPanelTab = v.rightPanelTab || 'grades';
   chartModeTabs = sanitizeChartModeTabs(v.chartModeTabs);
   solarView = v.solarView || 'single';
+  natEvRange = v.natEvRange || '1M';
+  natEvMoon  = v.natEvMoon !== false;
+  natEvMars  = v.natEvMars !== false;
   if (t.header) setV2ChartInfo(t.header.name, t.header.dateTime, t.header.city);
   applyCaseType(t.type);
   cachedTimeline = null;
@@ -3613,6 +3621,9 @@ function stateToView(s) {
     rightPanelTabs: u.rightPanelTabs ? [...u.rightPanelTabs] : undefined,
     chartModeTabs: u.chartModeTabs ? [...u.chartModeTabs] : undefined,
     synView: u.synView,
+    natEvRange: u.natEvRange,
+    natEvMoon: u.natEvMoon,
+    natEvMars: u.natEvMars,
     solarView: u.solarView,
   };
 }
@@ -5537,9 +5548,120 @@ function computeHoraryEvents(jd0) {
   return events.sort((x, y) => x.jd - y.jd);
 }
 
+// Виджет «События»: в хораре — мунданные события в окнах знаков септенера,
+// в остальных кейсах — транзиты к наталу в выбранном календарном диапазоне.
 function renderAspFlow() {
   const view = document.getElementById('aspflow-view');
   if (!view) return;
+  if (currentCaseType === 'horary') renderHoraryAspFlow(view);
+  else                              renderNatalAspFlow(view);
+}
+
+// Таблица событий: дата · событие · градус
+function mkEvTable(list, utcOff) {
+  const t = document.createElement('table');
+  t.className = 'af-table';
+  for (const e of list) {
+    const row = document.createElement('tr');
+    const td = (text, cls) => {
+      const c = document.createElement('td');
+      c.textContent = text;
+      if (cls) c.className = cls;
+      row.appendChild(c);
+      return c;
+    };
+    td(fmtJdLocal(e.jd, utcOff), 'af-date');
+    const ev = td(e.label, 'af-ev');
+    if (e.color) ev.style.color = e.color;
+    td(e.pos != null ? fmtEvPos(e.pos) : '', 'af-pos');
+    t.appendChild(row);
+  }
+  return t;
+}
+
+const NAT_EV_RANGES = ['1M', '1Y', '2Y', '10Y'];
+let _natEvCache = { key: null, events: [] };
+
+function renderNatalAspFlow(view) {
+  view.innerHTML = '';
+  if (!natalData || !swe) return;
+  const utcOff = natalData.utcOff ?? 0;
+  const jd0    = currentTransitJD ?? computeJDNow();
+  if (!NAT_EV_RANGES.includes(natEvRange)) natEvRange = '1M';
+
+  const bar = document.createElement('div');
+  bar.className = 'af-ranges';
+  for (const r of NAT_EV_RANGES) {
+    const b = document.createElement('button');
+    b.className = 'af-range' + (r === natEvRange ? ' active' : '');
+    b.dataset.evrange = r;
+    b.textContent = tr('afRange' + r);
+    bar.appendChild(b);
+  }
+  // Отключаемая планета диапазона: Луна в месяце, Марс в году / 2 годах
+  const offId = NAT_EV_TOGGLE[natEvRange];
+  if (offId != null) {
+    const on = offId === 1 ? natEvMoon : natEvMars;
+    const b = document.createElement('button');
+    b.className = 'af-range af-toggle' + (on ? ' active' : '');
+    b.dataset.evtoggle = offId;
+    b.textContent = PLANETS.find(p => p.id === offId).glyph;
+    b.title = tr(on ? 'afHidePlanet' : 'afShowPlanet');
+    bar.appendChild(b);
+  }
+  view.appendChild(bar);
+
+  const body = document.createElement('div');
+  view.appendChild(body);
+
+  const { jdStart } = natEvWindow(jd0, natEvRange, utcOff);
+  const key = [natalData.birthJD, natalData.cusps?.[0], natEvRange, jdStart.toFixed(4),
+               natEvMoon ? 'm' : '-', natEvMars ? 'M' : '-'].join('|');
+
+  const paint = () => {
+    body.innerHTML = '';
+    const section = label => {
+      const d = document.createElement('div');
+      d.className = 'af-section';
+      d.textContent = label;
+      body.appendChild(d);
+    };
+    const events = _natEvCache.events;
+    section(tr('afPastEvents'));
+    body.appendChild(mkEvTable(events.filter(e => e.jd < jd0), utcOff));
+    section(tr('afFutureEvents'));
+    body.appendChild(mkEvTable(events.filter(e => e.jd >= jd0), utcOff));
+  };
+
+  if (_natEvCache.key === key) { paint(); return; }
+  body.innerHTML = `<div class="tl-status">${tr('computingTransits')}</div>`;
+  setTimeout(() => {
+    try {
+      const { events } = computeNatalEvents(
+        filterNatalPlanets(natalData.planets), natalData.cusps, jd0, natEvRange, utcOff,
+        { moon: natEvMoon, mars: natEvMars });
+      _natEvCache = { key, events };
+      if (body.isConnected) paint();   // панель могла успеть перерисоваться
+    } catch (e) {
+      if (body.isConnected) body.innerHTML = `<div class="tl-status">${tr('error')}${e.message}</div>`;
+    }
+  }, 30);
+}
+
+document.getElementById('aspflow-view')?.addEventListener('click', e => {
+  const b = e.target.closest('.af-range');
+  if (!b) return;
+  if (b.dataset.evtoggle) {
+    if (b.dataset.evtoggle === '1') natEvMoon = !natEvMoon;
+    else                            natEvMars = !natEvMars;
+  } else {
+    natEvRange = b.dataset.evrange;
+  }
+  renderNatalAspFlow(document.getElementById('aspflow-view'));
+  persistTabs();
+});
+
+function renderHoraryAspFlow(view) {
   view.innerHTML = '';
   if (!natalData || !swe) return;
   const utcOff = natalData.utcOff ?? 0;
@@ -5671,6 +5793,7 @@ function applyNatalJD(jd) {
   buildInfoTable(planets, cusps);
   buildAspectGrid(addSouthNode(planets, cusps));
   syncV2DateLabel();
+  refreshNatalEvents();   // натал сдвинулся — цели транзитов изменились
   // Элекция: карта — это T, поэтому курсор таймлайна неба следует за моментом.
   if (currentCaseType === 'election') syncSkyTimelineCursor();
   // ушли с сохранённого снимка вручную (контроллер/таймлайн) — снять подсветку
@@ -5686,6 +5809,13 @@ function applyNavigatedJD(jd, unit = null) {
   else renderProgressedBiwheel(currentTransitJD);
   syncTimelineCursor(unit);
   syncV2DateLabel();
+  refreshNatalEvents();
+}
+
+// «События» натала считаются от выбранной даты — обновляем при её смене
+function refreshNatalEvents() {
+  if (rightPanelTab !== 'aspflow' || currentCaseType === 'horary') return;
+  renderNatalAspFlow(document.getElementById('aspflow-view'));
 }
 
 function switchModeAndNavigate(mode, jd) {
@@ -5693,6 +5823,7 @@ function switchModeAndNavigate(mode, jd) {
   currentTransitJD = jd;
   switchToMode(mode);
   syncTimelineCursor();
+  refreshNatalEvents();
 }
 
 function syncTimelineCursor(unit = null) {

@@ -730,6 +730,139 @@ function computeTlLayout(periods, progEvents, dirEvents) {
   };
 }
 
+// ── События натала: транзиты к наталу + ингрессы + станции ────────────────────
+// Питает виджет «События» в натальных кейсах (в хораре — свой computeHoraryEvents:
+// там события мунданные, в окнах знаков септенера). Окно всегда календарное,
+// состав транзитных планет зависит от диапазона: месяц — все (включая Луну),
+// год и 2 года — медленные + Марс, 10 лет — только высшие. Луна в месяце и Марс
+// в году/2 годах отключаемы (opts.moon / opts.mars) — они дают больше всего строк.
+const NAT_EV_IDS = {
+  '1M':  PLANETS.map(p => p.id),
+  '1Y':  [...SLOW_IDS, 4],
+  '2Y':  [...SLOW_IDS, 4],
+  '10Y': [7, 8, 9],
+};
+// Планета, которую переключает чип диапазона (null — переключать нечего)
+const NAT_EV_TOGGLE = { '1M': 1, '1Y': 4, '2Y': 4, '10Y': null };
+// Шаг сканирования по планете: Луна 2ч, быстрые 12ч, медленные 2 суток.
+// Достаточно мелкий, чтобы между отсчётами не пряталось два пересечения.
+const natEvStep = id => id === 1 ? 1 / 12 : ([0, 2, 3, 4].includes(id) ? 0.5 : 2);
+const NAT_EV_NO_STATION = [0, 1, 10, 12];   // Солнце/Луна не ретроградят, Узел и Лилит — средние
+const NAT_EV_NO_STATION_RANGES = ['10Y'];   // на декаде из мунданного оставляем только ингрессы
+
+// Календарное окно вокруг jd0 в локальном времени карты (utcOff — часы).
+// Месяц: 1-е … 1-е следующего; год/2 года: 1 января … 1 января; 10 лет — декада.
+function natEvWindow(jd0, range, utcOff = 0) {
+  const off = (utcOff || 0) / 24;
+  const d   = new Date((jd0 + off - 2440587.5) * 86400000);
+  const y = d.getUTCFullYear(), m = d.getUTCMonth();
+  const jdOf = (yy, mm, dd) => Date.UTC(yy, mm, dd) / 86400000 + 2440587.5 - off;
+  if (range === '1M')  return { jdStart: jdOf(y, m, 1), jdEnd: jdOf(y, m + 1, 1) };
+  if (range === '2Y')  return { jdStart: jdOf(y, 0, 1), jdEnd: jdOf(y + 2, 0, 1) };
+  if (range === '10Y') {
+    const ds = Math.floor(y / 10) * 10;
+    return { jdStart: jdOf(ds, 0, 1), jdEnd: jdOf(ds + 10, 0, 1) };
+  }
+  return { jdStart: jdOf(y, 0, 1), jdEnd: jdOf(y + 1, 0, 1) };
+}
+
+// Возвращает отсортированный массив { jd, kind, label, color?, pos }.
+function computeNatalEvents(natalPlanets, cusps, jd0, range, utcOff = 0, opts = {}) {
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const { jdStart, jdEnd } = natEvWindow(jd0, range, utcOff);
+  const off = NAT_EV_TOGGLE[range];
+  const ids = (NAT_EV_IDS[range] ?? NAT_EV_IDS['1Y'])
+    .filter(id => id !== off || (off === 1 ? opts.moon !== false : opts.mars !== false));
+  const withStations = !NAT_EV_NO_STATION_RANGES.includes(range);
+
+  // Цели: натальные планеты (все аспекты) + куспиды домов (только ☌)
+  const targets = [
+    ...natalPlanets.map(p => ({ id: p.id, glyph: p.glyph, longitude: p.longitude })),
+    ...(cusps || []).map((lon, i) => ({ id: -1, glyph: ROMAN[i], longitude: lon, isCusp: true })),
+  ];
+
+  const events = [];
+  for (const id of ids) {
+    const tp = PLANETS.find(p => p.id === id);
+    if (!tp) continue;
+    const st = natEvStep(id);
+    const n  = Math.ceil((jdEnd - jdStart) / st);
+    const jds = new Float64Array(n + 1), lons = new Float64Array(n + 1), spds = new Float64Array(n + 1);
+    let ok = true;
+    for (let k = 0; k <= n; k++) {
+      const jd = Math.min(jdStart + k * st, jdEnd);
+      const r  = safeCalcUt(jd, id, flags);
+      if (!r) { ok = false; break; }      // тело недоступно на эту эпоху (Хирон < 1800)
+      jds[k] = jd; lons[k] = ((r[0] % 360) + 360) % 360; spds[k] = r[3];
+    }
+    if (!ok) continue;
+    const lonAt = jd => { const r = safeCalcUt(jd, id, flags); return r ? (((r[0] % 360) + 360) % 360) : 0; };
+
+    // ингрессы в знак
+    for (let k = 1; k <= n; k++) {
+      const s0 = Math.floor(lons[k - 1] / 30);
+      if (Math.floor(lons[k] / 30) === s0) continue;
+      let a = jds[k - 1], b = jds[k];
+      for (let q = 0; q < 22; q++) {
+        const m = (a + b) / 2;
+        if (Math.floor(lonAt(m) / 30) === s0) a = m; else b = m;
+      }
+      const jd = (a + b) / 2;
+      events.push({ jd, kind: 'ingress', pos: null,
+        label: `${tp.glyph} → ${SIGNS[Math.floor(lons[k] / 30)]}` });
+    }
+
+    // станции R/D — по смене знака скорости
+    if (withStations && !NAT_EV_NO_STATION.includes(id)) {
+      for (let k = 1; k <= n; k++) {
+        const s0 = Math.sign(spds[k - 1]);
+        if (!s0 || !spds[k] || Math.sign(spds[k]) === s0) continue;
+        let a = jds[k - 1], b = jds[k];
+        for (let q = 0; q < 22; q++) {
+          const m = (a + b) / 2, r = safeCalcUt(m, id, flags);
+          if (!r || Math.sign(r[3]) === s0) a = m; else b = m;
+        }
+        const jd = (a + b) / 2;
+        events.push({ jd, kind: 'station', pos: lonAt(jd),
+          label: `${tp.glyph} ${spds[k] < 0 ? 'R' : 'D'}` });
+      }
+    }
+
+    // точные аспекты к натальным точкам
+    for (const t of targets) {
+      const aspects = (t.isCusp || id === 10 || id === 12 || t.id === 10 || t.id === 12)
+        ? T_ASPECTS.filter(a => a.angle === 0) : T_ASPECTS;
+      const L = t.longitude;
+      // f-функции: ноль в точном аспекте, непрерывны в его окрестности
+      const sepOf = lon => ((lon - L + 540) % 360) - 180;   // 0 = ☌
+      for (const asp of aspects) {
+        const fOf = asp.angle === 0 ? sepOf
+          : asp.angle === 180 ? (lon => ((lon - L + 360) % 360) - 180)
+          : (lon => Math.abs(sepOf(lon)) - asp.angle);
+        let prev = fOf(lons[0]);
+        for (let k = 1; k <= n; k++) {
+          const v = fOf(lons[k]);
+          if (prev !== 0 && v !== 0 && Math.sign(v) !== Math.sign(prev) && Math.abs(v - prev) < 90) {
+            let a = jds[k - 1], b = jds[k], fa = prev;
+            for (let q = 0; q < 22; q++) {
+              const m = (a + b) / 2, fm = fOf(lonAt(m));
+              if (Math.sign(fm) === Math.sign(fa)) { a = m; fa = fm; } else b = m;
+            }
+            const jd = (a + b) / 2;
+            events.push({ jd, kind: 'aspect', color: asp.color, pos: lonAt(jd),
+              label: `${tp.glyph} ${asp.symbol} ${t.glyph}` });
+          }
+          prev = v;
+        }
+      }
+    }
+  }
+
+  events.sort((x, y) => x.jd - y.jd);
+  return { events, jdStart, jdEnd };
+}
+
 export { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
+         computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
          transitOrbFactor };

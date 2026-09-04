@@ -1746,6 +1746,30 @@
     box-sizing: border-box;
     overflow: hidden;
   }
+  /* Сворачивание колонны: кнопка под «Снимками», обратно — корешок у левого
+     края. В раскрытом виде корешка нет вовсе — раскладка ровно прежняя,
+     освободившуюся ширину flex сам раздаёт карте и правой панели. */
+  #v2-left-collapse {
+    flex: 0 0 auto;
+    padding: 3px 0; border: none; cursor: pointer;
+    background: none; border-radius: var(--panel-radius);
+    font-size: 0.95em; line-height: 1;
+    color: var(--tx-8); opacity: 0.5;
+    transition: opacity 0.15s, color 0.15s, background 0.15s;
+  }
+  #v2-left-collapse:hover { opacity: 1; color: var(--tx-4); background: var(--bg-hover); }
+  #v2-left-spine { display: none; }
+  #layout-v2.left-hidden #v2-left-spine {
+    display: flex; align-items: center; justify-content: center;
+    flex: 0 0 11px; align-self: stretch;
+    padding: 0; border: none; cursor: pointer;
+    background: var(--bg-panel-control); border-radius: var(--panel-radius);
+    font-size: 1.1em; line-height: 1; color: var(--tx-7);
+    transition: color 0.15s, background 0.15s;
+  }
+  #layout-v2.left-hidden #v2-left-spine:hover { color: var(--tx-2); background: var(--bg-hover); }
+  #layout-v2.left-hidden #v2-control-panel { display: none; }
+
   /* каждая смысловая группа — отдельная плашка */
   #v2-panel-head, #v2-panel-nav, #v2-snap-panel {
     background: var(--bg-panel-control);
@@ -2051,6 +2075,10 @@
 
     /* распускаем боковую панель: группы становятся flex-детьми #v2-top */
     #v2-control-panel { display: contents; }
+    /* колонны нет — сворачивать нечего */
+    #v2-left-spine, #layout-v2.left-hidden #v2-left-spine,
+    #v2-left-collapse { display: none; }
+    #layout-v2.left-hidden #v2-control-panel { display: contents; }
     #v2-control-panel > .v2-ctrl-sep,
     #v2-control-panel > .v2-ctrl-spacer { display: none; }
 

@@ -50,6 +50,7 @@ const APP_STATE = {
   layout2Active: false,
   layout2TlState: 0,
   chartExpanded: false,
+  leftPanelHidden: false,  // левая колонна (данные/момент/снимки) свёрнута в корешок
   rightPanelTabs: null,    // init в index.html ([...RP_DEFAULT_TABS])
   rightPanelTab: 'grades',
   chartModeTabs: null,     // init в index.html ([...CHART_MODE_ALL])

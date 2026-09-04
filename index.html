@@ -293,6 +293,8 @@
 <!-- ── Layout V2 ──────────────────────────────────────────────────────── -->
 <div id="layout-v2">
   <div id="v2-top">
+    <!-- Корешок: виден только когда левая колонна свёрнута — возвращает её -->
+    <button id="v2-left-spine" type="button" data-i18n-title="leftPanelShow" title="Показать левую колонну">›</button>
     <div id="v2-control-panel">
       <div id="v2-panel-head">
         <img src="Aspectus%20logo.png" id="v2-logo" alt="Aspectus">
@@ -380,6 +382,8 @@
         </div>
         <div id="v2-snap-list"></div>
       </div>
+      <!-- Свернуть колонну (обратно — корешок у левого края) -->
+      <button id="v2-left-collapse" type="button" data-i18n-title="leftPanelHide" title="Скрыть левую колонну">‹</button>
       <div class="v2-ctrl-spacer"></div>
     </div>
     <div id="v2-chart-area">
@@ -580,7 +584,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // Локальные модули версионируются (?v=N): index.html всегда свежий (SW network-first),
 // а модули кэшируются браузером/CDN — при изменении СОСТАВА ЭКСПОРТОВ бампните версию,
 // иначе свежий index.html слинкуется со старым кэшем модуля и приложение умрёт.
-import './js/state.js?v=2';   // леджер разделяемого состояния — до всех модулей
+import './js/state.js?v=3';   // леджер разделяемого состояния — до всех модулей
 import { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff }
   from './js/astro-core.js?v=1';
 import { computeTransits, computeFastTransits, computeReturnPeriods,
@@ -1447,7 +1451,7 @@ function openSynastryTab(c) {
   tabs.push(t);
   activeTab = tabs.length - 1;
   dashboardOpen = false;
-  currentTransitJD = null; chartExpanded = false; layout2TlState = 0; tlYearScale = false;
+  currentTransitJD = null; chartExpanded = false; leftPanelHidden = false; layout2TlState = 0; tlYearScale = false;
   synView = 'both';
   if (!paintSynastryFromRefs(t)) { tabs.pop(); activeTab = tabs.length - 1; console.warn('synastry: расчёт не удался'); return; }
   t.header = readHeader();
@@ -1483,7 +1487,7 @@ function openChartInTab(c, newTab = false) {
   markChartOpened(c);
   writeFormFields(rowToFields(c));
   currentChartId = c.id ?? null;
-  currentTransitJD = null; chartExpanded = false; layout2TlState = 0; tlYearScale = false;
+  currentTransitJD = null; chartExpanded = false; leftPanelHidden = false; layout2TlState = 0; tlYearScale = false;
   const t = tabs[activeTab];
   delete t.kind;             // вкладка-палитра становится вкладкой кейса
   t.type    = c.case_type ?? 'natal';   // до расчёта: от типа зависит система домов
@@ -2752,7 +2756,7 @@ function captureState() {
       expandedRows: new Set(expandedRows),
       fastCache: { ...fastCache },
       hiddenTPlants: new Set(hiddenTPlants),
-      moonBandCollapsed, tlYearScale, chartExpanded, layout2TlState,
+      moonBandCollapsed, tlYearScale, chartExpanded, leftPanelHidden, layout2TlState,
       rightPanelTab,
       rightPanelTabs: [...rightPanelTabs],
       chartModeTabs: [...chartModeTabs],
@@ -2778,6 +2782,7 @@ function applyState(s) {
   moonBandCollapsed = u.moonBandCollapsed;
   tlYearScale      = u.tlYearScale;
   chartExpanded    = u.chartExpanded;
+  leftPanelHidden  = !!u.leftPanelHidden;
   layout2TlState   = u.layout2TlState;
   rightPanelTabs   = sanitizeRpTabs(u.rightPanelTabs);
   rightPanelTab    = u.rightPanelTab || 'grades';
@@ -2812,6 +2817,7 @@ function applyLayout2Classes() {
     document.getElementById('v2-chart-expand-btn').textContent = '⤢';
   }
   document.getElementById('v2-tl-toggle').textContent = V2_TL_LABELS[layout2TlState];
+  applyLeftPanelState();
   layout2Active = true;
 }
 
@@ -2956,6 +2962,7 @@ function openNewTabFromForm(chartId, caseType = 'natal', outcome = null, snapsho
   // Свежая карта — дефолтный layout и «сегодня»
   currentTransitJD = null;
   chartExpanded = false;
+  leftPanelHidden = false;
   layout2TlState = 0;
   tlYearScale = false;
   if (!computeAndRenderNatal()) {
@@ -3010,6 +3017,7 @@ function fullExitToHome(push = true) {
   cachedTimeline = null;
   layout2Active = false;
   chartExpanded = false;
+  leftPanelHidden = false;
   layout2TlState = 0;
   dashboardOpen = true;
   persistTabs();
@@ -3114,6 +3122,7 @@ function computeIntoPaletteTab() {
   currentChartId = null;
   currentTransitJD = null;
   chartExpanded = false;
+  leftPanelHidden = false;
   layout2TlState = 0;
   tlYearScale = false;
   if (!computeAndRenderNatal()) return;
@@ -3381,7 +3390,7 @@ function computeSynastryIntoTab() {
   t.type = 'synastry';
   t.refs = { a: subjA, b: subjB };
   currentTransitJD = null;
-  chartExpanded = false; layout2TlState = 0; tlYearScale = false;
+  chartExpanded = false; leftPanelHidden = false; layout2TlState = 0; tlYearScale = false;
   synView = 'both';
 
   if (!paintSynastryFromRefs(t)) { setSynStatus(tr('synFillBoth')); return; }
@@ -3540,6 +3549,7 @@ function rebuildTabFromFields(t) {
   if (t.type === 'synastry') {
     const v = t.view || {};
     chartExpanded  = !!v.chartExpanded;
+    leftPanelHidden = !!v.leftPanelHidden;
     layout2TlState = v.layout2TlState ?? 0;
     currentTransitJD = null;
     synView = v.synView || 'both';
@@ -3552,6 +3562,7 @@ function rebuildTabFromFields(t) {
   currentChartId = t.chartId ?? null;
   const v = t.view || {};
   chartExpanded  = !!v.chartExpanded;
+  leftPanelHidden = !!v.leftPanelHidden;
   layout2TlState = v.layout2TlState ?? 0;
   tlYearScale    = !!v.tlYearScale;
   currentTransitJD = null;
@@ -3596,6 +3607,7 @@ function stateToView(s) {
     moonBandCollapsed: u.moonBandCollapsed,
     tlYearScale: u.tlYearScale,
     chartExpanded: u.chartExpanded,
+    leftPanelHidden: u.leftPanelHidden,
     layout2TlState: u.layout2TlState,
     rightPanelTab: u.rightPanelTab,
     rightPanelTabs: u.rightPanelTabs ? [...u.rightPanelTabs] : undefined,
@@ -8443,6 +8455,19 @@ document.getElementById('v2-tl-toggle').addEventListener('click', () => {
     requestAnimationFrame(() => requestAnimationFrame(() => renderTimeline(snap)));
   }
 });
+
+// ── Левая колонна: свернуть в корешок / развернуть ───────────────────────────
+// Ширина раздаётся flex'ом сам, SVG карты тянется по CSS — перерисовка не нужна.
+function applyLeftPanelState() {
+  document.getElementById('layout-v2').classList.toggle('left-hidden', !!leftPanelHidden);
+}
+
+for (const id of ['v2-left-spine', 'v2-left-collapse']) {
+  document.getElementById(id).addEventListener('click', () => {
+    leftPanelHidden = !leftPanelHidden;
+    applyLeftPanelState();
+  });
+}
 
 document.getElementById('v2-chart-expand-btn').addEventListener('click', () => {
   const v2 = document.getElementById('layout-v2');

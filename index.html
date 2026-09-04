@@ -1025,7 +1025,7 @@ defineSettings([
           if (cb.checked) natalPlanetFilter.add(p.id);
           else natalPlanetFilter.delete(p.id);
           saveNatalFilter();
-          rerenderNatal();
+          refreshChartFromSettings();
         });
         const glyph = document.createElement('span');
         glyph.className = 'pf-glyph';
@@ -1043,7 +1043,7 @@ defineSettings([
       reset.addEventListener('click', () => {
         natalPlanetFilter = new Set(ALL_NATAL_IDS);
         saveNatalFilter();
-        rerenderNatal();
+        refreshChartFromSettings();
         refreshSettingsModal();
       });
       foot.appendChild(reset);
@@ -1073,11 +1073,13 @@ defineSettings([
 
 // Перерисовка после смены состава аспектов / орбисов натала: в натале —
 // карта + таблица + сетка, в остальных режимах — текущий вид (сетка своя)
-function refreshAspectsFromSettings() {
+function refreshChartFromSettings() {
   if (!natalData) return;
   if (currentMode === 'natal') rerenderNatal();
   else reRenderCurrentChart();
 }
+// объявление, а не const: реестр настроек выше ссылается на неё до этой строки
+function refreshAspectsFromSettings() { refreshChartFromSettings(); }
 
 // Пересчёт таймлайна после смены классов событий (кэш инвалидируется; если
 // таймлайна нет на экране — хорар/синастрия — просто посчитается заново при показе)
@@ -4868,18 +4870,18 @@ function buildInfoTable(planets, cusps) {
     const tr = document.createElement('tr');
     const pName = PLANETS.find(x => x.id === p.id)?.name;
     if (pName) { tr.dataset.libSubject = pName; tr.dataset.libSign = si; }
+    // Глиф — один раз слева: он общий для обеих карт (см. .col-second в styles.css)
     tr.innerHTML =
       `<td class="info-glyph">${p.hamburgGlyph}</td>` +
       `<td class="info-pos">${fmtDeg(p.longitude)}${retro} ${SIGNS[si]}</td>` +
       `<td class="info-speed">${p.speed != null ? fmtSpeedDeg(p.speed) : ''}</td>` +
       `<td class="info-speed" style="color:var(--tx-8)">${p.speed != null ? fmtSpeed(p.speed, p.id) : ''}</td>` +
-      `<td class="col-second col-divider info-glyph">${p.hamburgGlyph}</td>` +
-      `<td class="col-second info-pos" id="info-sp-${p.id}"></td>`;
+      `<td class="col-second col-divider info-pos" id="info-sp-${p.id}"></td>`;
     tbody.appendChild(tr);
   });
   const sep = document.createElement('tr');
   sep.className = 'info-sep';
-  sep.innerHTML = '<td colspan="4"></td>';
+  sep.innerHTML = '<td colspan="5"></td>';
   tbody.appendChild(sep);
   cusps.forEach((lon, i) => {
     const si  = Math.floor(lon / 30) % 12;
@@ -4890,8 +4892,8 @@ function buildInfoTable(planets, cusps) {
     tr.innerHTML =
       `<td class="info-house-lbl ${cls}">${HOUSE_LABELS[i]}</td>` +
       `<td class="info-pos">${fmtDeg(lon)} ${SIGNS[si]}</td>` +
-      `<td class="col-second-house col-divider info-house-lbl ${cls}">${HOUSE_LABELS[i]}</td>` +
-      `<td class="col-second-house info-pos" id="info-shp-${i}"></td>`;
+      `<td class="info-speed"></td><td class="info-speed"></td>` +   // держат колонки скоростей
+      `<td class="col-second-house col-divider info-pos" id="info-shp-${i}"></td>`;
     tbody.appendChild(tr);
   });
 }
@@ -5723,6 +5725,7 @@ function renderDirectionBiwheel(jd = null) {
   }));
   const directedCusps = natalCusps.map(c => ((c + ageInYears) % 360 + 360) % 360);
   renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc);
+  buildInfoTable(natal, natalCusps);
   updateSecondColumn(directed);
   updateSecondHouses(directedCusps);
   setInfoTableMode('biwheel-houses');
@@ -6061,6 +6064,7 @@ function showTransitNow() {
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   }).filter(Boolean);
   renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
+  buildInfoTable(natalData.planets, natalData.cusps);   // первая колонка всегда — карта под колесом
   updateSecondColumn(transit);
   setInfoTableMode('biwheel');
   buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps), addSouthNode(transit), 'transit');
@@ -6289,6 +6293,7 @@ function renderProgressedBiwheel(jd = null) {
   }).filter(Boolean);
   const lunarPhases = showProgLunarPhases ? calcProgressedLunarPhases(birthJD, jdReal) : null;
   renderProgressedBiwheelChart(natal, progressed, cusps, asc, lunarPhases);
+  buildInfoTable(natal, cusps);
   updateSecondColumn(progressed);
   setInfoTableMode('biwheel');
   buildAspectGrid(addSouthNode(natal, cusps), addSouthNode(progressed), 'progressed');
@@ -6302,6 +6307,7 @@ function switchToMode(mode) {
   syncV2DateLabel();
   if (mode === 'natal') {
     renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
+    buildInfoTable(natalData.planets, natalData.cusps);   // соляр/синастрия могли оставить чужую карту
     setInfoTableMode('natal');
     buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps));
   } else if (mode === 'transit') {
@@ -6327,6 +6333,7 @@ function renderBiwheelAt(jd) {
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   }).filter(Boolean);
   renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
+  buildInfoTable(natalData.planets, natalData.cusps);
   updateSecondColumn(transit);
   setInfoTableMode('biwheel');
   buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps), addSouthNode(transit), 'transit');

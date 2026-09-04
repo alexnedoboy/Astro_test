@@ -140,8 +140,11 @@
 
   #right-info-content { overflow-y: auto; }
   #info-table { width: 100%; border-collapse: collapse; font-size: 0.87em; }
-  #info-table td { padding: 2px 5px; }
+  /* Волосяные линейки: глаз ведёт строку от глифа к обеим позициям */
+  #info-table td { padding: 3px 5px; border-bottom: 1px solid var(--bd-light); }
   #info-table tr:hover td { background: var(--bg-row-info); }
+  #info-table .info-sep td,
+  #info-table tbody tr:last-child td { border-bottom: none; }
   .info-glyph { font-family: 'HamburgSymbols'; font-size: 1.15em; text-align: center; width: 26px; }
   .info-pos { font-variant-numeric: tabular-nums; white-space: nowrap; }
   .info-retro { color: var(--retro); font-style: italic; font-size: 0.78em; }
@@ -152,7 +155,18 @@
   #info-table.mode-biwheel .col-second { display: table-cell; }
   .col-second-house { display: none; }
   #info-table.mode-biwheel-houses .col-second-house { display: table-cell; }
-  .col-divider { padding-left: 10px; }
+  /* В узкой панели (планшет) колонка второй карты важнее скоростей: скорости
+     уступают ей место, отступы ужимаются — обе позиции влезают без обрезки.
+     На широкой панели скорости остаются. */
+  #right-info-content { container-type: inline-size; }
+  @container (max-width: 330px) {
+    #info-table.mode-biwheel .info-speed { display: none; }
+    #info-table.mode-biwheel td { padding-left: 2px; padding-right: 2px; }
+    #info-table.mode-biwheel .info-glyph,
+    #info-table.mode-biwheel .info-house-lbl { width: 20px; }
+    #info-table.mode-biwheel .col-divider { padding-left: 6px; }
+  }
+  .col-divider { padding-left: 10px; border-left: 1px solid var(--bd-light); }
   .info-speed { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--tx-6); font-size: 0.82em; text-align: right; }
 
   /* ── Aspect grid ─────────────────────────────────────────────── */
@@ -1237,7 +1251,7 @@
     min-height: 0;
     width: 100%;
     overflow-y: auto;
-    overflow-x: hidden;
+    overflow-x: auto;   /* узкая панель (планшет): скроллим, а не режем таблицу */
     display: block !important;
   }
   #v2-aspect-panel #aspect-grid {

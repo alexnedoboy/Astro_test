@@ -6491,6 +6491,7 @@ function switchToMode(mode) {
     renderSolarChart(currentTransitJD);
   }
   syncSolarCtl();
+  refreshNatalEvents();   // showTransitNow() сбрасывает T в «сейчас»
 }
 
 // ── Render biwheel for a specific JD (called from timeline bar tap) ──────────
@@ -8108,6 +8109,7 @@ document.getElementById('v2-control-panel').addEventListener('click', e => {
       else renderProgressedBiwheel(null);
       syncTimelineCursor();
       syncV2DateLabel();
+      refreshNatalEvents();
       }
     } else {
       // В режиме «Время» те же три пары стрелок шагают час/минута/секунда

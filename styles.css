@@ -2142,14 +2142,33 @@
     bottom: 44px;
   }
 
+  /* Панель карты по ширине следует за высотой: круг всё равно квадратный, а
+     пустые поля по бокам (до ~90px с каждой стороны) уходят правой панели —
+     она единственная растёт, колонна данных зафиксирована на 13%. */
+  body.lab-chartnav #layout-v2:not(.chart-expanded) #v2-chart-area {
+    flex: 0 1 auto;
+    width: auto;
+    /* чуть уже квадрата: высоту панели съедают шапка и строка навигации,
+       круг рисуется по меньшей стороне — остаётся ровно поле по бокам */
+    aspect-ratio: 15 / 16;
+    max-width: 62%;
+    min-width: 330px;
+  }
+
   #v2-chart-nav { display: none; }
+  /* Пять колонок-областей: замок | назад | дата | вперёд | ↺ и Дата/Время.
+     Дата стоит по центру, пока боковые 1fr равны; на узком экране те же
+     области перекладываются в два ряда (см. медиа ниже). */
   body.lab-chartnav #v2-chart-nav {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    grid-template-columns: 1fr auto auto auto 1fr;
+    grid-template-areas: "lock prev date next right";
     align-items: center;
-    gap: 4px;
+    /* заметный column-gap — гарантированный зазор между стрелками «вперёд»
+       и правой группой (↺, Дата/Время), чтобы не промахиваться пальцем */
+    column-gap: 14px;
     flex: 0 0 auto;
-    padding: 4px 6px 6px;
+    padding: 8px 8px 10px;
     border-top: 1px solid var(--bd-light);
   }
   /* хорар и синастрия момент не крутят — там строки нет */
@@ -2158,16 +2177,20 @@
 
   /* без min-width: 0 — иначе колонка 1fr сжимается меньше своего содержимого и
      правая группа (↺ + Дата/Время) вылезает влево поверх стрелок «вперёд» */
-  #v2-chart-nav .cn-side { display: flex; align-items: center; gap: 4px; }
-  #v2-chart-nav .cn-left  { justify-content: flex-start; }
-  #v2-chart-nav .cn-right { justify-content: flex-end; }
-  #v2-chart-nav .cn-center { display: flex; align-items: center; gap: 1px; }
+  #v2-chart-nav .cn-side { display: flex; align-items: center; gap: 6px; }
+  #v2-chart-nav .cn-left  { grid-area: lock;  justify-content: flex-start; }
+  #v2-chart-nav .cn-right { grid-area: right; justify-content: flex-end; }
+  #v2-chart-nav .cn-date  { grid-area: date; }
+  #v2-chart-nav .cn-prev  { grid-area: prev; }
+  #v2-chart-nav .cn-next  { grid-area: next; }
+  /* промежуток между стрелками — под палец на планшете, не под курсор */
+  #v2-chart-nav .cn-group { display: flex; align-items: center; gap: 8px; }
 
   /* flex: 0 0 auto — гасим глобальное button { flex: 1 }: иначе кнопки
      растягиваются по колонкам и стрелки наезжают на ↺ */
   #v2-chart-nav .cn-btn {
     flex: 0 0 auto;
-    width: 24px; height: 26px;
+    width: 28px; height: 32px;
     display: flex; align-items: center; justify-content: center;
     background: none; border: none; border-radius: 6px;
     padding: 0; margin: 0; line-height: 1;
@@ -2178,12 +2201,12 @@
   #v2-chart-nav .cn-btn:hover { background: var(--bg-hover); color: var(--tx-2); }
   #v2-chart-nav .cn-today { font-size: 0.85em; }
   /* натал: стрелки заблокированы, пока не снят замок (↺ работает всегда) */
-  #v2-chart-nav.cn-locked .cn-center .cn-btn {
+  #v2-chart-nav.cn-locked .cn-group .cn-btn {
     opacity: 0.28; pointer-events: none;
   }
   #v2-chart-nav .cn-lock {
     flex: 0 0 auto;
-    width: 18px; height: 24px;
+    width: 20px; height: 30px;
     display: none; align-items: center; justify-content: center;
     background: none; border: none; border-radius: 6px;
     padding: 0; line-height: 1; font-size: 0.72em;
@@ -2219,7 +2242,7 @@
   }
   #v2-chart-nav .cn-seg-btn {
     flex: 0 0 auto;
-    height: 20px; width: auto; padding: 0 7px;
+    height: 26px; width: auto; padding: 0 10px;
     margin: 0;
     background: none; border: none; border-top: none; border-radius: 5px;
     font-size: 0.58em; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
@@ -2229,14 +2252,36 @@
   #v2-chart-nav .cn-seg-btn.active { background: var(--bg); color: var(--tx-2); }
   #v2-chart-nav .cn-seg-btn:hover:not(.active) { color: var(--tx-4); }
 
-  /* узкое окно — панель карты сжимается, строка должна остаться в один ряд */
+  /* среднее окно — панель карты сжимается, строка ещё влезает в один ряд */
   @media (max-width: 1150px) {
-    body.lab-chartnav #v2-chart-nav { gap: 3px; padding: 4px 4px 6px; }
-    #v2-chart-nav .cn-btn { width: 21px; }
+    body.lab-chartnav #v2-chart-nav { column-gap: 10px; padding: 6px 5px 8px; }
+    #v2-chart-nav .cn-group { gap: 5px; }
+    #v2-chart-nav .cn-btn { width: 26px; height: 30px; }
     #v2-chart-nav .cn-date { padding: 0 5px; gap: 4px; }
     #cn-date-text { font-size: 0.78em; }
     #cn-time-text { font-size: 0.66em; }
-    #v2-chart-nav .cn-seg-btn { padding: 0 5px; font-size: 0.55em; }
+    #v2-chart-nav .cn-seg-btn { padding: 0 7px; font-size: 0.55em; }
+  }
+  /* узкое окно (планшет в портрете) — два ряда: сверху замок, дата и правая
+     группа, снизу стрелки крупнее и разнесены к краям, под большие пальцы */
+  @media (max-width: 950px) {
+    body.lab-chartnav #v2-chart-nav {
+      grid-template-columns: auto 1fr auto;
+      grid-template-areas:
+        "lock  date  right"
+        "prev  prev  next";
+      column-gap: 8px;
+      row-gap: 8px;
+      padding: 6px 6px 8px;
+    }
+    #v2-chart-nav .cn-prev { justify-content: flex-start; }
+    #v2-chart-nav .cn-next { justify-content: flex-end; }
+    #v2-chart-nav .cn-group { gap: 10px; }
+    #v2-chart-nav .cn-btn { width: 36px; height: 34px; font-size: 0.66em; }
+    #v2-chart-nav .cn-today { width: 30px; height: 28px; }
+    #v2-chart-nav .cn-seg-btn { padding: 0 8px; }
+    #cn-date-text { font-size: 0.84em; }
+    #cn-time-text { font-size: 0.7em; }
   }
 
   /* ── Layout V2: мобильная версия (≤700px) ─────────────────────────────────── */

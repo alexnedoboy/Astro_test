@@ -416,14 +416,18 @@
         <div class="cn-side cn-left">
           <button class="cn-lock" id="cn-lock" type="button">🔒&#xFE0E;</button>
         </div>
-        <div class="cn-center">
+        <!-- группы «назад» и «вперёд» разделены: на узком экране строка
+             раскладывается в два ряда (дата сверху, стрелки под ней) -->
+        <div class="cn-group cn-prev">
           <button class="cn-btn" data-nav="prev-year">◀◀◀</button>
           <button class="cn-btn" data-nav="prev-month">◀◀</button>
           <button class="cn-btn" data-nav="prev-day">◀</button>
-          <div class="cn-date">
-            <span id="cn-date-text"></span>
-            <span id="cn-time-text"></span>
-          </div>
+        </div>
+        <div class="cn-date">
+          <span id="cn-date-text"></span>
+          <span id="cn-time-text"></span>
+        </div>
+        <div class="cn-group cn-next">
           <button class="cn-btn" data-nav="next-day">▶</button>
           <button class="cn-btn" data-nav="next-month">▶▶</button>
           <button class="cn-btn" data-nav="next-year">▶▶▶</button>

@@ -8562,16 +8562,18 @@ function syncV2DateLabel() {
 
 // ── Пробная строка навигации под картой (настройка labChartNav) ──────────────
 // В натальной карте стрелки заблокированы по умолчанию: случайный клик не
-// должен сдвигать момент рождения. Замок снимается на время работы в режиме и
-// возвращается сам при уходе из натала.
+// должен сдвигать момент рождения. Снятый замок действует только здесь и
+// сейчас — при смене режима или вкладки натал снова открывается закрытым.
 let cnUnlocked = false;
+let cnUnlockCtx = '';                                   // где сняли замок
+const chartNavCtx = () => `${activeTab}|${currentMode}`;
 
 function syncChartNavLock() {
   const strip = document.getElementById('v2-chart-nav');
   if (!strip) return;
   // элекция живёт подбором момента — там натальные стрелки рабочие
   const lockable = currentMode === 'natal' && currentCaseType !== 'election';
-  if (!lockable) cnUnlocked = false;
+  if (!lockable || cnUnlockCtx !== chartNavCtx()) cnUnlocked = false;
   strip.classList.toggle('cn-lockable', lockable);
   strip.classList.toggle('cn-locked', lockable && !cnUnlocked);
   const b = document.getElementById('cn-lock');
@@ -8585,6 +8587,7 @@ document.getElementById('v2-chart-nav').addEventListener('click', e => {
   const strip = e.currentTarget;
   if (e.target.closest('#cn-lock')) {
     cnUnlocked = !cnUnlocked;
+    cnUnlockCtx = cnUnlocked ? chartNavCtx() : '';
     syncChartNavLock();
     return;
   }

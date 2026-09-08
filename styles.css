@@ -2161,7 +2161,10 @@
   #v2-chart-nav .cn-right { justify-content: flex-end; }
   #v2-chart-nav .cn-center { display: flex; align-items: center; gap: 1px; }
 
+  /* flex: 0 0 auto — гасим глобальное button { flex: 1 }: иначе кнопки
+     растягиваются по колонкам и стрелки наезжают на ↺ */
   #v2-chart-nav .cn-btn {
+    flex: 0 0 auto;
     width: 26px; height: 26px;
     display: flex; align-items: center; justify-content: center;
     background: none; border: none; border-radius: 6px;
@@ -2177,7 +2180,8 @@
     opacity: 0.28; pointer-events: none;
   }
   #v2-chart-nav .cn-lock {
-    width: 24px; height: 24px;
+    flex: 0 0 auto;
+    width: 18px; height: 24px;
     display: none; align-items: center; justify-content: center;
     background: none; border: none; border-radius: 6px;
     padding: 0; line-height: 1; font-size: 0.72em;

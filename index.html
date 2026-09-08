@@ -157,6 +157,9 @@
       <input type="time" id="birthTime" autocomplete="off" value="12:00">
     </div>
   </div>
+  <div class="row" id="time-unknown-row">
+    <label class="cb-field"><input type="checkbox" id="timeUnknown"><span data-i18n="timeUnknownLabel">Время неизвестно (космограмма)</span></label>
+  </div>
   <div class="row">
     <div class="field" id="geo-place-wrap">
       <label data-i18n="birthPlaceLabel">Место рождения</label>
@@ -2702,10 +2705,12 @@ document.getElementById('birthPlace').addEventListener('keydown', e => {
 let _tabUid = 0;
 
 function readFormFields() {
+  const noHouses = !!document.getElementById('timeUnknown')?.checked;
   return {
     name:      document.getElementById('chartName').value,
     birthDate: document.getElementById('birthDate').value,
-    birthTime: document.getElementById('birthTime').value,
+    birthTime: noHouses ? '' : document.getElementById('birthTime').value,
+    noHouses,
     city:      document.getElementById('birthPlace').value,
     lat:       document.getElementById('lat').value,
     lon:       document.getElementById('lonVal').value,
@@ -2713,20 +2718,32 @@ function readFormFields() {
     timezone:  detectedTimezone ?? null,
   };
 }
+// Космограмма: пустое время (или явный флаг) → чекбокс включён, поле времени погашено
+function syncTimeUnknownUI() {
+  const on = !!document.getElementById('timeUnknown')?.checked;
+  document.getElementById('birthTime').disabled = on;
+  document.getElementById('form-wrap')?.classList.toggle('time-unknown', on);
+}
 function writeFormFields(f) {
   if (!f) return;
   document.getElementById('chartName').value  = f.name      ?? '';
   document.getElementById('birthDate').value  = f.birthDate ?? '';
-  document.getElementById('birthTime').value  = f.birthTime ?? '';
+  const noTime = !!f.noHouses || !f.birthTime;
+  const cb = document.getElementById('timeUnknown');
+  if (cb) cb.checked = noTime;
+  document.getElementById('birthTime').value  = f.birthTime || '12:00';
+  syncTimeUnknownUI();
   document.getElementById('birthPlace').value = f.city      ?? '';
   document.getElementById('lat').value        = f.lat       ?? '';
   document.getElementById('lonVal').value     = f.lon       ?? '';
   document.getElementById('utcOff').value     = f.utcOff    ?? '';
   detectedTimezone = f.timezone ?? null;
 }
+document.getElementById('timeUnknown').addEventListener('change', syncTimeUnknownUI);
 function rowToFields(c) {
   return {
     name: c.name ?? '', birthDate: c.birth_date ?? '', birthTime: c.birth_time ?? '',
+    noHouses: !c.birth_time,
     city: c.city ?? '', lat: c.lat ?? '', lon: c.lon ?? '',
     utcOff: c.utc_offset ?? '', timezone: c.timezone ?? null,
   };
@@ -2833,6 +2850,8 @@ function applyLayout2Classes() {
 // Полная перерисовка V2 из текущих глобалов (natalData уже выставлен)
 function paintActiveChart() {
   applyLayout2Classes();
+  applyNoHousesClass();
+  if (natalData?.noHouses) currentMode = 'natal';   // космограмма — только натал
   applyRightPanelTab();
   applyChartModeTabs();
   // Синастрия: совмещённое биколесо A+B, без слоёв/таймлайна (§6)
@@ -2844,6 +2863,7 @@ function paintActiveChart() {
   }
   switchToMode(currentMode);
   renderHoraryBlock();
+  if (natalData?.noHouses) { skyTlHost = null; return; }   // космограмма — без таймлайна
   if (currentCaseType === 'horary') { skyTlHost = null; return; }   // пресет хорара — без таймлайна
   if (currentCaseType === 'election') { renderElectionTimeline(); _snapActive = null; renderSnaps(); return; }
   skyTlHost = null;   // натал/прогностика — таймлайн к наталу, не source=sky
@@ -3782,6 +3802,12 @@ function applyCaseType(type) {
   applyOutcomeChips();
 }
 
+// Космограмма (натал без времени → без домов): прячем режимы/контроллер/таймлайн,
+// как в пресете хорара. Класс снимается сам, когда natalData снова с домами.
+function applyNoHousesClass() {
+  document.getElementById('layout-v2')?.classList.toggle('no-houses', !!natalData?.noHouses);
+}
+
 // Заполнить две карточки субъектов синастрии из refs = { a, b } (поля субъектов).
 function fillSynSubjectCards(refs) {
   const fill = (sel, subj) => {
@@ -4228,6 +4254,9 @@ const FORM_LABEL_I18N = {
 };
 function setFormMode(mode) {
   const m = FORM_LABEL_I18N[mode] || FORM_LABEL_I18N.natal;
+  const fw = document.getElementById('form-wrap');
+  fw.classList.remove('fm-natal', 'fm-horary', 'fm-election');
+  fw.classList.add('fm-' + (FORM_LABEL_I18N[mode] ? mode : 'natal'));
   const set = (sel, key) => {
     const el = document.querySelector(sel);
     if (el) { el.setAttribute('data-i18n', key); el.textContent = tr(key); }
@@ -4284,6 +4313,8 @@ function openNewChartModal() {
   fw.classList.add('modal');
   document.getElementById('edit-backdrop').classList.add('visible');
   document.getElementById('chartName').value = '';
+  document.getElementById('timeUnknown').checked = false;
+  syncTimeUnknownUI();
   setStatus('');
   document.getElementById('chartName').focus();
 }
@@ -4338,12 +4369,13 @@ function computeAndRenderNatal() {
                    || tr('chartFallback');
     const rawDate = document.getElementById('birthDate').value;
     const fmtDate = rawDate ? rawDate.split('-').reverse().join('.') : '';
-    const fmtTime = document.getElementById('birthTime').value || '';
+    const fmtTime = data.noHouses ? tr('cosmogramTag') : (document.getElementById('birthTime').value || '');
     const dateTime = [fmtDate, fmtTime, `(${fmtUtcOff(utcOff)})`].filter(Boolean).join(' ');
 
     closeNewChartModal();
     setV2ChartInfo(chartName, dateTime, document.getElementById('birthPlace').value.trim());
     applyCaseType(tabs[activeTab]?.type || 'natal');
+    applyNoHousesClass();
     applyRightPanelTab();
     applyChartModeTabs();
     applyLayout2Classes();
@@ -4358,7 +4390,7 @@ function computeAndRenderNatal() {
     setInfoTableMode('natal');
     renderHoraryBlock();
     if (caseType === 'election') { renderElectionTimeline(); _snapActive = null; renderSnaps(); }
-    else if (caseType !== 'horary') computeAndRenderTimeline(natalData.planets);
+    else if (caseType !== 'horary' && !data.noHouses) computeAndRenderTimeline(natalData.planets);
     if (caseType === 'natal') { _snapActive = null; renderSnaps(); }
     setStatus('');
     return true;
@@ -4585,8 +4617,8 @@ function renderChart(planets, cusps, asc, mc) {
   // 1. Background
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
 
-  // 2. House axes — behind the zodiac ring
-  drawHouseAxes(g, cusps, 0);
+  // 2. House axes — behind the zodiac ring (космограмма — без домов)
+  if (cusps) drawHouseAxes(g, cusps, 0);
 
   // 3. Zodiac ring (covers axes within ring area)
   drawZodiacRing(g);
@@ -4615,7 +4647,7 @@ function renderChart(planets, cusps, asc, mc) {
   // 9. Clusters drawClusters(g, planets, 0);
 
   // 10. Cusp labels
-  drawHouseLabels(g, cusps, 0);
+  if (cusps) drawHouseLabels(g, cusps, 0);
 
   document.getElementById('chart-block').replaceChildren(svg);
 }
@@ -4919,6 +4951,7 @@ function buildInfoTable(planets, cusps) {
       `<td class="col-second info-speed info-speed-pct" id="info-sp2pct-${p.id}"></td>`;
     tbody.appendChild(tr);
   });
+  if (!cusps) { applySpeedFormat(); return; }   // космограмма — без строк домов
   const sep = document.createElement('tr');
   sep.className = 'info-sep';
   sep.innerHTML = '<td colspan="5"></td>';
@@ -5045,7 +5078,7 @@ function renderDignities() {
   view.innerHTML = '';
   if (!natalData) return;
   const sun = natalData.planets.find(p => p.id === 0);
-  const isDay = sun ? findHouse(sun.longitude, natalData.cusps) >= 7 : true;
+  const isDay = sun && natalData.cusps ? findHouse(sun.longitude, natalData.cusps) >= 7 : true;
 
   const note = document.createElement('div');
   note.id = 'dig-daynight';
@@ -5104,7 +5137,7 @@ function buildDegreeRuler(planets) {
 // в собственном достоинстве / слабости.
 function buildDignityTable(planets, cusps) {
   const sun = planets.find(p => p.id === 0);
-  const isDay = sun ? findHouse(sun.longitude, cusps) >= 7 : true;
+  const isDay = sun && cusps ? findHouse(sun.longitude, cusps) >= 7 : true;
   const seven = planets.filter(p => p.id <= 6);
   const digs  = seven.map(p => computeDignities(p.id, p.longitude, isDay));
   const table = document.createElement('table');
@@ -5280,7 +5313,7 @@ function buildDispositorSvg(mode, criterion, useModern) {
   const cusps = natalData.cusps;
   const planets = natalData.planets;
   const sun = planets.find(p => p.id === 0);
-  const isDay = sun ? findHouse(sun.longitude, cusps) >= 7 : true;
+  const isDay = sun && cusps ? findHouse(sun.longitude, cusps) >= 7 : true;
   const activeIds = useModern ? DISP_IDS_10 : DISP_IDS_7;
 
   let nodes, labelOf, nextFn;
@@ -5394,7 +5427,11 @@ function renderDispositors() {
     ['dom', tr('digRowDom')], ['exalt', tr('digRowExalt')], ['trip', tr('digRowTrip')],
     ['term', tr('digRowTerm')], ['face', tr('digRowFace')], ['detr', tr('digRowDetr')], ['fall', tr('digRowFall')],
   ], dispCriterion, v => { dispCriterion = v; renderDispositors(); }));
-  bar.appendChild(mkSelect([['signs', tr('dispGroupSigns')], ['houses', tr('dispGroupHouses')]],
+  if (natalData.noHouses && dispGroup === 'houses') dispGroup = 'signs';   // космограмма — только по знакам
+  bar.appendChild(mkSelect(
+    natalData.noHouses
+      ? [['signs', tr('dispGroupSigns')]]
+      : [['signs', tr('dispGroupSigns')], ['houses', tr('dispGroupHouses')]],
     dispGroup, v => { dispGroup = v; renderDispositors(); }));
   view.appendChild(bar);
   view.appendChild(buildDispositorSvg(dispGroup, dispCriterion, dispSet === '10'));

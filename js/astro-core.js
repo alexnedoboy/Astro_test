@@ -22,17 +22,20 @@ function safeCalcUt(jd, id, flags) {
 }
 
 // Чистый расчёт карты из набора полей (без DOM). Возвращает объект данных карты
-// либо null, если полей не хватает. fields = { birthDate, birthTime, lat, lon, utcOff }.
+// либо null, если полей не хватает. fields = { birthDate, birthTime, lat, lon, utcOff, noHouses }.
 // houseSys — система домов ('P' Плацидус по умолчанию, 'R' Региомонтан у хорара).
+// noHouses (или пустое birthTime) → космограмма: планеты на полдень местного
+// времени, без домов/ASC/MC (cusps=null, asc=mc=0), house у планет не проставляется.
 function computeChartData(fields, houseSys = 'P') {
   if (!swe || !fields) return null;
   const lat    = parseFloat(fields.lat);
   const lon    = parseFloat(fields.lon);
   const utcOff = parseFloat(fields.utcOff) || 0;
-  if (!fields.birthDate || !fields.birthTime || isNaN(lat) || isNaN(lon)) return null;
+  const noHouses = !!fields.noHouses || !fields.birthTime;
+  if (!fields.birthDate || isNaN(lat) || isNaN(lon)) return null;
 
   const [y, m, d] = fields.birthDate.split('-').map(Number);
-  const [hr, mn]  = fields.birthTime.split(':').map(Number);
+  const [hr, mn]  = (fields.birthTime || '12:00').split(':').map(Number);
   const jd        = swe.julday(y, m, d, hr + mn / 60 - utcOff);
   const flags     = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
 
@@ -41,6 +44,10 @@ function computeChartData(fields, houseSys = 'P') {
     if (!r) return null;
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   }).filter(Boolean);
+
+  if (noHouses) {
+    return { planets, cusps: null, asc: 0, mc: 0, birthJD: jd, lat, lon, originalBirthJD: jd, utcOff, noHouses: true };
+  }
 
   // ВАЖНО: swe.houses() (4 аргумента) в swisseph-wasm игнорирует параметр системы
   // домов и всегда считает Плацидус — используем houses_ex(), которая учитывает hsys.
@@ -51,7 +58,7 @@ function computeChartData(fields, houseSys = 'P') {
   const mc    = ((ascmc[1] % 360) + 360) % 360;
 
   planets.forEach(p => { p.house = findHouse(p.longitude, cusps); });
-  return { planets, cusps, asc, mc, birthJD: jd, lat, lon, originalBirthJD: jd, utcOff };
+  return { planets, cusps, asc, mc, birthJD: jd, lat, lon, originalBirthJD: jd, utcOff, noHouses: false };
 }
 
 export { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff };

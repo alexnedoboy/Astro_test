@@ -50,7 +50,10 @@
     --bg-chart-item: #FAF7F5; /* home recent chart items */
 
     /* ── Layout panels (each independently configurable) ─── */
-    --hdr-h:             clamp(28px, 3.5vh, 40px);
+    /* базовое значение вынесено, чтобы пробный вид (body.lab-chartnav) мог
+       обнулить --hdr-h и вернуть её на мобильном, не дублируя литерал */
+    --hdr-h-base:        clamp(28px, 3.5vh, 40px);
+    --hdr-h:             var(--hdr-h-base);
     --sidebar-w:         0px;
     --bg-panel-control:  #fff;
     --bg-panel-chart:    #fff;
@@ -2122,6 +2125,102 @@
     overflow-y: auto;
   }
 
+  /* ── Лаборатория: навигация строкой под картой (body.lab-chartnav) ─────────
+     Пробный вид (настройка labChartNav): на открытом кейсе прячем хедер со
+     вкладками — карта получает его высоту, — а контроллер времени переезжает
+     одной строкой под карту. На дашборде хедер остаётся: это точка входа. */
+  body.lab-chartnav.home-off { --hdr-h: 0px; }
+  body.lab-chartnav.home-off #app-header { display: none; }
+  /* контроллер в колонне дублировал бы строку под картой */
+  body.lab-chartnav #v2-panel-nav { display: none; }
+  /* хедера нет — библиотека, заметки, настройки и выход живут в колонне данных */
+  body.lab-chartnav #v2-bottom-row { display: flex; }
+  .v2-icon-btn.lab-only { display: none; }
+  body.lab-chartnav .v2-icon-btn.lab-only { display: flex; }
+  /* ⤢ не должен садиться на строку навигации (там, где она есть) */
+  body.lab-chartnav #layout-v2:not(.case-horary):not(.case-synastry) #v2-chart-expand-btn {
+    bottom: 44px;
+  }
+
+  #v2-chart-nav { display: none; }
+  body.lab-chartnav #v2-chart-nav {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    padding: 4px 8px 6px;
+    border-top: 1px solid var(--bd-light);
+  }
+  /* хорар и синастрия момент не крутят — там строки нет */
+  #layout-v2.case-horary   #v2-chart-nav,
+  #layout-v2.case-synastry #v2-chart-nav { display: none; }
+
+  #v2-chart-nav .cn-side { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  #v2-chart-nav .cn-left  { justify-content: flex-start; }
+  #v2-chart-nav .cn-right { justify-content: flex-end; }
+  #v2-chart-nav .cn-center { display: flex; align-items: center; gap: 1px; }
+
+  #v2-chart-nav .cn-btn {
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; border-radius: 6px;
+    padding: 0; margin: 0; line-height: 1;
+    font-size: 0.6em; color: var(--tx-6);
+    cursor: pointer;
+    transition: color 0.12s, background 0.12s, opacity 0.12s;
+  }
+  #v2-chart-nav .cn-btn:hover { background: var(--bg-hover); color: var(--tx-2); }
+  #v2-chart-nav .cn-today { font-size: 0.85em; }
+  /* натал: стрелки заблокированы, пока не снят замок (↺ работает всегда) */
+  #v2-chart-nav.cn-locked .cn-center .cn-btn {
+    opacity: 0.28; pointer-events: none;
+  }
+  #v2-chart-nav .cn-lock {
+    width: 24px; height: 24px;
+    display: none; align-items: center; justify-content: center;
+    background: none; border: none; border-radius: 6px;
+    padding: 0; line-height: 1; font-size: 0.72em;
+    color: var(--tx-7); cursor: pointer;
+  }
+  #v2-chart-nav.cn-lockable .cn-lock { display: flex; }
+  #v2-chart-nav .cn-lock:hover { background: var(--bg-hover); color: var(--tx-2); }
+
+  #v2-chart-nav .cn-date {
+    display: flex; align-items: baseline; justify-content: center; gap: 6px;
+    min-width: 132px; padding: 0 8px;
+    white-space: nowrap;
+  }
+  #cn-date-text {
+    font-size: 0.84em; font-weight: 600; color: var(--tx-2);
+    font-variant-numeric: tabular-nums;
+  }
+  #cn-time-text {
+    font-size: 0.7em; color: var(--tx-6);
+    font-variant-numeric: tabular-nums;
+  }
+  /* момент сдвинут с исходного — та же подсветка, что у #v2-nav-date-lbl */
+  #v2-chart-nav.cn-shifted #cn-date-text { color: var(--accent); }
+
+  /* тумблер Дата/Время — компактные сегменты в общей дорожке */
+  #v2-chart-nav .cn-seg {
+    display: flex; gap: 0;
+    background: var(--seg-track);
+    border-radius: 7px;
+    padding: 2px;
+  }
+  #v2-chart-nav .cn-seg-btn {
+    flex: 0 0 auto;
+    height: 20px; width: auto; padding: 0 9px;
+    margin: 0;
+    background: none; border: none; border-top: none; border-radius: 5px;
+    font-size: 0.58em; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--tx-7); cursor: pointer;
+    transition: color 0.12s, background 0.12s;
+  }
+  #v2-chart-nav .cn-seg-btn.active { background: var(--bg); color: var(--tx-2); }
+  #v2-chart-nav .cn-seg-btn:hover:not(.active) { color: var(--tx-4); }
+
   /* ── Layout V2: мобильная версия (≤700px) ─────────────────────────────────── */
   @media (max-width: 700px) {
     /* #v2-top — вертикальная скроллируемая колонка */
@@ -2217,6 +2316,15 @@
     #layout-v2.tl-expanded #v2-bottom { flex: 1 1 auto; }
     #layout-v2.tl-hidden #v2-top { flex: 1 1 auto; }
     #v2-tl-toggle { width: 36px; height: 32px; }
+
+    /* Лаборатория (labChartNav) — эксперимент для широкого экрана: на мобильном
+       строка под картой не помещается в один ряд, поэтому здесь всё штатно —
+       свой вертикальный контроллер и хедер со вкладками. */
+    body.lab-chartnav.home-off { --hdr-h: var(--hdr-h-base); }
+    body.lab-chartnav.home-off #app-header { display: flex; }
+    body.lab-chartnav #v2-chart-nav { display: none; }
+    body.lab-chartnav #v2-panel-nav { display: flex; }
+    body.lab-chartnav #v2-bottom-row { display: none; }
   }
 
   /* ── Sky Now Layout ────────────────────────────────────────────────────────── */

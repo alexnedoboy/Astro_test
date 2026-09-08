@@ -322,6 +322,9 @@
           </div>
         </div>
         <div id="v2-bottom-row">
+          <!-- Лаборатория: без хедера библиотека и заметки открываются отсюда -->
+          <button class="v2-icon-btn lab-only" id="v2-library-btn" data-i18n-title="library" title="Библиотека">📖&#xFE0E;</button>
+          <button class="v2-icon-btn lab-only" id="v2-notes-btn" data-i18n-title="panelTabNotes" title="Заметки">🗒&#xFE0E;</button>
           <button class="v2-icon-btn" id="v2-settings-btn" title="Настройки">⚙︎</button>
           <button class="v2-icon-btn" id="v2-exit-btn" title="Обычный вид">↩</button>
         </div>
@@ -407,6 +410,32 @@
       </div>
       <button id="v2-chart-expand-btn" title="Развернуть карту">⤢</button>
       <div id="chart-block"></div>
+      <!-- Лаборатория (настройка labChartNav): контроллер времени строкой под
+           картой. Видна только при body.lab-chartnav; левый контроллер скрыт. -->
+      <div id="v2-chart-nav">
+        <div class="cn-side cn-left">
+          <button class="cn-lock" id="cn-lock" type="button">🔒&#xFE0E;</button>
+        </div>
+        <div class="cn-center">
+          <button class="cn-btn" data-nav="prev-year">◀◀◀</button>
+          <button class="cn-btn" data-nav="prev-month">◀◀</button>
+          <button class="cn-btn" data-nav="prev-day">◀</button>
+          <div class="cn-date">
+            <span id="cn-date-text"></span>
+            <span id="cn-time-text"></span>
+          </div>
+          <button class="cn-btn" data-nav="next-day">▶</button>
+          <button class="cn-btn" data-nav="next-month">▶▶</button>
+          <button class="cn-btn" data-nav="next-year">▶▶▶</button>
+        </div>
+        <div class="cn-side cn-right">
+          <button class="cn-btn cn-today" data-nav="today" data-i18n-title="cnToday" title="Сейчас">↺</button>
+          <div class="cn-seg">
+            <button class="v2-navmode-btn cn-seg-btn active" data-v2navmode="date" data-i18n="navModeDate">Дата</button>
+            <button class="v2-navmode-btn cn-seg-btn" data-v2navmode="time" data-i18n="navModeTime">Время</button>
+          </div>
+        </div>
+      </div>
     </div>
     <div id="v2-aspect-panel">
       <div class="panel-head">
@@ -1082,7 +1111,20 @@ defineSettings([
   { id: 'tlAngles', section: 'timeline', type: 'toggle', default: true,
     lsKey: 'tlAngles', lsKind: 'bool01', labelKey: 'tlAnglesRow',
     onChange: refreshTimelineFromSettings },
+  // ── Лаборатория: пробные вида-эксперименты, включаются/выключаются на ходу ──
+  { id: 'labChartNav', section: 'lab', type: 'toggle', default: false,
+    lsKey: 'labChartNav', lsKind: 'bool01',
+    labelKey: 'labChartNav', descKey: 'labChartNavDesc',
+    onChange: v => applyLabChartNav(v) },
 ]);
+
+// Пробный вид «навигация под картой»: хедер со вкладками прячется (только на
+// открытом кейсе — на дашборде он остаётся точкой входа), контроллер времени
+// переезжает строкой под карту. Одна точка применения — класс на body.
+function applyLabChartNav(v) {
+  document.body.classList.toggle('lab-chartnav', !!v);
+  if (natalData) syncV2DateLabel();   // перерисовать подпись в новом месте
+}
 
 // Перерисовка после смены состава аспектов / орбисов натала: в натале —
 // карта + таблица + сетка, в остальных режимах — текущий вид (сетка своя)
@@ -1154,10 +1196,11 @@ function openTlSettingsMenu(anchorBtn) {
 elementColorsMode   = getSetting('elementColors');
 showProgLunarPhases = getSetting('showProgLunarPhases');
 document.body.classList.toggle('privacy-mode', getSetting('privacyMode'));
+applyLabChartNav(getSetting('labChartNav'));
 
 initSettingsUI({
   tr,
-  sections: [['general', 'smGeneral'], ['calc', 'smCalc'], ['aspects', 'smAspects'], ['chart', 'smChart'], ['timeline', 'smTimeline']],
+  sections: [['general', 'smGeneral'], ['calc', 'smCalc'], ['aspects', 'smAspects'], ['chart', 'smChart'], ['timeline', 'smTimeline'], ['lab', 'smLab']],
 });
 initSettingsSync(sb);
 
@@ -1785,6 +1828,7 @@ function toggleNotesPanel() {
 }
 
 document.getElementById('notesToggleBtn')?.addEventListener('click', toggleNotesPanel);
+document.getElementById('v2-notes-btn')?.addEventListener('click', toggleNotesPanel);
 document.getElementById('notes-panel-close')?.addEventListener('click', closeNotesPanel);
 
 // ── Библиотека ───────────────────────────────────────────────────────────────
@@ -2211,6 +2255,7 @@ function toggleLibraryPanel() {
 }
 
 document.getElementById('libraryToggleBtn')?.addEventListener('click', toggleLibraryPanel);
+document.getElementById('v2-library-btn')?.addEventListener('click', toggleLibraryPanel);
 
 // ── Библиотека вкладкой ──────────────────────────────────────────────────────
 // Полотно на всё окно: оглавление колонкой, колонка текста комфортной ширины.
@@ -8471,13 +8516,24 @@ function syncV2DateLabel() {
   lbl.style.display = '';
   const txt = document.getElementById('v2-nav-date-text');
   const tim = document.getElementById('v2-nav-time-text');
+  const cnTxt = document.getElementById('cn-date-text');
+  const cnTim = document.getElementById('cn-time-text');
   const inp = document.getElementById('nav-date-input');
   // дата и время — двумя строками: крупная дата, под ней время
+  // (в пробной строке под картой — те же значения в одну строку)
   const paint = jd => {
     const p = splitNavDateTime(jd, natalData?.utcOff ?? 0);
     txt.textContent = p.date;
     if (tim) tim.textContent = p.time;
+    if (cnTxt) cnTxt.textContent = p.date;
+    if (cnTim) cnTim.textContent = p.time;
   };
+  // «момент сдвинут» — подсветка в обоих контроллерах
+  const markShifted = on => {
+    lbl.classList.toggle('v2-date-active', on);
+    document.getElementById('v2-chart-nav')?.classList.toggle('cn-shifted', on);
+  };
+  syncChartNavLock();
 
   if (currentMode === 'natal') {
     const baseJD = natalData?.birthJD;
@@ -8489,7 +8545,7 @@ function syncV2DateLabel() {
       paint(baseJD);
     }
     const atOrigin = natalData?.originalBirthJD == null || Math.abs((natalData?.birthJD ?? 0) - (natalData?.originalBirthJD ?? 0)) < 0.001;
-    lbl.classList.toggle('v2-date-active', !atOrigin);
+    markShifted(!atOrigin);
     return;
   }
 
@@ -8501,8 +8557,43 @@ function syncV2DateLabel() {
       String(d.getUTCDate()).padStart(2, '0');
   }
   paint(baseJD);
-  lbl.classList.toggle('v2-date-active', currentTransitJD !== null);
+  markShifted(currentTransitJD !== null);
 }
+
+// ── Пробная строка навигации под картой (настройка labChartNav) ──────────────
+// В натальной карте стрелки заблокированы по умолчанию: случайный клик не
+// должен сдвигать момент рождения. Замок снимается на время работы в режиме и
+// возвращается сам при уходе из натала.
+let cnUnlocked = false;
+
+function syncChartNavLock() {
+  const strip = document.getElementById('v2-chart-nav');
+  if (!strip) return;
+  // элекция живёт подбором момента — там натальные стрелки рабочие
+  const lockable = currentMode === 'natal' && currentCaseType !== 'election';
+  if (!lockable) cnUnlocked = false;
+  strip.classList.toggle('cn-lockable', lockable);
+  strip.classList.toggle('cn-locked', lockable && !cnUnlocked);
+  const b = document.getElementById('cn-lock');
+  if (b) {
+    b.textContent = cnUnlocked ? '🔓︎' : '🔒︎';
+    b.title = tr(cnUnlocked ? 'cnLockOff' : 'cnLockOn');
+  }
+}
+
+document.getElementById('v2-chart-nav').addEventListener('click', e => {
+  const strip = e.currentTarget;
+  if (e.target.closest('#cn-lock')) {
+    cnUnlocked = !cnUnlocked;
+    syncChartNavLock();
+    return;
+  }
+  const btn = e.target.closest('.cn-btn');
+  if (!btn) return;
+  // замок держит только сдвиг; ↺ (вернуться к исходному моменту) разрешён всегда
+  if (btn.dataset.nav !== 'today' && strip.classList.contains('cn-locked')) return;
+  runNavAction(btn.dataset.nav);
+});
 
 // Подпись контроллера: локальные дата и время (с учётом utcOff), раздельно.
 // Округляем до минуты — снимаем артефакт округления JD (10:30 не показывается как 10:29).
@@ -8529,8 +8620,12 @@ document.getElementById('v2-control-panel').addEventListener('click', e => {
     return;
   }
   const navBtn = e.target.closest('.v2-nav-btn');
-  if (navBtn) {
-    const nav = navBtn.dataset.nav;
+  if (navBtn) runNavAction(navBtn.dataset.nav);
+});
+
+// Шаг контроллера времени. Одна реализация на два контроллера: левую колонну
+// и пробную строку под картой (#v2-chart-nav).
+function runNavAction(nav) {
     if (nav === 'today') {
       if (currentCaseType === 'election') {
         applyNatalJD(computeJDNow());   // элекция: ↺ = вернуться к «сейчас»
@@ -8560,8 +8655,7 @@ document.getElementById('v2-control-panel').addEventListener('click', e => {
       const [unit, delta] = unitMap[nav] || [];
       if (unit) navigateDateBy(unit, delta);
     }
-  }
-});
+}
 
 const V2_TL_STATES  = ['tl-normal', 'tl-expanded'];
 const V2_TL_LABELS  = ['▲', '▼'];
@@ -8994,7 +9088,9 @@ let v2NavMode = 'date';
 document.querySelectorAll('.v2-navmode-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     v2NavMode = btn.dataset.v2navmode;
-    document.querySelectorAll('.v2-navmode-btn').forEach(b => b.classList.toggle('active', b === btn));
+    // переключателей два (колонна и строка под картой) — синхронизируем оба
+    document.querySelectorAll('.v2-navmode-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.v2navmode === v2NavMode));
   });
 });
 

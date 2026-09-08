@@ -158,7 +158,7 @@
     </div>
   </div>
   <div class="row" id="time-unknown-row">
-    <label class="cb-field"><input type="checkbox" id="timeUnknown"><span data-i18n="timeUnknownLabel">Время неизвестно (космограмма)</span></label>
+    <label class="cb-field"><input type="checkbox" id="timeUnknown" autocomplete="off"><span data-i18n="timeUnknownLabel">Время неизвестно (космограмма)</span></label>
   </div>
   <div class="row">
     <div class="field" id="geo-place-wrap">
@@ -590,12 +590,12 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // иначе свежий index.html слинкуется со старым кэшем модуля и приложение умрёт.
 import './js/state.js?v=4';   // леджер разделяемого состояния — до всех модулей
 import { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff }
-  from './js/astro-core.js?v=1';
+  from './js/astro-core.js?v=2';
 import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
-         transitOrbFactor } from './js/timeline-calc.js?v=4';
-import { STRINGS } from './js/strings.js?v=10';
+         transitOrbFactor } from './js/timeline-calc.js?v=5';
+import { STRINGS } from './js/strings.js?v=11';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -2850,8 +2850,6 @@ function applyLayout2Classes() {
 // Полная перерисовка V2 из текущих глобалов (natalData уже выставлен)
 function paintActiveChart() {
   applyLayout2Classes();
-  applyNoHousesClass();
-  if (natalData?.noHouses) currentMode = 'natal';   // космограмма — только натал
   applyRightPanelTab();
   applyChartModeTabs();
   // Синастрия: совмещённое биколесо A+B, без слоёв/таймлайна (§6)
@@ -2863,7 +2861,6 @@ function paintActiveChart() {
   }
   switchToMode(currentMode);
   renderHoraryBlock();
-  if (natalData?.noHouses) { skyTlHost = null; return; }   // космограмма — без таймлайна
   if (currentCaseType === 'horary') { skyTlHost = null; return; }   // пресет хорара — без таймлайна
   if (currentCaseType === 'election') { renderElectionTimeline(); _snapActive = null; renderSnaps(); return; }
   skyTlHost = null;   // натал/прогностика — таймлайн к наталу, не source=sky
@@ -3802,12 +3799,6 @@ function applyCaseType(type) {
   applyOutcomeChips();
 }
 
-// Космограмма (натал без времени → без домов): прячем режимы/контроллер/таймлайн,
-// как в пресете хорара. Класс снимается сам, когда natalData снова с домами.
-function applyNoHousesClass() {
-  document.getElementById('layout-v2')?.classList.toggle('no-houses', !!natalData?.noHouses);
-}
-
 // Заполнить две карточки субъектов синастрии из refs = { a, b } (поля субъектов).
 function fillSynSubjectCards(refs) {
   const fill = (sel, subj) => {
@@ -4375,7 +4366,6 @@ function computeAndRenderNatal() {
     closeNewChartModal();
     setV2ChartInfo(chartName, dateTime, document.getElementById('birthPlace').value.trim());
     applyCaseType(tabs[activeTab]?.type || 'natal');
-    applyNoHousesClass();
     applyRightPanelTab();
     applyChartModeTabs();
     applyLayout2Classes();
@@ -4390,7 +4380,7 @@ function computeAndRenderNatal() {
     setInfoTableMode('natal');
     renderHoraryBlock();
     if (caseType === 'election') { renderElectionTimeline(); _snapActive = null; renderSnaps(); }
-    else if (caseType !== 'horary' && !data.noHouses) computeAndRenderTimeline(natalData.planets);
+    else if (caseType !== 'horary') computeAndRenderTimeline(natalData.planets);
     if (caseType === 'natal') { _snapActive = null; renderSnaps(); }
     setStatus('');
     return true;
@@ -4617,8 +4607,8 @@ function renderChart(planets, cusps, asc, mc) {
   // 1. Background
   g.appendChild(el('rect', { x: 0, y: 0, width: W, height: H, fill: '#fff' }));
 
-  // 2. House axes — behind the zodiac ring (космограмма — без домов)
-  if (cusps) drawHouseAxes(g, cusps, 0);
+  // 2. House axes — behind the zodiac ring (drawHouseAxes сам пропускает при cusps=null)
+  drawHouseAxes(g, cusps, 0);
 
   // 3. Zodiac ring (covers axes within ring area)
   drawZodiacRing(g);
@@ -4646,8 +4636,8 @@ function renderChart(planets, cusps, asc, mc) {
 
   // 9. Clusters drawClusters(g, planets, 0);
 
-  // 10. Cusp labels
-  if (cusps) drawHouseLabels(g, cusps, 0);
+  // 10. Cusp labels (drawHouseLabels сам пропускает при cusps=null)
+  drawHouseLabels(g, cusps, 0);
 
   document.getElementById('chart-block').replaceChildren(svg);
 }
@@ -4657,6 +4647,7 @@ function renderChart(planets, cusps, asc, mc) {
 // Angular axes (ASC-DSC, IC-MC) are thicker.
 
 function drawHouseAxes(g, cusps, asc, biwheel = false) {
+  if (!cusps) return;   // космограмма — натал без домов
   for (let i = 0; i < 6; i++) {
     const isAng = (i === 0 || i === 3);
     const a1 = lonToRad(cusps[i],     asc);
@@ -4726,6 +4717,7 @@ function drawZodiacGlyphs(g, asc) {
 const ANGULAR_NAMES = { 0: 'Асцендент', 3: 'IC', 6: 'Десцендент', 9: 'MC' };
 
 function drawHouseLabels(g, cusps, asc) {
+  if (!cusps) return;   // космограмма — натал без домов
   cusps.forEach((cusp, i) => {
     const a    = lonToRad(cusp + 3, asc);   // +5 degrees offset past cusp line
     const p    = polar(a, R_LABEL - 5);
@@ -4992,6 +4984,7 @@ function updateSecondColumn(planets, { speed = true } = {}) {
 }
 
 function updateSecondHouses(cusps) {
+  if (!cusps) return;   // космограмма — натал без домов
   cusps.forEach((lon, i) => {
     const posEl = document.getElementById(`info-shp-${i}`);
     if (!posEl) return;
@@ -6334,7 +6327,7 @@ function renderDirectionBiwheel(jd = null) {
     longitude: ((p.longitude + ageInYears) % 360 + 360) % 360,
     retrograde: false,
   }));
-  const directedCusps = natalCusps.map(c => ((c + ageInYears) % 360 + 360) % 360);
+  const directedCusps = natalCusps ? natalCusps.map(c => ((c + ageInYears) % 360 + 360) % 360) : null;
   renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc);
   buildInfoTable(natal, natalCusps);
   updateSecondColumn(directed, { speed: false });
@@ -6587,6 +6580,7 @@ function renderSynastryBiwheel(aPlanets, bPlanets, aCusps, bCusps) {
 }
 
 function drawDirectedCusps(g, directedCusps, asc) {
+  if (!directedCusps) return;   // космограмма — накладываемая карта без домов
   for (let i = 0; i < 6; i++) {
     const isAng = (i === 0 || i === 3);
     const a1 = lonToRad(directedCusps[i],     asc);

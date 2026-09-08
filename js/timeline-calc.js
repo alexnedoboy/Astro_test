@@ -71,7 +71,8 @@ function computeProgressedEvents(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
   }
 
   // 2. House changes — all planets; label: plGlyph + → + romanNumeral
-  for (const p of PLANETS) {
+  //    (космограмма — натал без домов: секция пропускается)
+  if (cusps) for (const p of PLANETS) {
     const lons = progLons.get(p.id);
     if (!lons) continue;
     for (let i = 1; i < DAYS; i++) {

@@ -1054,14 +1054,6 @@
   #layout-v2.case-horary #v2-bottom,
   #layout-v2.case-synastry #v2-bottom { flex: 0 0 auto; }
 
-  /* ── Космограмма (натал без времени → без домов): как хорар, но линейки нет ── */
-  #layout-v2.no-houses #v2-tl-tab,
-  #layout-v2.no-houses #v2-timeline-wrap,
-  #layout-v2.no-houses #chart-mode-tabs,
-  #layout-v2.no-houses #v2-panel-nav { display: none; }
-  #layout-v2.no-houses #v2-top { flex: 1 1 auto; min-height: 0; }
-  #layout-v2.no-houses #v2-bottom { flex: 0 0 auto; }
-
   /* Пресет синастрии: две ОТДЕЛЬНЫЕ плашки данных (по одной на карту) вместо
      одиночной; таймлайн/контроллер выключены, но табы карт остаются (§6). */
   #v2-syn-subjects { display: none; flex-direction: column; gap: var(--gutter); }
@@ -1956,8 +1948,7 @@
     cursor: pointer; max-width: 120px;
   }
   #v2-house-sys:hover { color: var(--tx); border-color: var(--bd); }
-  #layout-v2.case-synastry #v2-calc-params,
-  #layout-v2.no-houses #v2-calc-params { display: none; }
+  #layout-v2.case-synastry #v2-calc-params { display: none; }
   .v2-icon-btn {
     width: 22px; height: 22px;
     flex: 0 0 22px;

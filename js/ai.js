@@ -27,11 +27,28 @@ function toGeminiSchema(input) {
 export const AI_PROVIDERS = {
   gemini: {
     label: 'Google Gemini',
-    // Free tier: flash-lite — самый щедрый по дневному лимиту
-    models: ['gemini-2.5-flash-lite', 'gemini-2.5-flash'],
+    // Запасной список — только пока не спросили API. Ходовые имена устаревают
+    // (2.5-flash-lite закрыт для новых ключей), поэтому источник истины —
+    // listModels() ниже, а это лишь то, что показать до первого запроса.
+    models: ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash'],
     keyUrl: 'https://aistudio.google.com/apikey',
     url: model => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     headers: key => ({ 'Content-Type': 'application/json', 'x-goog-api-key': key }),
+
+    // Живой список моделей, доступных ИМЕННО ЭТОМУ ключу: закрытые для новых
+    // пользователей сюда не попадут, новые появятся сами.
+    async listModels(key) {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
+        headers: { 'x-goog-api-key': key },
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(j?.error?.message || `HTTP ${r.status}`);
+      return (j?.models ?? [])
+        .filter(m => (m.supportedGenerationMethods ?? []).includes('generateContent'))
+        .map(m => String(m.name).replace(/^models\//, ''))
+        .filter(n => !/embedding|aqa|image|transcribe|tts|live/i.test(n))
+        .sort();
+    },
 
     buildBody({ system, tools, turns }) {
       const body = {
@@ -77,6 +94,22 @@ export const setAiProvider = v => localStorage.setItem(LS_PROVIDER, v);
 export const getAiModel    = () => localStorage.getItem(LS_MODEL) || AI_PROVIDERS[getAiProvider()].models[0];
 export const setAiModel    = v => localStorage.setItem(LS_MODEL, v);
 export const aiConfigured  = () => !!getAiKey();
+
+/* Модели, доступные текущему ключу. Спрашиваем провайдера, а не верим списку в
+   коде: имена моделей закрываются и появляются без нашего участия. Кэш на
+   сессию — список меняется не чаще, чем раз в месяцы. */
+let _modelsCache = { key: null, list: null };
+
+export async function listModels() {
+  const prov = AI_PROVIDERS[getAiProvider()];
+  const key  = getAiKey();
+  if (!prov?.listModels || !key) return prov?.models ?? [];
+  const cacheKey = getAiProvider() + '|' + key;
+  if (_modelsCache.key === cacheKey) return _modelsCache.list;
+  const list = await prov.listModels(key);
+  if (list.length) _modelsCache = { key: cacheKey, list };
+  return list.length ? list : prov.models;
+}
 
 // ── Вызов ────────────────────────────────────────────────────────────────────
 

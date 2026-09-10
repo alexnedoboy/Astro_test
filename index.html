@@ -629,14 +629,14 @@ import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
          transitOrbFactor } from './js/timeline-calc.js?v=5';
-import { STRINGS } from './js/strings.js?v=13';
+import { STRINGS } from './js/strings.js?v=14';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
 import { initCommands, defineCommands, listCommands, runCommand,
          commandSchemas } from './js/commands.js?v=1';
-import { AI_PROVIDERS, askModel, aiConfigured, getAiKey, setAiKey,
-         getAiProvider, setAiProvider, getAiModel, setAiModel } from './js/ai.js?v=1';
+import { AI_PROVIDERS, askModel, aiConfigured, getAiKey, setAiKey, listModels,
+         getAiProvider, setAiProvider, getAiModel, setAiModel } from './js/ai.js?v=2';
 import { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js?v=3';
 
 // ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1138,19 +1138,36 @@ defineSettings([
       provSel.value = getAiProvider();
 
       const modelSel = document.createElement('select');
-      const fillModels = () => {
+      // Список из константы — только до ответа API; дальше живой, по ключу.
+      const fillModels = (list) => {
+        const models = list?.length ? list : AI_PROVIDERS[provSel.value].models;
         modelSel.innerHTML = '';
-        for (const m of AI_PROVIDERS[provSel.value].models) {
+        for (const m of models) {
           const o = document.createElement('option');
           o.value = m; o.textContent = m;
           modelSel.appendChild(o);
         }
-        modelSel.value = AI_PROVIDERS[provSel.value].models.includes(getAiModel())
-          ? getAiModel() : AI_PROVIDERS[provSel.value].models[0];
+        modelSel.value = models.includes(getAiModel()) ? getAiModel() : models[0];
+        setAiModel(modelSel.value);   // сохранённая модель могла быть закрыта
       };
       fillModels();
+
+      // Подтянуть реальный список: закрытые модели отпадут, новые появятся сами
+      const refreshModels = async () => {
+        if (!aiConfigured()) return;
+        modelSel.disabled = true;
+        try {
+          fillModels(await listModels());
+          status.textContent = tr('aiKeyOn');
+          status.classList.add('ai-on');
+        } catch (e) {
+          status.textContent = tr('aiKeyBad') + ' ' + (e?.message || e);
+          status.classList.remove('ai-on');
+        } finally { modelSel.disabled = false; }
+      };
+
       provSel.addEventListener('change', () => {
-        setAiProvider(provSel.value); fillModels(); setAiModel(modelSel.value); paintStatus();
+        setAiProvider(provSel.value); fillModels(); paintStatus(); refreshModels();
       });
       modelSel.addEventListener('change', () => { setAiModel(modelSel.value); });
 
@@ -1160,7 +1177,14 @@ defineSettings([
       key.spellcheck = false;
       key.placeholder = tr('aiKeyPh');
       key.value = getAiKey();
-      key.addEventListener('input', () => { setAiKey(key.value.trim()); paintStatus(); });
+      let keyT = null;
+      key.addEventListener('input', () => {
+        setAiKey(key.value.trim());
+        paintStatus();
+        // Ключ вставляют целиком — ждём паузы, потом проверяем его же запросом списка
+        clearTimeout(keyT);
+        keyT = setTimeout(refreshModels, 600);
+      });
 
       const status = document.createElement('div');
       status.className = 'ai-status';
@@ -1185,6 +1209,7 @@ defineSettings([
       row.className = 'ai-row';
       row.append(provSel, modelSel);
       wrap.append(row, key, status, hint);
+      refreshModels();   // ключ уже есть — сразу подтянуть актуальные модели
       return wrap;
     } },
   // ── Лаборатория: пробные вида-эксперименты, включаются/выключаются на ходу ──

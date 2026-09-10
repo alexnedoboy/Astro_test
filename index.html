@@ -629,12 +629,14 @@ import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
          transitOrbFactor } from './js/timeline-calc.js?v=5';
-import { STRINGS } from './js/strings.js?v=12';
+import { STRINGS } from './js/strings.js?v=13';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
 import { initCommands, defineCommands, listCommands, runCommand,
          commandSchemas } from './js/commands.js?v=1';
+import { AI_PROVIDERS, askModel, aiConfigured, getAiKey, setAiKey,
+         getAiProvider, setAiProvider, getAiModel, setAiModel } from './js/ai.js?v=1';
 import { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js?v=3';
 
 // ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1118,6 +1120,73 @@ defineSettings([
   { id: 'tlAngles', section: 'timeline', type: 'toggle', default: true,
     lsKey: 'tlAngles', lsKind: 'bool01', labelKey: 'tlAnglesRow',
     onChange: refreshTimelineFromSettings },
+  /* ── Ассистент: свой ключ провайдера (BYOK) ────────────────────────────────
+     Ключ намеренно НЕ значение реестра: значения реестра уезжают в Supabase
+     user_metadata, а личный ключ должен остаться в этом браузере. Запись
+     custom — только UI, чтение/запись идут прямо в localStorage через ai.js. */
+  { id: 'aiKey', section: 'ai', type: 'custom', wide: true, labelKey: 'aiKeyLabel',
+    render: () => {
+      const wrap = document.createElement('div');
+      wrap.className = 'ai-settings';
+
+      const provSel = document.createElement('select');
+      for (const [id, p] of Object.entries(AI_PROVIDERS)) {
+        const o = document.createElement('option');
+        o.value = id; o.textContent = p.label;
+        provSel.appendChild(o);
+      }
+      provSel.value = getAiProvider();
+
+      const modelSel = document.createElement('select');
+      const fillModels = () => {
+        modelSel.innerHTML = '';
+        for (const m of AI_PROVIDERS[provSel.value].models) {
+          const o = document.createElement('option');
+          o.value = m; o.textContent = m;
+          modelSel.appendChild(o);
+        }
+        modelSel.value = AI_PROVIDERS[provSel.value].models.includes(getAiModel())
+          ? getAiModel() : AI_PROVIDERS[provSel.value].models[0];
+      };
+      fillModels();
+      provSel.addEventListener('change', () => {
+        setAiProvider(provSel.value); fillModels(); setAiModel(modelSel.value); paintStatus();
+      });
+      modelSel.addEventListener('change', () => { setAiModel(modelSel.value); });
+
+      const key = document.createElement('input');
+      key.type = 'password';
+      key.autocomplete = 'off';
+      key.spellcheck = false;
+      key.placeholder = tr('aiKeyPh');
+      key.value = getAiKey();
+      key.addEventListener('input', () => { setAiKey(key.value.trim()); paintStatus(); });
+
+      const status = document.createElement('div');
+      status.className = 'ai-status';
+      function paintStatus() {
+        status.textContent = aiConfigured() ? tr('aiKeyOn') : tr('aiKeyOff');
+        status.classList.toggle('ai-on', aiConfigured());
+      }
+      paintStatus();
+
+      const hint = document.createElement('div');
+      hint.className = 'ai-hint';
+      const a = document.createElement('a');
+      a.href = AI_PROVIDERS[getAiProvider()].keyUrl;
+      a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = tr('aiKeyGet');
+      hint.appendChild(a);
+      const note = document.createElement('div');
+      note.textContent = tr('aiKeyNote');
+      hint.appendChild(note);
+
+      const row = document.createElement('div');
+      row.className = 'ai-row';
+      row.append(provSel, modelSel);
+      wrap.append(row, key, status, hint);
+      return wrap;
+    } },
   // ── Лаборатория: пробные вида-эксперименты, включаются/выключаются на ходу ──
   { id: 'labChartNav', section: 'lab', type: 'toggle', default: false,
     lsKey: 'labChartNav', lsKind: 'bool01',
@@ -1207,7 +1276,7 @@ applyLabChartNav(getSetting('labChartNav'));
 
 initSettingsUI({
   tr,
-  sections: [['general', 'smGeneral'], ['calc', 'smCalc'], ['aspects', 'smAspects'], ['chart', 'smChart'], ['timeline', 'smTimeline'], ['lab', 'smLab']],
+  sections: [['general', 'smGeneral'], ['calc', 'smCalc'], ['aspects', 'smAspects'], ['chart', 'smChart'], ['timeline', 'smTimeline'], ['ai', 'smAI'], ['lab', 'smLab']],
 });
 initSettingsSync(sb);
 
@@ -6330,6 +6399,9 @@ const chatLog = () => {
   if (!_chatLogs.has(k)) _chatLogs.set(k, []);
   return _chatLogs.get(k);
 };
+// История в формате провайдера — чтобы следующий ход модели видел предыдущие
+const _chatTurns = new Map();
+const chatTurns = () => _chatTurns.get(chatKey()) ?? [];
 
 // Простые команды: фразы, для которых не нужен ни поиск, ни модель.
 const CHAT_RULES = [
@@ -6365,33 +6437,98 @@ function chatResolveLocal(text) {
   };
 }
 
-// ← ЕДИНСТВЕННОЕ МЕСТО, которое меняется при подключении модели:
-//    return await askModel(text, commandSchemas({ onlyWithChart: true }));
-async function chatResolve(text) {
-  return chatResolveLocal(text);
+/* ── Что модель ВИДИТ: снимок кейса ───────────────────────────────────────────
+   Компактно и по фактам. Позиции уже посчитаны эфемеридами — модель их только
+   читает и никогда не считает сама. */
+function chatContext() {
+  if (!natalData) return '';
+  const deg = lon => {
+    const l = ((lon % 360) + 360) % 360;
+    return `${Math.floor(l % 30)}° ${SIGN_NAMES[Math.floor(l / 30)]}`;
+  };
+  const pl = filterNatalPlanets(natalData.planets)
+    .map(p => `${p.id}:${p.name} ${deg(p.longitude)}${p.speed < 0 ? ' R' : ''}`).join('; ');
+  const utcOff = natalData.utcOff ?? 0;
+  const lines = [
+    `Карта: ${tabs[activeTab]?.header?.name || '—'}, тип ${currentCaseType}.`,
+    `Натальные позиции: ${pl}.`,
+    natalData.cusps ? `As ${deg(natalData.cusps[0])}, Mc ${deg(natalData.cusps[9])}.` : '',
+    `Режим карты сейчас: ${currentMode}. Выбранный момент: ${fmtJdLocal(currentTransitJD ?? computeJDNow(), utcOff)}.`,
+    `Виджет правой панели: ${rightPanelTab}.`,
+  ];
+  return lines.filter(Boolean).join('\n');
 }
 
+const CHAT_SYSTEM = `Ты — ассистент внутри рабочего стола астролога. Пользователь пишет простыми фразами, ты выполняешь их через инструменты.
+
+ЖЕЛЕЗНОЕ ПРАВИЛО: ты НИКОГДА не вычисляешь положения планет, даты аспектов и любые эфемеридные величины сам и никогда не называешь дату, которой не было в результате инструмента. Всё считает приложение. Если нужен факт — вызови инструмент.
+
+Инструменты вызывай сразу, не переспрашивая, когда запрос понятен. Уточняющий вопрос — только если без него нельзя выбрать аргументы.
+
+id планет: 0 Солнце, 1 Луна, 2 Меркурий, 3 Венера, 4 Марс, 5 Юпитер, 6 Сатурн, 7 Уран, 8 Нептун, 9 Плутон, 10 С.Узел, 12 Лилит, 15 Хирон.
+Углы аспектов: 0 соединение, 60 секстиль, 90 квадрат, 120 трин, 180 оппозиция. Напряжённые — 90 и 180.
+Транзитными источниками в поиске могут быть только медленные планеты (5,6,7,8,9,10,12,15).
+
+Отвечай коротко, на языке пользователя. Список найденных дат приложение показывает само — не перечисляй их, скажи только суть.`;
+
+/* ← ЕДИНСТВЕННАЯ точка подключения модели. Без ключа работает локальный разбор,
+   с ключом — модель поверх того же реестра команд. Форма ответа одна и та же. */
+async function chatResolve(text) {
+  if (!aiConfigured()) return chatResolveLocal(text);
+
+  const t = chatTurns();
+  const out = await askModel({
+    text,
+    system: CHAT_SYSTEM + '\n\n' + chatContext(),
+    tools: commandSchemas({ onlyWithChart: true }),
+    history: t,
+    execute: (name, args) => runCommand(name, args),
+  });
+  // История диалога — в формате провайдера, чтобы следующий ход видел контекст
+  _chatTurns.set(chatKey(), out.turns.slice(-24));
+  return { calls: [], reply: out.reply, executed: out.calls };
+}
+
+// Результат одной команды → сообщение ленты (общий вид для обеих веток)
+function chatPushResult(log, call, res, note) {
+  if (!res.ok) { log.push({ role: 'bot', text: tr('chatFailed') + ' ' + res.error }); return; }
+  const rows = res.result?.rows;
+  if (rows) {
+    log.push({ role: 'bot', note,
+               text: rows.length ? `${tr('asstFound')} ${rows.length}` : tr('asstNothing'),
+               rows });
+  } else {
+    const cmd = listCommands().find(c => c.id.replace(/\./g, '_') === call.name);
+    log.push({ role: 'bot', text: '✓ ' + (cmd ? tr(cmd.label) : call.name) });
+  }
+}
+
+let _chatBusy = false;
+
 async function chatSend(text) {
+  if (_chatBusy) return;
   const log = chatLog();
   log.push({ role: 'user', text });
+  _chatBusy = true;
   renderChat();
 
-  const plan = await chatResolve(text);
+  let plan;
+  try {
+    plan = await chatResolve(text);
+  } catch (e) {
+    log.push({ role: 'bot', text: tr('chatFailed') + ' ' + (e?.message || e) });
+    _chatBusy = false; renderChat(); return;
+  }
+
+  // Ветка модели: команды уже выполнены внутри цикла askModel
+  for (const call of plan.executed ?? []) chatPushResult(log, call, call.outcome, null);
+  // Ветка локального разбора: выполняем сами
+  for (const call of plan.calls ?? []) {
+    chatPushResult(log, call, await runCommand(call.name, call.args), plan.note);
+  }
   if (plan.reply) log.push({ role: 'bot', text: plan.reply });
 
-  for (const call of plan.calls ?? []) {
-    const res = await runCommand(call.name, call.args);
-    if (!res.ok) { log.push({ role: 'bot', text: tr('chatFailed') + ' ' + res.error }); continue; }
-    const rows = res.result?.rows;
-    if (rows) {
-      log.push({ role: 'bot', note: plan.note,
-                 text: rows.length ? `${tr('asstFound')} ${rows.length}` : tr('asstNothing'),
-                 rows });
-    } else {
-      const cmd = listCommands().find(c => c.id.replace(/\./g, '_') === call.name);
-      log.push({ role: 'bot', text: '✓ ' + (cmd ? tr(cmd.label) : call.name) });
-    }
-  }
+  _chatBusy = false;
   renderChat();
 }
 
@@ -6466,6 +6603,12 @@ function renderChat() {
     }
     feed.appendChild(bub);
   }
+  if (_chatBusy) {
+    const w = document.createElement('div');
+    w.className = 'chat-msg chat-bot chat-wait';
+    w.textContent = tr('chatThinking');
+    feed.appendChild(w);
+  }
   view.appendChild(feed);
 
   const bar = document.createElement('div');
@@ -6475,7 +6618,8 @@ function renderChat() {
   input.type = 'text';
   input.autocomplete = 'off';
   input.spellcheck = false;
-  input.placeholder = tr('chatPlaceholder');
+  input.placeholder = aiConfigured() ? tr('chatPlaceholder') : tr('chatPlaceholderLocal');
+  input.disabled = _chatBusy;
   bar.appendChild(input);
   if (_undoStack.length) {
     const u = document.createElement('button');

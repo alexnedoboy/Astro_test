@@ -1441,6 +1441,21 @@
     border: 1px solid var(--bd-input); background: var(--bg-input); color: var(--tx-4);
   }
   #chat-undo:hover { background: var(--bg-hover); color: var(--tx-2); }
+  .chat-wait { color: var(--tx-7); font-style: italic; }
+
+  /* Настройки ассистента: провайдер + модель + свой ключ */
+  .ai-settings { display: flex; flex-direction: column; gap: 6px; }
+  .ai-row { display: flex; gap: 6px; }
+  .ai-settings select, .ai-settings input {
+    font-size: 0.82em; padding: 4px 7px; border-radius: 8px;
+    border: 1px solid var(--bd-input); background: var(--bg-input); color: var(--tx-3);
+  }
+  .ai-row select { flex: 1; }
+  .ai-settings input { width: 100%; box-sizing: border-box; }
+  .ai-status { font-size: 0.78em; color: var(--tx-7); }
+  .ai-status.ai-on { color: var(--ok); }
+  .ai-hint { font-size: 0.75em; color: var(--tx-7); line-height: 1.45; }
+  .ai-hint a { color: var(--link); }
   /* Таблицы достоинств (виджет и хорар-блок) */
   #dig-daynight { font-size: 0.76em; color: var(--tx-7); padding: 8px 10px 2px; }
   .dig-table { width: 100%; border-collapse: collapse; font-size: 0.8em; }

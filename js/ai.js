@@ -82,6 +82,21 @@ export const AI_PROVIDERS = {
       role: 'user',
       parts: results.map(r => ({ functionResponse: { name: r.name, response: r.response } })),
     }),
+
+    /* Обрезка истории ТОЛЬКО по безопасной границе. Резать по счётчику нельзя:
+       Gemini требует, чтобы functionResponse шёл сразу за functionCall, поэтому
+       история не должна ни начинаться с ответа инструмента, ни обрывать пару.
+       Безопасное начало — обычный текстовый ход пользователя. */
+    trimHistory(turns, max = 24) {
+      const safe = [];
+      turns.forEach((t, i) => {
+        if (t?.role === 'user' && (t.parts ?? []).some(p => p.text !== undefined)) safe.push(i);
+      });
+      if (!safe.length) return [];
+      // самая ранняя граница, оставляющая не больше max ходов; иначе — последняя
+      const cut = safe.find(i => turns.length - i <= max) ?? safe[safe.length - 1];
+      return turns.slice(cut);
+    },
   },
 };
 
@@ -136,14 +151,20 @@ export async function askModel({ text, system, tools, history = [], execute, max
   if (!prov) throw new Error('неизвестный провайдер');
   if (!aiConfigured()) throw new Error('не задан ключ API');
 
-  const turns = [...history, prov.userTurn(text)];
+  // История уже обрезана по безопасной границе, но если она пришла битой
+  // (старый формат, чужой провайдер) — начинаем разговор заново, а не падаем.
+  const safeHistory = prov.trimHistory ? prov.trimHistory(history, 1e9) : history;
+  const turns = [...safeHistory, prov.userTurn(text)];
   const done = [];   // выполненные вызовы — чат показывает их результаты сам
 
   for (let round = 0; round < maxRounds; round++) {
     const out = await callProvider(prov, { system, tools, turns });
     if (!out.calls.length) return { calls: done, reply: out.reply, turns };
 
-    if (out.raw) turns.push(prov.modelTurn(out.raw));
+    // Без хода модели ответы инструментов повиснут без своего вызова — а это
+    // ровно та пара, которую провайдер требует держать целой.
+    if (!out.raw) return { calls: done, reply: out.reply, turns };
+    turns.push(prov.modelTurn(out.raw));
     const results = [];
     for (const c of out.calls) {
       const r = execute ? await execute(c.name, c.args) : { ok: false, error: 'нечем выполнить' };

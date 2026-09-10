@@ -636,7 +636,7 @@ import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSyn
 import { initCommands, defineCommands, listCommands, runCommand,
          commandSchemas } from './js/commands.js?v=1';
 import { AI_PROVIDERS, askModel, aiConfigured, getAiKey, setAiKey, listModels,
-         getAiProvider, setAiProvider, getAiModel, setAiModel } from './js/ai.js?v=2';
+         getAiProvider, setAiProvider, getAiModel, setAiModel } from './js/ai.js?v=3';
 import { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js?v=3';
 
 // ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -6501,16 +6501,27 @@ id планет: 0 Солнце, 1 Луна, 2 Меркурий, 3 Венера,
 async function chatResolve(text) {
   if (!aiConfigured()) return chatResolveLocal(text);
 
-  const t = chatTurns();
-  const out = await askModel({
+  const ask = history => askModel({
     text,
     system: CHAT_SYSTEM + '\n\n' + chatContext(),
     tools: commandSchemas({ onlyWithChart: true }),
-    history: t,
+    history,
     execute: (name, args) => runCommand(name, args),
   });
-  // История диалога — в формате провайдера, чтобы следующий ход видел контекст
-  _chatTurns.set(chatKey(), out.turns.slice(-24));
+
+  let out;
+  try {
+    out = await ask(chatTurns());
+  } catch (e) {
+    // История испортилась (провайдер отверг структуру ходов) — единственный
+    // разумный выход: начать разговор заново, а не оставлять чат мёртвым.
+    if (!/function (response|call)/i.test(e?.message ?? '')) throw e;
+    _chatTurns.delete(chatKey());
+    out = await ask([]);
+  }
+  // Обрезку делает провайдер: резать историю по счётчику нельзя, см. trimHistory
+  const prov = AI_PROVIDERS[getAiProvider()];
+  _chatTurns.set(chatKey(), prov.trimHistory ? prov.trimHistory(out.turns, 24) : out.turns);
   return { calls: [], reply: out.reply, executed: out.calls };
 }
 

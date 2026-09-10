@@ -1329,6 +1329,7 @@
   #right-info-content #dignities-view,
   #right-info-content #dispositors-view,
   #right-info-content #assistant-view,
+  #right-info-content #chat-view,
   #right-info-content #aspflow-view { display: none; }
   #right-info-content.rp-aspects #info-table { display: none; }
   #right-info-content.rp-grades  #aspect-grid { display: none; }
@@ -1342,6 +1343,9 @@
   #right-info-content.rp-assistant #info-table,
   #right-info-content.rp-assistant #aspect-grid { display: none; }
   #right-info-content.rp-assistant #assistant-view { display: block; }
+  #right-info-content.rp-chat #info-table,
+  #right-info-content.rp-chat #aspect-grid { display: none; }
+  #right-info-content.rp-chat #chat-view { display: flex; }
   #right-info-content.rp-dignities #dignities-view { display: block; }
   #right-info-content.rp-dispositors #dispositors-view { display: block; }
   #right-info-content.rp-aspflow #aspflow-view { display: block; }
@@ -1418,6 +1422,25 @@
   .asst-table .asst-row:hover td { background: var(--bg-hover); }
   .asst-table .asst-past td.af-date { color: var(--tx-8); }
   .asst-table .asst-past td.af-ev { opacity: 0.65; }
+
+  /* Виджет «Чат»: лента вверху растёт и скроллится, строка ввода прижата вниз */
+  #chat-view { flex-direction: column; height: 100%; padding: 6px 10px 10px; }
+  .chat-feed { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+  .chat-msg { font-size: 0.82em; line-height: 1.45; max-width: 100%; }
+  .chat-user {
+    align-self: flex-end; background: var(--link-bg); color: var(--tx-2);
+    padding: 5px 9px; border-radius: 12px 12px 3px 12px; max-width: 85%;
+  }
+  .chat-bot { align-self: stretch; color: var(--tx-3); }
+  .chat-note { margin: 0 0 4px; }
+  .chat-more { padding: 4px 0 0; font-size: 0.9em; color: var(--tx-7); }
+  .chat-bar { display: flex; gap: 6px; align-items: center; top: auto; padding: 6px 0 0; }
+  .chat-bar input { flex: 1; }
+  #chat-undo {
+    flex: none; width: 26px; height: 26px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--bd-input); background: var(--bg-input); color: var(--tx-4);
+  }
+  #chat-undo:hover { background: var(--bg-hover); color: var(--tx-2); }
   /* Таблицы достоинств (виджет и хорар-блок) */
   #dig-daynight { font-size: 0.76em; color: var(--tx-7); padding: 8px 10px 2px; }
   .dig-table { width: 100%; border-collapse: collapse; font-size: 0.8em; }

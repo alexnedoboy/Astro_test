@@ -16,6 +16,7 @@
 - **`js/astro-core.js`** — чистое расчётное ядро без DOM: `computeChartData`, `safeCalcUt`, `findHouse`, `lonToRad`/`polar`/`angDiff`; читает `swe` из леджера
 - **`js/timeline-calc.js`** — расчёты таймлайна без DOM: `computeTransits` (+ `refineExactAspects`), `computeFastTransits`, `computeReturnPeriods` (`RETURN_ASP`), `computeProgressedEvents`, `computeDirectionEvents`, `computeTlLayout`, `transitOrbFactor`. Оркестрация и рендер (`computeAndRenderTimeline`, `renderTimeline`) — в index.html
 - **`js/constants.js`** — чистые константы: `PLANETS`, `SIGNS`, `COLORS`, `ASPECTS`/`MAJOR_ASPECTS`, `T_ASPECTS`, `D_ASPECTS`, `CHART` (+ производные `CX`/`CY`/`R_*`), `TL`, `HOUSE_SYSTEMS`, `SLOW_IDS`/`FAST_IDS`, орбисы (`getNatalOrb`, `getTransitOrb`), рулерство. Мутабельного состояния здесь нет и быть не должно
+- **`js/commands.js`** — **реестр команд** (поверхность действий): каркас `defineCommands` / `runCommand` / `commandSchemas`, типизация и валидация аргументов, снимок для undo перед изменяющей командой. Знаний о конкретных командах нет — их регистрирует index.html (блок «Реестр команд»), как настройки регистрируются через `defineSettings`. Из одного реестра растут три потребителя: чат-ассистент (JSON-схемы инструментов **генерируются** из `args`, поэтому не расходятся с кодом), будущая командная палитра для человека и программные вызовы
 - **`js/strings.js`** — словарь i18n `STRINGS` (ru/en); `tr()` — в index.html, `currentLang` — в леджере
 - **`js/settings.js`** — каркас настроек: реестр (`defineSettings`), `get/setSetting`, персистенс (localStorage + Supabase `user_metadata.settings`, remote при логине побеждает), модалка (Obsidian-стиль: разделы, поиск, мгновенное применение). Записи регистрирует index.html (блок «Реестр настроек»)
 - `sw.js`, `manifest.json` — PWA (сервис-воркер перехватывает только navigation-запросы)
@@ -174,6 +175,24 @@
 - Табы `#rp-tabs` рендерятся динамически (`applyRightPanelTab`). Шапка: `+` (добавить виджет)
   и `☰` (чеклист состава, последний не убирается), дропдаун `#rp-dropdown`.
 - Контроллер времени — `#v2-panel-nav` в левой панели, под карточкой данных.
+
+### Чат-ассистент (`chat` в `RP_WIDGETS`)
+Демо ИИ-ассистента **без ИИ**: лента сообщений → команды из реестра → кликабельные даты.
+- **Реестр команд** — `js/commands.js` + записи в index.html (блок «Реестр команд»).
+  Сейчас 7 команд поверх готовых функций: `search.aspects` (→ `asstRun`), `chart.goto`,
+  `chart.setMode`, `chart.setPlanets`, `chart.snapshot`, `timeline.setRows`, `panel.setWidget`.
+  Аргументы — строгие типы (`int`/`enum`/`int[]`/…), свободных строк почти нет намеренно:
+  строка в аргументе — то место, где модель начинает выдумывать значения.
+- **Точка замены на модель — одна функция** `chatResolve(text)`. Локальный разбор
+  (`chatResolveLocal`: `CHAT_RULES` для простых команд + `asstParse` для поиска) отдаёт
+  **ту же форму**, что вернёт модель: `{ calls: [{name, args}], reply?, note? }`. Лента,
+  рендер, выполнение, клики и undo от парсера не зависят и при замене не меняются.
+- **Undo** — `pushUndo()` / `undoLast()` поверх `captureState`/`applyState`, стек на сессию
+  (`UNDO_MAX = 20`). Снимок снимается перед командой с `mutates: true`; кнопка ↩ в строке ввода.
+- Лента — по кейсу (`_chatLogs`, ключ `currentChartId`), живёт на сессию, никуда не пишется.
+- **Известное ограничение:** чат — таб той же группы, что и остальные виджеты, поэтому
+  команда `panel.setWidget` уводит фокус с самого чата. Кандидат на переезд в выдвижную
+  панель рядом с заметками и библиотекой.
 
 ### Заметки (`#v2-notes-view`)
 - Отдельная **выдвижная панель**, а не таб правой группы. Иконка-переключатель

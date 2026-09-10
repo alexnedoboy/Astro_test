@@ -459,6 +459,7 @@
         <div id="dispositors-view"></div>
         <div id="aspflow-view"></div>
         <div id="assistant-view"></div>
+        <div id="chat-view"></div>
       </div>
       <div id="v2-notes-view">
         <div id="notes-panel-head">
@@ -628,10 +629,12 @@ import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
          transitOrbFactor } from './js/timeline-calc.js?v=5';
-import { STRINGS } from './js/strings.js?v=11';
+import { STRINGS } from './js/strings.js?v=12';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
+import { initCommands, defineCommands, listCommands, runCommand,
+         commandSchemas } from './js/commands.js?v=1';
 import { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js?v=3';
 
 // ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -3899,6 +3902,7 @@ const RP_WIDGETS = {
   dispositors: { i18n: 'panelTabDispositors' },
   aspflow:     { i18n: 'panelTabAspFlow'     },
   assistant:   { i18n: 'panelTabAssistant'   },
+  chat:        { i18n: 'panelTabChat'        },
 };
 const RP_DEFAULT_TABS = ['grades', 'aspects'];
 rightPanelTabs = [...RP_DEFAULT_TABS];
@@ -3925,13 +3929,14 @@ function applyRightPanelTab() {
   const content   = document.getElementById('right-info-content');
   if (content) {
     content.classList.remove('rp-grades', 'rp-aspects', 'rp-dignities', 'rp-dispositors',
-                             'rp-aspflow', 'rp-assistant');
+                             'rp-aspflow', 'rp-assistant', 'rp-chat');
     content.classList.add('rp-' + (RP_WIDGETS[rightPanelTab] ? rightPanelTab : 'grades'));
   }
   if (rightPanelTab === 'dignities') renderDignities();
   if (rightPanelTab === 'dispositors') renderDispositors();
   if (rightPanelTab === 'aspflow') renderAspFlow();
   if (rightPanelTab === 'assistant') renderAssistant();
+  if (rightPanelTab === 'chat') renderChat();
   const addBtn = document.getElementById('rp-add-btn');
   if (addBtn) addBtn.style.display =
     Object.keys(RP_WIDGETS).some(id => !rightPanelTabs.includes(id)) ? '' : 'none';
@@ -6181,6 +6186,324 @@ document.getElementById('assistant-view')?.addEventListener('click', e => {
     persistTabs();
     return;
   }
+  const row = e.target.closest('.asst-row');
+  if (row) switchModeAndNavigate('transit', Number(row.dataset.jd));
+});
+
+/* ── Реестр команд: поверхность действий приложения ───────────────────────────
+   Одна запись — одно действие. Отсюда растут: чат-ассистент (схемы инструментов
+   генерируются из args), командная палитра для человека и программные вызовы.
+   Подписи пока обычными строками — tr() возвращает ключ как есть; при выпуске
+   палитры они станут ключами STRINGS. */
+
+// Дорожки таймлайна: понятное имя → id настройки. Модели проще выбрать
+// 'returns', чем 'tlReturns', а реестр настроек остаётся единственным хранилищем.
+const CMD_TL_ROWS = {
+  ingress: 'tlProgIngress',
+  houses:  'tlProgHouses',
+  returns: 'tlReturns',
+  angles:  'tlAngles',
+  lunar:   'showProgLunarPhases',
+};
+
+/* Undo для команд. Снимок снимается ПЕРЕД изменяющей командой: ошибка агента
+   (или своя) откатывается одним движением. Стек живёт на сессию и мелкий —
+   это страховка от осечки, а не полноценная история правок. */
+const UNDO_MAX = 20;
+let _undoStack = [];
+
+function pushUndo() {
+  if (!natalData) return;
+  _undoStack.push({ st: captureState(), type: currentCaseType });
+  if (_undoStack.length > UNDO_MAX) _undoStack.shift();
+}
+
+function undoLast() {
+  const prev = _undoStack.pop();
+  if (!prev) return false;
+  applyState(prev.st);
+  paintActiveChart();
+  return true;
+}
+
+initCommands({
+  snapshot: pushUndo,
+  hasChart: () => !!(natalData && swe),
+  tr,
+});
+
+defineCommands([
+  {
+    id: 'search.aspects',
+    label: 'Найти аспекты',
+    desc: 'Найти даты точных транзитных аспектов к натальным точкам. Возвращает список дат.',
+    needsChart: true,
+    args: {
+      sources: { type: 'int[]', desc: 'id транзитных планет (только медленные); пусто = все медленные' },
+      targets: { type: 'int[]', desc: 'id натальных планет; пусто = все' },
+      angles:  { type: 'int[]', desc: 'углы аспектов в градусах (0, 60, 90, 120, 180); пусто = все мажорные' },
+      range:   { type: 'enum', values: ['1Y', '10Y', 'life'], default: '10Y', desc: 'окно поиска' },
+    },
+    run: a => {
+      const q = {
+        sources: (a.sources?.length ? a.sources : [...SLOW_IDS]).filter(id => SLOW_IDS.includes(id)),
+        targets: a.targets ?? [],
+        angles:  a.angles ?? [],
+        range:   a.range,
+        unknown: [],
+      };
+      const { jdStart, jdEnd } = asstWindow(a.range);
+      return { rows: asstRun(q, jdStart, jdEnd), q };
+    },
+  },
+  {
+    id: 'chart.goto',
+    label: 'Перейти к дате',
+    desc: 'Перевести карту на указанный момент (юлианская дата).',
+    needsChart: true, mutates: true,
+    args: { jd: { type: 'number', required: true, desc: 'юлианская дата' } },
+    run: a => { switchModeAndNavigate(currentMode === 'natal' ? 'transit' : currentMode, a.jd); },
+  },
+  {
+    id: 'chart.setMode',
+    label: 'Режим карты',
+    desc: 'Переключить режим карты.',
+    needsChart: true, mutates: true,
+    args: { mode: { type: 'enum', required: true,
+                    values: ['natal', 'transit', 'progressed', 'direction', 'solar'] } },
+    run: a => { switchToMode(a.mode); },
+  },
+  {
+    id: 'chart.setPlanets',
+    label: 'Показать планеты',
+    desc: 'Оставить на карте только перечисленные планеты (id по списку PLANETS).',
+    needsChart: true, mutates: true,
+    args: { ids: { type: 'int[]', required: true, desc: 'id планет; пустой список вернёт все' } },
+    run: a => {
+      natalPlanetFilter = new Set(a.ids.length ? a.ids : ALL_NATAL_IDS);
+      saveNatalFilter();
+      reRenderCurrentChart();
+      return { shown: [...natalPlanetFilter] };
+    },
+  },
+  {
+    id: 'chart.snapshot',
+    label: 'Сделать снимок',
+    desc: 'Сохранить текущий момент карты как снимок.',
+    needsChart: true, mutates: true,
+    run: () => { addSnapshot(); },
+  },
+  {
+    id: 'timeline.setRows',
+    label: 'Дорожки таймлайна',
+    desc: 'Включить перечисленные дорожки таймлайна, остальные выключить.',
+    needsChart: true, mutates: true,
+    args: { rows: { type: 'enum[]', required: true, values: Object.keys(CMD_TL_ROWS) } },
+    run: a => {
+      for (const [name, id] of Object.entries(CMD_TL_ROWS)) setSetting(id, a.rows.includes(name));
+      return { on: a.rows };
+    },
+  },
+  {
+    id: 'panel.setWidget',
+    label: 'Открыть виджет',
+    desc: 'Показать виджет в правой панели.',
+    args: { id: { type: 'enum', required: true, values: Object.keys(RP_WIDGETS) } },
+    run: a => {
+      if (!rightPanelTabs.includes(a.id)) toggleRpWidget(a.id);
+      else setRightPanelTab(a.id);
+    },
+  },
+]);
+
+/* ── Виджет «Чат»: лента сообщений → команды → кликабельные даты ───────────────
+   Разбор фразы пока детерминированный (chatResolveLocal поверх asstParse), но
+   ОТДАЁТ ТУ ЖЕ ФОРМУ, что вернёт модель: { calls: [{name, args}], reply }.
+   Поэтому подключение модели — замена одной функции в chatResolve; лента,
+   рендер, выполнение, клики и undo не меняются. */
+
+// Лента по кейсу: переключение вкладок не должно показывать чужой разговор.
+const _chatLogs = new Map();
+const chatKey = () => currentChartId ?? 'unsaved';
+const chatLog = () => {
+  const k = chatKey();
+  if (!_chatLogs.has(k)) _chatLogs.set(k, []);
+  return _chatLogs.get(k);
+};
+
+// Простые команды: фразы, для которых не нужен ни поиск, ни модель.
+const CHAT_RULES = [
+  { re: /(натальн|натал\b|natal)/i,                 call: { name: 'chart_setMode', args: { mode: 'natal' } } },
+  { re: /(транзит|transit)/i,                       call: { name: 'chart_setMode', args: { mode: 'transit' } } },
+  { re: /(прогресс|progress)/i,                     call: { name: 'chart_setMode', args: { mode: 'progressed' } } },
+  { re: /(дирекц|direction)/i,                      call: { name: 'chart_setMode', args: { mode: 'direction' } } },
+  { re: /(соляр|solar)/i,                           call: { name: 'chart_setMode', args: { mode: 'solar' } } },
+  { re: /(снимок|снимк|snapshot)/i,                 call: { name: 'chart_snapshot', args: {} } },
+  { re: /(достоинств|dignit)/i,                     call: { name: 'panel_setWidget', args: { id: 'dignities' } } },
+  { re: /(сетк[уа]|решётк|aspect grid)/i,           call: { name: 'panel_setWidget', args: { id: 'aspects' } } },
+  { re: /(событи|events)/i,                         call: { name: 'panel_setWidget', args: { id: 'aspflow' } } },
+  { re: /(диспозитор|dispositor)/i,                 call: { name: 'panel_setWidget', args: { id: 'dispositors' } } },
+];
+
+// Локальный разбор — та же форма ответа, что у модели.
+function chatResolveLocal(text) {
+  for (const r of CHAT_RULES) {
+    if (r.re.test(text)) return { calls: [r.call] };
+  }
+  // Иначе — поиск аспектов через готовый слот-парсер
+  const q = asstParse(text);
+  if (!q.targets.length && !q.angles.length && q.unknown.length) {
+    return { calls: [], reply: tr('chatNotUnderstood') + ' ' + q.unknown.join(', ') };
+  }
+  return {
+    calls: [{ name: 'search_aspects', args: {
+      sources: q.sources, targets: q.targets.filter(t => typeof t === 'number'),
+      angles: q.angles,
+      range: typeof q.range === 'string' ? q.range : '10Y',
+    } }],
+    note: asstInterpretation(q),
+  };
+}
+
+// ← ЕДИНСТВЕННОЕ МЕСТО, которое меняется при подключении модели:
+//    return await askModel(text, commandSchemas({ onlyWithChart: true }));
+async function chatResolve(text) {
+  return chatResolveLocal(text);
+}
+
+async function chatSend(text) {
+  const log = chatLog();
+  log.push({ role: 'user', text });
+  renderChat();
+
+  const plan = await chatResolve(text);
+  if (plan.reply) log.push({ role: 'bot', text: plan.reply });
+
+  for (const call of plan.calls ?? []) {
+    const res = await runCommand(call.name, call.args);
+    if (!res.ok) { log.push({ role: 'bot', text: tr('chatFailed') + ' ' + res.error }); continue; }
+    const rows = res.result?.rows;
+    if (rows) {
+      log.push({ role: 'bot', note: plan.note,
+                 text: rows.length ? `${tr('asstFound')} ${rows.length}` : tr('asstNothing'),
+                 rows });
+    } else {
+      const cmd = listCommands().find(c => c.id.replace(/\./g, '_') === call.name);
+      log.push({ role: 'bot', text: '✓ ' + (cmd ? tr(cmd.label) : call.name) });
+    }
+  }
+  renderChat();
+}
+
+function renderChat() {
+  const view = document.getElementById('chat-view');
+  if (!view) return;
+  view.innerHTML = '';
+  if (!natalData || !swe) return;
+
+  const log = chatLog();
+  const feed = document.createElement('div');
+  feed.className = 'chat-feed';
+
+  if (!log.length) {
+    const hint = document.createElement('div');
+    hint.className = 'asst-empty';
+    hint.textContent = tr('chatHint');
+    feed.appendChild(hint);
+    const box = document.createElement('div');
+    box.className = 'asst-examples';
+    for (const key of ['chatEx1', 'chatEx2', 'chatEx3']) {
+      const b = document.createElement('button');
+      b.className = 'asst-example';
+      b.dataset.chatex = tr(key);
+      b.textContent = tr(key);
+      box.appendChild(b);
+    }
+    feed.appendChild(box);
+  }
+
+  const utcOff = natalData.utcOff ?? 0;
+  const jd0 = currentTransitJD ?? computeJDNow();
+  for (const m of log) {
+    const bub = document.createElement('div');
+    bub.className = 'chat-msg chat-' + m.role;
+    if (m.note) {
+      const n = document.createElement('div');
+      n.className = 'asst-info chat-note';
+      n.textContent = m.note;
+      bub.appendChild(n);
+    }
+    const t = document.createElement('div');
+    t.textContent = m.text;
+    bub.appendChild(t);
+    if (m.rows?.length) {
+      const tbl = document.createElement('table');
+      tbl.className = 'af-table asst-table';
+      for (const r of m.rows.slice(0, 40)) {
+        const row = document.createElement('tr');
+        row.className = 'asst-row' + (r.jd < jd0 ? ' asst-past' : '');
+        row.dataset.jd = r.jd;
+        const td = (text, cls) => {
+          const c = document.createElement('td');
+          c.textContent = text;
+          if (cls) c.className = cls;
+          row.appendChild(c);
+          return c;
+        };
+        td(fmtJdLocal(r.jd, utcOff), 'af-date');
+        const ev = td(`${r.tPlanet.glyph}${r.rx ? 'R' : ''} ${r.asp.symbol} ${asstTargetGlyph(r.na)}`, 'af-ev');
+        ev.style.color = r.asp.color;
+        td(r.pos != null ? fmtEvPos(r.pos) : '', 'af-pos');
+        tbl.appendChild(row);
+      }
+      bub.appendChild(tbl);
+      if (m.rows.length > 40) {
+        const more = document.createElement('div');
+        more.className = 'chat-more';
+        more.textContent = tr('chatMore', { n: m.rows.length - 40 });
+        bub.appendChild(more);
+      }
+    }
+    feed.appendChild(bub);
+  }
+  view.appendChild(feed);
+
+  const bar = document.createElement('div');
+  bar.className = 'asst-bar chat-bar';
+  const input = document.createElement('input');
+  input.id = 'chat-input';
+  input.type = 'text';
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.placeholder = tr('chatPlaceholder');
+  bar.appendChild(input);
+  if (_undoStack.length) {
+    const u = document.createElement('button');
+    u.id = 'chat-undo';
+    u.title = tr('chatUndo');
+    u.textContent = '↩';
+    bar.appendChild(u);
+  }
+  view.appendChild(bar);
+
+  feed.scrollTop = feed.scrollHeight;
+}
+
+document.getElementById('chat-view')?.addEventListener('keydown', e => {
+  if (e.target.id !== 'chat-input' || e.key !== 'Enter') return;
+  const text = e.target.value.trim();
+  if (!text) return;
+  e.target.value = '';
+  chatSend(text);
+});
+
+document.getElementById('chat-view')?.addEventListener('click', e => {
+  if (e.target.closest('#chat-undo')) {
+    if (undoLast()) { chatLog().push({ role: 'bot', text: '↩ ' + tr('chatUndone') }); renderChat(); }
+    return;
+  }
+  const ex = e.target.closest('.asst-example');
+  if (ex && ex.dataset.chatex) { chatSend(ex.dataset.chatex); return; }
   const row = e.target.closest('.asst-row');
   if (row) switchModeAndNavigate('transit', Number(row.dataset.jd));
 });

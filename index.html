@@ -636,7 +636,7 @@ import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSyn
 import { initCommands, defineCommands, listCommands, runCommand,
          commandSchemas } from './js/commands.js?v=1';
 import { AI_PROVIDERS, askModel, aiConfigured, getAiKey, setAiKey, listModels,
-         getAiProvider, setAiProvider, getAiModel, setAiModel } from './js/ai.js?v=3';
+         getAiProvider, setAiProvider, getAiModel, setAiModel } from './js/ai.js?v=4';
 import { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js?v=3';
 
 // ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -6300,6 +6300,17 @@ const CMD_TL_ROWS = {
   lunar:   'showProgLunarPhases',
 };
 
+// Аргументы даты для команд: модель НЕ переводит дату в юлианскую сама — это
+// вычисление, в котором она ошибается. Она передаёт календарные числа, JD
+// считает swe (cmdJd). Время — местное время карты (её пояс).
+const CMD_DATE_ARGS = {
+  year:   { type: 'int', min: -3000, max: 3000, desc: 'год' },
+  month:  { type: 'int', min: 1, max: 12, desc: 'месяц 1–12' },
+  day:    { type: 'int', min: 1, max: 31, desc: 'день месяца' },
+  hour:   { type: 'int', min: 0, max: 23, desc: 'час по местному времени карты (по умолчанию 12)' },
+  minute: { type: 'int', min: 0, max: 59, desc: 'минуты' },
+};
+
 /* Undo для команд. Снимок снимается ПЕРЕД изменяющей командой: ошибка агента
    (или своя) откатывается одним движением. Стек живёт на сессию и мелкий —
    это страховка от осечки, а не полноценная история правок. */
@@ -6347,16 +6358,70 @@ defineCommands([
         unknown: [],
       };
       const { jdStart, jdEnd } = asstWindow(a.range);
-      return { rows: asstRun(q, jdStart, jdEnd), q };
+      const rows = asstRun(q, jdStart, jdEnd);
+      // Модели — готовые даты, а не JD: перевод JD в дату — снова вычисление
+      const forModel = {
+        found: rows.length,
+        first: rows.slice(0, 12).map(r => ({
+          date: factDate(r.jd),
+          event: `${r.tPlanet.name}${r.rx ? ' (R)' : ''} ` +
+                 `${ASPECTS.find(x => x.angle === r.asp.angle)?.name ?? r.asp.angle + '°'} ` +
+                 `натальн. ${r.na.name}`,
+          ...(r.pos != null ? { transitPos: factPos(r.pos) } : {}),
+        })),
+      };
+      return { rows, q, forModel };
+    },
+  },
+  {
+    id: 'chart.positionsAt',
+    label: 'Положения на дату',
+    desc: 'Посчитать прогностическую карту на дату: транзиты, вторичные прогрессии, ' +
+          'символические дирекции (1°/год) или соляр. Возвращает позиции (знак, градус, ' +
+          'натальный дом) и аспекты к наталу с орбисами. Карту на экране не меняет. ' +
+          'Без даты — выбранный момент.',
+    needsChart: true,
+    args: {
+      mode: { type: 'enum', required: true, values: ['transit', 'progressed', 'direction', 'solar'] },
+      ...CMD_DATE_ARGS,
+    },
+    run: a => {
+      const facts = factsAt(a.mode, cmdJd(a));
+      return { facts, forModel: facts };
+    },
+  },
+  {
+    id: 'horary.events',
+    label: 'События хорара',
+    desc: 'События септенера вокруг момента карты: вход в текущий знак и выход из него, ' +
+          'станции R/D, точные аспекты между планетами, пока обе в своих знаках. ' +
+          'arc — дуга, которую проходит быстрая планета до события (минус — событие в прошлом).',
+    needsChart: true,
+    run: () => {
+      const jd0 = natalData.birthJD;
+      if (_evCache.key !== jd0) _evCache = { key: jd0, events: computeHoraryEvents(jd0) };
+      const clean = s => s.replace(/︎/g, '');
+      const events = _evCache.events.map(e => ({
+        date: factDate(e.jd), event: clean(e.label),
+        ...(e.pos != null ? { pos: factPos(e.pos) } : {}),
+        arc: (e.arc < 0 ? '−' : '') + factOrb(Math.abs(e.arc)),
+        future: e.jd > jd0,
+      }));
+      return { forModel: { chartMoment: factDate(jd0), events } };
     },
   },
   {
     id: 'chart.goto',
     label: 'Перейти к дате',
-    desc: 'Перевести карту на указанный момент (юлианская дата).',
+    desc: 'Перевести карту на указанный момент. Дату передавай числами year/month/day(/hour/minute).',
     needsChart: true, mutates: true,
-    args: { jd: { type: 'number', required: true, desc: 'юлианская дата' } },
-    run: a => { switchModeAndNavigate(currentMode === 'natal' ? 'transit' : currentMode, a.jd); },
+    args: { ...CMD_DATE_ARGS, jd: { type: 'number', desc: 'юлианская дата — только если она пришла из результата инструмента' } },
+    run: a => {
+      if (a.year == null && a.jd == null) throw new Error('нужна дата: year/month/day');
+      const jd = cmdJd(a);
+      switchModeAndNavigate(currentMode === 'natal' ? 'transit' : currentMode, jd);
+      return { forModel: { moment: factDate(jd), mode: currentMode } };
+    },
   },
   {
     id: 'chart.setMode',
@@ -6462,39 +6527,262 @@ function chatResolveLocal(text) {
   };
 }
 
-/* ── Что модель ВИДИТ: снимок кейса ───────────────────────────────────────────
-   Компактно и по фактам. Позиции уже посчитаны эфемеридами — модель их только
-   читает и никогда не считает сама. */
-function chatContext() {
-  if (!natalData) return '';
-  const deg = lon => {
-    const l = ((lon % 360) + 360) % 360;
-    return `${Math.floor(l % 30)}° ${SIGN_NAMES[Math.floor(l / 30)]}`;
-  };
-  const pl = filterNatalPlanets(natalData.planets)
-    .map(p => `${p.id}:${p.name} ${deg(p.longitude)}${p.speed < 0 ? ' R' : ''}`).join('; ');
-  const utcOff = natalData.utcOff ?? 0;
-  const lines = [
-    `Карта: ${tabs[activeTab]?.header?.name || '—'}, тип ${currentCaseType}.`,
-    `Натальные позиции: ${pl}.`,
-    natalData.cusps ? `As ${deg(natalData.cusps[0])}, Mc ${deg(natalData.cusps[9])}.` : '',
-    `Режим карты сейчас: ${currentMode}. Выбранный момент: ${fmtJdLocal(currentTransitJD ?? computeJDNow(), utcOff)}.`,
-    `Виджет правой панели: ${rightPanelTab}.`,
-  ];
-  return lines.filter(Boolean).join('\n');
+/* ── Факты карты для модели ───────────────────────────────────────────────────
+   Всё, о чём модель может спросить «по карте», считается ЗДЕСЬ, из тех же функций,
+   что рисуют таблицы и сетку (findGridAspect, computeDignities, findHouse), —
+   поэтому ответ ассистента не расходится с тем, что видит астролог. Модели
+   остаётся читать готовое: минуты, дома, орбисы, сходимость уже проставлены. */
+
+const factNorm = lon => ((lon % 360) + 360) % 360;
+
+// 15°23' Овен — минуты отбрасываются, а не округляются (29°59'40" не станет 30°)
+function factPos(lon) {
+  const l = factNorm(lon);
+  const sign = Math.floor(l / 30);
+  const inDeg = l - sign * 30;
+  const d = Math.floor(inDeg);
+  const m = Math.floor((inDeg - d) * 60);
+  return `${d}°${String(m).padStart(2, '0')}' ${SIGN_NAMES[sign]}`;
 }
 
-const CHAT_SYSTEM = `Ты — ассистент внутри рабочего стола астролога. Пользователь пишет простыми фразами, ты выполняешь их через инструменты.
+const factOrb = orb => `${Math.floor(orb)}°${String(Math.floor((orb % 1) * 60)).padStart(2, '0')}'`;
 
-ЖЕЛЕЗНОЕ ПРАВИЛО: ты НИКОГДА не вычисляешь положения планет, даты аспектов и любые эфемеридные величины сам и никогда не называешь дату, которой не было в результате инструмента. Всё считает приложение. Если нужен факт — вызови инструмент.
+// Полная дата с годом и поясом: двузначный год fmtJdLocal модель прочтёт неверно
+function factDate(jd, utcOff = natalData?.utcOff ?? 0) {
+  const d = new Date(Math.round((jd - 2440587.5) * 86400000 + utcOff * 3600000));
+  const p = n => String(n).padStart(2, '0');
+  const tz = utcOff === 0 ? 'UTC' : `UTC${utcOff > 0 ? '+' : '−'}${Math.abs(utcOff)}`;
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ` +
+         `${p(d.getUTCHours())}:${p(d.getUTCMinutes())} ${tz}`;
+}
 
-Инструменты вызывай сразу, не переспрашивая, когда запрос понятен. Уточняющий вопрос — только если без него нельзя выбрать аргументы.
+function factPlanetsAt(jd) {
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  return PLANETS.map(p => {
+    const r = safeCalcUt(jd, p.id, flags);
+    if (!r) return null;
+    return { ...p, longitude: factNorm(r[0]), speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
+  }).filter(Boolean);
+}
+
+// cusps — куспиды, по которым считается дом (натальные для транзита/прогрессий)
+function factPlanets(planets, cusps) {
+  return planets.map(p => ({
+    id: p.id, name: p.name, pos: factPos(p.longitude),
+    ...(cusps ? { house: findHouse(p.longitude, cusps) } : {}),
+    ...(p.speed != null ? { speed: +p.speed.toFixed(4) } : {}),
+    ...(p.retrograde ? { retro: true } : {}),
+  }));
+}
+
+// Пары в аспекте. b == null — аспекты внутри одной карты. Сходимость — по
+// скоростям (°/сут): орб через час меньше, чем сейчас → сходящийся.
+// keys — подписи сторон в кросс-аспектах ([ключ для b, ключ для a]): без них
+// «Лилит трин Лилит» не отличить транзитную от натальной.
+function factAspects(a, b, orbMode, keys = ['a', 'b']) {
+  const out = [];
+  const pairs = [];
+  if (b) { for (const x of a) for (const y of b) pairs.push([y, x]); }
+  else   { for (let i = 0; i < a.length; i++) for (let j = i + 1; j < a.length; j++) pairs.push([a[i], a[j]]); }
+  for (const [x, y] of pairs) {
+    if (x.id === -10 && y.id === 10 || x.id === 10 && y.id === -10) continue;   // узлы всегда в оппозиции
+    const m = findGridAspect(x.longitude, y.longitude, x.id, y.id, orbMode);
+    if (!m) continue;
+    const dt = 1 / 24;
+    const later = Math.abs(angDiff(x.longitude + (x.speed ?? 0) * dt, y.longitude + (y.speed ?? 0) * dt) - m.asp.angle);
+    const moving = (x.speed ?? 0) !== 0 || (y.speed ?? 0) !== 0;
+    out.push({
+      [keys[0]]: x.name, aspect: m.asp.name, [keys[1]]: y.name, orb: factOrb(m.orb),
+      ...(moving ? { applying: later < m.orb } : {}),
+      _o: m.orb,
+    });
+  }
+  return out.sort((p, q) => p._o - q._o).map(({ _o, ...r }) => r);
+}
+
+// Достоинства семёрки — те же баллы, что в виджете «Достоинства»
+function factDignities(planets, cusps) {
+  const sun = planets.find(p => p.id === 0);
+  const isDay = sun && cusps ? findHouse(sun.longitude, cusps) >= 7 : true;
+  const nameOf = id => (id == null ? null : PLANETS.find(p => p.id === id)?.name ?? null);
+  const list = planets.filter(p => p.id <= 6).map(p => {
+    const d = computeDignities(p.id, p.longitude, isDay);
+    const own = [];
+    if (d.domicile === p.id)  own.push('обитель');
+    if (d.exalt === p.id)     own.push('экзальтация');
+    if (d.trip === p.id)      own.push('трипличность');
+    if (d.term === p.id)      own.push('термы');
+    if (d.face === p.id)      own.push('фас');
+    if (d.detriment === p.id) own.push('изгнание');
+    if (d.fall === p.id)      own.push('падение');
+    if (d.peregrine)          own.push('перегрин');
+    return { planet: p.name, score: d.score, states: own,
+             rulers: { domicile: nameOf(d.domicile), exalt: nameOf(d.exalt), trip: nameOf(d.trip),
+                       term: nameOf(d.term), face: nameOf(d.face) } };
+  });
+  return { sect: cusps ? (isDay ? 'дневная' : 'ночная') : 'неизвестно (нет домов)', planets: list };
+}
+
+// Диспозиторы по обители (классические управители): цепочки, финальные, рецепции
+function factDispositors(planets) {
+  const seven = planets.filter(p => p.id <= 6);
+  const ruler = new Map(seven.map(p => [p.id, DIG_SIGN_RULERS[Math.floor(factNorm(p.longitude) / 30)]]));
+  const name = id => PLANETS.find(p => p.id === id)?.name ?? String(id);
+  const chains = seven.map(p => {
+    const path = [p.id];
+    while (path.length < 9) {
+      const nx = ruler.get(path[path.length - 1]);
+      if (nx == null || path.includes(nx)) { if (nx != null) path.push(nx); break; }
+      path.push(nx);
+    }
+    return path.map(name).join(' → ');
+  });
+  const final = seven.filter(p => ruler.get(p.id) === p.id).map(p => p.name);
+  const mutual = [];
+  for (const p of seven) {
+    const q = ruler.get(p.id);
+    if (q != null && q > p.id && ruler.get(q) === p.id) mutual.push(`${p.name} ↔ ${name(q)}`);
+  }
+  return { chains, final, mutualReception: mutual };
+}
+
+// Дома: куспид, управители (классический первым), где сидят управители
+function factHouses(planets, cusps) {
+  return cusps.map((c, i) => {
+    const rulers = getHouseRulerPlanets(i, cusps).map(r => {
+      const pl = planets.find(p => p.id === r.id);
+      return pl ? `${r.name} (в ${findHouse(pl.longitude, cusps)} доме)` : r.name;
+    });
+    return { house: i + 1, cusp: factPos(c), rulers };
+  });
+}
+
+function houseSysName(code) {
+  const e = HOUSE_SYSTEMS.find(([c]) => c === code);
+  return e ? tr(e[1]) : code;
+}
+
+// Полный срез одной карты. orbMode 'natal' — те же орбисы и состав аспектов, что в сетке
+function chartFacts(data, { title, houseSys } = {}) {
+  const planets = filterNatalPlanets(data.planets);
+  const withSN  = addSouthNode(planets, data.cusps);
+  const f = {
+    ...(title ? { chart: title } : {}),
+    moment: factDate(data.birthJD, data.utcOff ?? 0),
+    planets: factPlanets(withSN, data.cusps),
+  };
+  if (data.cusps) {
+    f.houseSystem = houseSysName(houseSys ?? houseSysFor(tabs[activeTab]));
+    f.angles = { As: factPos(data.asc ?? data.cusps[0]), Mc: factPos(data.mc ?? data.cusps[9]) };
+    f.houses = factHouses(planets, data.cusps);
+  } else {
+    f.note = 'время рождения неизвестно: домов и углов нет';
+  }
+  f.aspects     = factAspects(withSN, null, 'natal');
+  f.dignities   = factDignities(planets, data.cusps);
+  f.dispositors = factDispositors(planets);
+  return f;
+}
+
+// Прогностический срез на момент jd: вторая карта + её аспекты к наталу
+function factsAt(mode, jd) {
+  const nat = natalData;
+  const natal = addSouthNode(filterNatalPlanets(nat.planets), nat.cusps);
+  const still = natal.map(p => ({ ...p, speed: 0 }));   // натал неподвижен
+  const out = { mode, moment: factDate(jd) };
+  if (mode === 'transit') {
+    const tp = addSouthNode(filterNatalPlanets(factPlanetsAt(jd)));
+    out.planets = factPlanets(tp, nat.cusps);          // дома — натальные
+    out.aspectsToNatal = factAspects(still, tp, 'transit', ['transit', 'natal']);
+  } else if (mode === 'progressed') {
+    const pjd = nat.birthJD + (jd - nat.birthJD) / 365.25;
+    // скорость прогрессий в °/сут реального времени: сутки эфемерид = год жизни
+    const pp = addSouthNode(filterNatalPlanets(factPlanetsAt(pjd)))
+      .map(p => ({ ...p, speed: p.speed != null ? p.speed / 365.25 : undefined }));
+    out.progressedMoment = factDate(pjd);
+    out.planets = factPlanets(pp, nat.cusps).map(({ speed, ...p }) => p);
+    out.aspectsToNatal = factAspects(still, pp, 'progressed', ['progressed', 'natal']);
+  } else if (mode === 'direction') {
+    const age = (jd - nat.birthJD) / 365.25;
+    const dp = natal.map(p => ({ ...p, longitude: factNorm(p.longitude + age), speed: 1 / 365.25, retrograde: false }));
+    out.arc = factOrb(age);
+    out.planets = factPlanets(dp, nat.cusps).map(({ speed, ...p }) => p);
+    if (nat.cusps) out.directedAngles = { As: factPos(nat.cusps[0] + age), Mc: factPos(nat.cusps[9] + age) };
+    out.aspectsToNatal = factAspects(still, dp, 'direction', ['directed', 'natal']);
+  } else if (mode === 'solar') {
+    const sr = lastSolarReturnJD(jd);
+    if (sr == null) return { mode, error: 'соляр для этой даты не найден' };
+    const sol = computeSolarChart(sr);
+    out.solarReturn = chartFacts({ ...sol, birthJD: sr, utcOff: nat.utcOff });
+    out.solarPlanetsInNatalHouses = nat.cusps
+      ? filterNatalPlanets(sol.planets).map(p => `${p.name}: ${findHouse(p.longitude, nat.cusps)}`)
+      : undefined;
+    out.aspectsToNatal = factAspects(still, addSouthNode(filterNatalPlanets(sol.planets)), 'transit', ['solar', 'natal']);
+  }
+  return out;
+}
+
+// { year, month?, day?, hour?, minute? } | { jd } → JD; ничего не задано → выбранный момент
+function cmdJd(a) {
+  if (a.year != null) {
+    const utcOff = natalData?.utcOff ?? 0;
+    return swe.julday(a.year, a.month ?? 1, a.day ?? 1, (a.hour ?? 12) + (a.minute ?? 0) / 60 - utcOff);
+  }
+  if (a.jd != null) return a.jd;
+  return currentTransitJD ?? computeJDNow();
+}
+
+/* ── Что модель ВИДИТ: снимок кейса ───────────────────────────────────────────
+   Полный натальный срез (JSON, ~1–2 тыс. токенов) пересобирается на каждый
+   запрос. Всё, что зависит от времени, — через инструменты, не здесь. */
+function chatContext() {
+  if (!natalData) return '';
+  const t = tabs[activeTab];
+  const ctx = {
+    caseType: currentCaseType,
+    currentMode,
+    selectedMoment: factDate(currentTransitJD ?? computeJDNow()),
+    rightPanelWidget: rightPanelTab,
+  };
+  if (currentCaseType === 'synastry' && synastryB) {
+    const A = chartFacts(natalData, { title: t?.refs?.a?.name ?? 'A' });
+    const B = chartFacts(synastryB, { title: t?.refs?.b?.name ?? 'B' });
+    ctx.chartA = A;
+    ctx.chartB = B;
+    // как сетка синастрии: строки — B, столбцы — A, натальные орбисы
+    ctx.crossAspects = factAspects(
+      addSouthNode(filterNatalPlanets(natalData.planets), natalData.cusps).map(p => ({ ...p, speed: 0 })),
+      addSouthNode(filterNatalPlanets(synastryB.planets)).map(p => ({ ...p, speed: 0 })),
+      'natal', ['B', 'A']);
+  } else {
+    ctx.chart = chartFacts(natalData, { title: t?.header?.name });
+    if (currentCaseType === 'horary' && t?.question) ctx.question = t.question;
+  }
+  return 'ДАННЫЕ КАРТЫ (посчитаны эфемеридами, это единственный источник фактов):\n' + JSON.stringify(ctx);
+}
+
+const CHAT_SYSTEM = `Ты — ассистент внутри рабочего стола астролога. Пользователь пишет простыми фразами; ты отвечаешь на вопросы по карте и выполняешь действия через инструменты.
+
+ЖЕЛЕЗНЫЕ ПРАВИЛА
+1. Ты НИКОГДА не вычисляешь сам положения планет, градусы, дома, аспекты, орбисы, достоинства, даты и юлианские дни. Всё считает приложение.
+2. Любой градус, знак, дом, аспект, орбис, управитель или дату, которые ты называешь, ты берёшь дословно из блока «ДАННЫЕ КАРТЫ» ниже или из результата инструмента в этом разговоре.
+3. Если нужного факта там нет — вызови инструмент. Если инструмента для него нет — прямо скажи, что этих данных у тебя нет. Не додумывай и не «прикидывай».
+4. Аспекта, которого нет в списке aspects / aspectsToNatal / crossAspects, в карте НЕТ (в пределах орбисов приложения) — так и говори.
+
+ИНСТРУМЕНТЫ
+- Натал, дома, аспекты, достоинства, диспозиторы — уже в «ДАННЫХ КАРТЫ», инструмент не нужен.
+- Транзиты / прогрессии / дирекции / соляр на конкретную дату — chart_positionsAt. Дату передавай числами year/month/day(/hour/minute) — НЕ переводи её в юлианскую сам. Без даты — берётся выбранный момент.
+- Даты точных транзитов медленных планет к наталу — search_aspects.
+- События хорара (ингрессы, станции, точные аспекты септенера, дуга до события) — horary_events.
+- Перевести карту на дату — chart_goto с теми же числами.
+Инструменты вызывай сразу, не переспрашивая, когда запрос понятен.
 
 id планет: 0 Солнце, 1 Луна, 2 Меркурий, 3 Венера, 4 Марс, 5 Юпитер, 6 Сатурн, 7 Уран, 8 Нептун, 9 Плутон, 10 С.Узел, 12 Лилит, 15 Хирон.
-Углы аспектов: 0 соединение, 60 секстиль, 90 квадрат, 120 трин, 180 оппозиция. Напряжённые — 90 и 180.
-Транзитными источниками в поиске могут быть только медленные планеты (5,6,7,8,9,10,12,15).
+Углы аспектов: 0 соединение, 60 секстиль, 90 квадрат, 120 трин, 180 оппозиция.
+Транзитными источниками в search_aspects могут быть только медленные планеты (5,6,7,8,9,10,12,15).
+applying: true — аспект сходящийся, false — расходящийся.
 
-Отвечай коротко, на языке пользователя. Список найденных дат приложение показывает само — не перечисляй их, скажи только суть.`;
+Отвечай коротко, по делу, на языке пользователя. Толкование давай как астролог, но опирайся только на факты из данных. Длинный список найденных дат приложение показывает само — не переписывай его целиком.`;
 
 /* ← ЕДИНСТВЕННАЯ точка подключения модели. Без ключа работает локальный разбор,
    с ключом — модель поверх того же реестра команд. Форма ответа одна и та же. */

@@ -178,15 +178,16 @@ export async function askModel({ text, system, tools, history = [], execute, max
   return { calls: done, reply: '', turns, truncated: true };
 }
 
-// Сводка результата команды для модели: факт выполнения + масштаб находки.
+// Сводка результата команды для модели. Команда сама решает, что модели нужно
+// знать, — поле forModel (готовые даты и позиции, а не JD: перевод — это
+// вычисление, в котором модель ошибается). Остальное в результате — для чата.
 function summarize(r) {
   if (!r?.ok) return { ok: false, error: String(r?.error ?? 'ошибка') };
-  const rows = r.result?.rows;
-  if (!rows) return { ok: true };
-  return {
-    ok: true,
-    found: rows.length,
-    first: rows.slice(0, 8).map(x => x.jd),
-    note: 'Полный список уже показан пользователю. Не перечисляй даты — кратко скажи, что найдено.',
-  };
+  const fm = r.result?.forModel;
+  if (!fm) return { ok: true };
+  if (r.result.rows) {
+    return { ok: true, ...fm,
+      note: 'Полный список уже показан пользователю. Не переписывай его целиком — скажи суть.' };
+  }
+  return { ok: true, ...fm };
 }

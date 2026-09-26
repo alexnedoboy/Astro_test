@@ -1458,6 +1458,8 @@
   }
   .ai-row select { flex: 1; }
   .ai-settings input { width: 100%; box-sizing: border-box; }
+  /* Ключ скрыт точками без type=password (иначе менеджер паролей принимает его за пароль) */
+  .ai-key { -webkit-text-security: disc; text-security: disc; }
   .ai-status { font-size: 0.78em; color: var(--tx-7); }
   .ai-status.ai-on { color: var(--ok); }
   .ai-hint { font-size: 0.75em; color: var(--tx-7); line-height: 1.45; }

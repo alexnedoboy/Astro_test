@@ -38,12 +38,17 @@
       <span data-i18n="continueWithApple">Войти через Apple</span>
     </button>
     <div class="auth-divider" data-i18n="or">или</div>
-    <input class="auth-input" type="email"    id="authEmail"    placeholder="Email">
-    <input class="auth-input" type="password" id="authPassword" data-i18n-placeholder="passwordPlaceholder" placeholder="Пароль (мин. 6 символов)">
-    <div class="modal-btns">
-      <button id="signinBtn" data-i18n="signin">Войти</button>
-      <button id="signupBtn" data-i18n="signup">Регистрация</button>
-    </div>
+    <!-- Настоящая форма: иначе Chrome сваливает все поля страницы вне <form> в одну
+         «форму без тега» и принимает любое исчезновение поля после fetch (например,
+         перерисовку строки чата) за вход — предлагает сохранить пароль на каждом ответе. -->
+    <form id="auth-form" onsubmit="return false">
+      <input class="auth-input" type="email"    id="authEmail"    autocomplete="username" placeholder="Email">
+      <input class="auth-input" type="password" id="authPassword" autocomplete="current-password" data-i18n-placeholder="passwordPlaceholder" placeholder="Пароль (мин. 6 символов)">
+      <div class="modal-btns">
+        <button type="button" id="signinBtn" data-i18n="signin">Войти</button>
+        <button type="button" id="signupBtn" data-i18n="signup">Регистрация</button>
+      </div>
+    </form>
     <div id="auth-msg"></div>
   </div>
 </div>
@@ -1171,9 +1176,14 @@ defineSettings([
       });
       modelSel.addEventListener('change', () => { setAiModel(modelSel.value); });
 
+      // Не type=password: такое поле Chrome считает паролем от сайта и предлагает
+      // сохранить ключ в менеджер паролей. Маскируем CSS-ом (.ai-key).
       const key = document.createElement('input');
-      key.type = 'password';
+      key.type = 'text';
+      key.className = 'ai-key';
       key.autocomplete = 'off';
+      key.setAttribute('data-lpignore', 'true');   // LastPass
+      key.setAttribute('data-1p-ignore', '');       // 1Password
       key.spellcheck = false;
       key.placeholder = tr('aiKeyPh');
       key.value = getAiKey();
@@ -7074,8 +7084,12 @@ function renderChat() {
   }
   view.appendChild(feed);
 
-  const bar = document.createElement('div');
+  // Своя <form> — строка чата не попадает в общую «форму без тега» вместе с полями
+  // пароля (см. #auth-form), и её перерисовка после ответа не выглядит как вход.
+  const bar = document.createElement('form');
   bar.className = 'asst-bar chat-bar';
+  bar.autocomplete = 'off';
+  bar.addEventListener('submit', e => e.preventDefault());
   const input = document.createElement('input');
   input.id = 'chat-input';
   input.type = 'text';

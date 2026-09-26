@@ -1991,6 +1991,88 @@ function libFindSections(subject, signIdx) {
   return hits;
 }
 
+/* ── Поиск для ассистента ────────────────────────────────────────────────────
+   Модель просит разделы типизированно (планета / знак / дом), а заголовки у
+   Подводного строятся по шаблонам — поэтому это регэкспы по индексу, без
+   полнотекстового поиска. Узлы описаны парой («Южный узел в Овне — Северный
+   узел в Весах»), поэтому шаблон ищет вхождение, а не начало заголовка. */
+const LIB_HOUSE_PREP = ['первом','втором','третьем','четвертом','пятом','шестом',
+                        'седьмом','восьмом','девятом','десятом','одиннадцатом','двенадцатом'];
+const LIB_PLANET_TITLE = { 0: 'Солнце', 1: 'Луна', 2: 'Меркурий', 3: 'Венера', 4: 'Марс',
+  5: 'Юпитер', 6: 'Сатурн', 7: 'Уран', 8: 'Нептун', 9: 'Плутон', 10: 'Северный узел',
+  [-10]: 'Южный узел', 15: 'Хирон' };
+// Основы для общих разделов (любой падеж: «Ситуация Луны», «Слабая Луна»)
+const LIB_PLANET_STEM = { 0: 'Солнц', 1: 'Лун[аыуе]', 2: 'Меркури', 3: 'Венер', 4: 'Марс',
+  5: 'Юпитер', 6: 'Сатурн', 7: 'Уран', 8: 'Нептун', 9: 'Плутон', 10: '(узл|узел)',
+  [-10]: '(узл|узел)', 15: 'Хирон' };
+const NOT_LETTER = '(?![а-яё])';
+const LIB_SIGN_STEM = ['Ов(ен|на)', 'Тел(ец|ьц)', 'Близнец', 'Рак(а|у)?' + NOT_LETTER,
+  'Л(ев|ьва?)' + NOT_LETTER, 'Дев(а|ы)' + NOT_LETTER, 'Вес(ы|ов|ам)' + NOT_LETTER,
+  'Скорпион', 'Стрел(ец|ьц)', 'Козерог', 'Водоле', 'Рыб(ы|ам)?' + NOT_LETTER];
+const LIB_HOUSE_NOM = LIB_HOUSE_ORD.map(s => s.toLowerCase());
+
+// { planet?, sign?, house?, query? } → разделы индекса (служебные главы пропускаются)
+function libSearch({ planet, sign, house, query }) {
+  const pn = LIB_PLANET_TITLE[planet];
+  const inSign = sign != null ? `во? ${LIB_SIGN_PREP[sign]}${NOT_LETTER}` : null;
+  let test;
+  if (planet != null && sign != null) {
+    const re = new RegExp(`${pn} ${inSign}`);
+    test = t => re.test(t);
+  } else if (planet != null && house != null) {
+    const re = new RegExp(`${pn} во? ${LIB_HOUSE_PREP[house - 1]} доме`);
+    test = t => re.test(t);
+  } else if (house != null && sign != null) {
+    const re = new RegExp(`^${LIB_HOUSE_ORD[house - 1]} дом ${inSign}`);
+    test = t => re.test(t);
+  } else if (planet != null) {
+    const re = new RegExp(LIB_PLANET_STEM[planet], 'i');
+    test = t => re.test(t) && !/ во? /.test(t);
+  } else if (sign != null) {
+    const re = new RegExp(LIB_SIGN_STEM[sign]);
+    test = t => re.test(t) && !/ во? /.test(t);
+  } else if (house != null) {
+    const re = new RegExp(`${LIB_HOUSE_NOM[house - 1]} дом`, 'i');
+    test = t => re.test(t) && !/ во? /.test(t);
+  } else if (query?.trim()) {
+    // каждое слово запроса — основой (без окончания) где-то в заголовке
+    const stems = query.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+      .map(w => w.slice(0, Math.max(4, w.length - 2)));
+    if (!stems.length) return [];
+    test = t => { const l = t.toLowerCase(); return stems.every(s => l.includes(s)); };
+  } else {
+    return [];
+  }
+  const hits = [];
+  for (const b of libIndex?.books ?? [])
+    for (const c of b.chapters) {
+      if (c.aux) continue;
+      c.sections.forEach((s, i) => { if (test(s.title)) hits.push({ book: b, chap: c, sec: s, idx: i }); });
+    }
+  return hits;
+}
+
+// Текст раздела: от его заголовка до следующего заголовка того же или старшего
+// уровня. Одноимённые разделы в главе различаются по порядку (как якоря в сборщике).
+function libSectionText(md, chap, idx) {
+  const sec = chap.sections[idx];
+  const nth = chap.sections.slice(0, idx).filter(s => s.title === sec.title && s.level === sec.level).length;
+  const lines = md.split(/\r?\n/);
+  const head = /^(#{1,4})\s+(.+?)\s*#*\s*$/;
+  let start = -1, seen = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const m = head.exec(lines[i]);
+    if (m && m[1].length === sec.level && m[2].trim() === sec.title && seen++ === nth) { start = i; break; }
+  }
+  if (start < 0) return null;
+  let end = lines.length;
+  for (let j = start + 1; j < lines.length; j++) {
+    const m = head.exec(lines[j]);
+    if (m && m[1].length <= sec.level) { end = j; break; }
+  }
+  return lines.slice(start + 1, end).join('\n').trim();
+}
+
 // Разметку строит сама фабрика — оба хоста получают одинаковую структуру
 function libBuildMarkup(root, { closable, popout }) {
   root.classList.add('library-view');
@@ -6411,6 +6493,44 @@ defineCommands([
     },
   },
   {
+    id: 'library.find',
+    label: 'Библиотека',
+    desc: 'Найти разделы учебников А. Подводного и вернуть их текст — основа для толкования. ' +
+          'planet+sign — «Луна в Козероге»; planet+house — «Венера в седьмом доме»; ' +
+          'house+sign — «Пятый дом в Стрельце»; одна planet / sign / house — общие разделы ' +
+          '(ситуация, сильная/слабая, гармоничная/поражённая планета; человек знака; сильный/слабый дом); ' +
+          'query — поиск по заголовкам, если остальное не подходит.',
+    args: {
+      planet: { type: 'int', min: -10, max: 15, desc: 'id планеты; 10 Северный узел, -10 Южный узел' },
+      sign:   { type: 'int', min: 0, max: 11, desc: 'знак: 0 Овен … 11 Рыбы' },
+      house:  { type: 'int', min: 1, max: 12, desc: 'номер дома' },
+      query:  { type: 'text', desc: 'слова из заголовка раздела' },
+    },
+    run: async a => {
+      try { await libLoadIndex(); }
+      catch { throw new Error('библиотека доступна только после входа в аккаунт'); }
+      if (a.planet != null && !LIB_PLANET_TITLE[a.planet]) throw new Error('в библиотеке нет разделов об этой точке');
+      const hits = libSearch(a);
+      const MAX_TEXT = 3, MAX_CHARS = 6000;
+      const sections = [];
+      for (const h of hits.slice(0, MAX_TEXT)) {
+        let text = libSectionText(await libLoadChapter(h.book.id, h.chap.id), h.chap, h.idx) ?? '';
+        const truncated = text.length > MAX_CHARS;
+        if (truncated) text = text.slice(0, MAX_CHARS);
+        sections.push({ book: h.book.title, chapter: h.chap.title, title: h.sec.title, text,
+                        ...(truncated ? { truncated: true } : {}) });
+      }
+      return {
+        libHits: hits.map(h => ({ bookId: h.book.id, chapId: h.chap.id, anchor: h.sec.anchor,
+                                  title: h.sec.title, sub: `${h.book.title} · ${h.chap.title}` })),
+        forModel: {
+          found: hits.length, sections,
+          ...(hits.length > MAX_TEXT ? { moreTitles: hits.slice(MAX_TEXT, MAX_TEXT + 15).map(h => h.sec.title) } : {}),
+        },
+      };
+    },
+  },
+  {
     id: 'chart.goto',
     label: 'Перейти к дате',
     desc: 'Перевести карту на указанный момент. Дату передавай числами year/month/day(/hour/minute).',
@@ -6775,9 +6895,15 @@ const CHAT_SYSTEM = `Ты — ассистент внутри рабочего �
 - Даты точных транзитов медленных планет к наталу — search_aspects.
 - События хорара (ингрессы, станции, точные аспекты септенера, дуга до события) — horary_events.
 - Перевести карту на дату — chart_goto с теми же числами.
-Инструменты вызывай сразу, не переспрашивая, когда запрос понятен.
+- Толкование — library_find (учебники А. Подводного). Инструменты вызывай сразу, не переспрашивая, когда запрос понятен.
 
-id планет: 0 Солнце, 1 Луна, 2 Меркурий, 3 Венера, 4 Марс, 5 Юпитер, 6 Сатурн, 7 Уран, 8 Нептун, 9 Плутон, 10 С.Узел, 12 Лилит, 15 Хирон.
+ТОЛКОВАНИЕ
+Прежде чем толковать положение, найди его в библиотеке: планету в знаке (planet+sign), планету в доме (planet+house), куспид дома в знаке (house+sign), при нужде — общие разделы о планете. Знак и дом бери из «ДАННЫХ КАРТЫ». За один вопрос — не больше 3–4 вызовов, самые важные положения.
+Толкуй по найденному тексту: своими словами, коротко, и укажи источник (книга, глава). Не переписывай текст книги длинными цитатами.
+Если в библиотеке ничего не нашлось или она недоступна — так и скажи и явно пометь, что толкование общее, не по книгам.
+Библиотека описывает отдельные положения; синтез (как они сочетаются в этой карте, с учётом аспектов, достоинств и диспозиторов) — твоя работа, но на фактах карты.
+
+id планет: 0 Солнце, 1 Луна, 2 Меркурий, 3 Венера, 4 Марс, 5 Юпитер, 6 Сатурн, 7 Уран, 8 Нептун, 9 Плутон, 10 С.Узел, 12 Лилит, 15 Хирон. Знаки: 0 Овен, 1 Телец, 2 Близнецы, 3 Рак, 4 Лев, 5 Дева, 6 Весы, 7 Скорпион, 8 Стрелец, 9 Козерог, 10 Водолей, 11 Рыбы.
 Углы аспектов: 0 соединение, 60 секстиль, 90 квадрат, 120 трин, 180 оппозиция.
 Транзитными источниками в search_aspects могут быть только медленные планеты (5,6,7,8,9,10,12,15).
 applying: true — аспект сходящийся, false — расходящийся.
@@ -6821,6 +6947,11 @@ function chatPushResult(log, call, res, note) {
     log.push({ role: 'bot', note,
                text: rows.length ? `${tr('asstFound')} ${rows.length}` : tr('asstNothing'),
                rows });
+  } else if (res.result?.libHits) {
+    // Источники толкования — ссылками: астролог видит, на что опирается ответ
+    const hits = res.result.libHits;
+    log.push({ role: 'bot', text: hits.length ? `📖 ${tr('library')}: ${hits.length}` : `📖 ${tr('asstNothing')}`,
+               lib: hits.slice(0, 8) });
   } else {
     const cmd = listCommands().find(c => c.id.replace(/\./g, '_') === call.name);
     log.push({ role: 'bot', text: '✓ ' + (cmd ? tr(cmd.label) : call.name) });
@@ -6897,6 +7028,14 @@ function renderChat() {
     const t = document.createElement('div');
     t.textContent = m.text;
     bub.appendChild(t);
+    for (const h of m.lib ?? []) {
+      const b = document.createElement('button');
+      b.className = 'chat-lib';
+      Object.assign(b.dataset, { libBook: h.bookId, libChap: h.chapId, libAnchor: h.anchor });
+      b.title = h.sub;
+      b.textContent = h.title;
+      bub.appendChild(b);
+    }
     if (m.rows?.length) {
       const tbl = document.createElement('table');
       tbl.className = 'af-table asst-table';
@@ -6968,6 +7107,13 @@ document.getElementById('chat-view')?.addEventListener('keydown', e => {
 document.getElementById('chat-view')?.addEventListener('click', e => {
   if (e.target.closest('#chat-undo')) {
     if (undoLast()) { chatLog().push({ role: 'bot', text: '↩ ' + tr('chatUndone') }); renderChat(); }
+    return;
+  }
+  const lib = e.target.closest('.chat-lib');
+  if (lib) {
+    const { libBook, libChap, libAnchor } = lib.dataset;
+    (libraryPanelOpen ? libPanel.refresh() : openLibraryPanel())
+      .then(() => libPanel.open(libBook, libChap, libAnchor));
     return;
   }
   const ex = e.target.closest('.asst-example');

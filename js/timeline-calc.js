@@ -868,6 +868,203 @@ function computeNatalEvents(natalPlanets, cusps, jd0, range, utcOff = 0, opts = 
   return { events, jdStart, jdEnd };
 }
 
+/* ── События за большие окна (ассистент, timeline.events) ──────────────────────
+   Таймлайновые computeProgressedEvents / computeDirectionEvents сканируют каждые
+   реальные сутки — на окне в 1–11 лет это нормально, на всю жизнь — десятки секунд.
+   Здесь те же наборы событий, посчитанные по-другому:
+     дирекции — аналитически (дуга = возраст в годах, момент события решается формулой);
+     прогрессии — шагом по ЭФЕМЕРИДНОМУ времени (сутки эфемерид = год жизни, вся жизнь ≈
+     90 суток), момент пересечения — интерполяцией между отсчётами.
+   Результат — структурные события { type, jd, planetId?, planet2Id?, natalId?, angle?,
+   sign?, house?, cusp?, retro? }; подписи строит потребитель. */
+
+const LIFE_ASPECTS = [0, 60, 90, 120, 180];
+const wrap180 = d => ((d % 360) + 540) % 360 - 180;
+const norm360 = d => ((d % 360) + 360) % 360;
+
+// Все дуги arc ∈ [a0, a1], при которых (x + arc) ≡ y (mod 360)
+function arcsTo(x, y, a0, a1) {
+  const out = [];
+  // arc = 0 — момент рождения: дирекция совпадает с наталом, это не событие
+  for (let arc = norm360(y - x); arc <= a1; arc += 360) if (arc >= a0 && arc > 1e-6) out.push(arc);
+  return out;
+}
+
+// Символические дирекции 1°/год: те же виды событий, что computeDirectionEvents
+function computeDirectionLife(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
+  const a0 = Math.max(0, (jdStart - birthJD) / 365.25);
+  const a1 = (jdEnd - birthJD) / 365.25;
+  if (a1 <= a0) return [];
+  const jdOf = arc => birthJD + arc * 365.25;
+  const ev = [];
+  for (const p of natalPlanets) {
+    for (let s = 0; s < 12; s++)
+      for (const arc of arcsTo(p.longitude, s * 30, a0, a1))
+        ev.push({ type: 'dir_sign', jd: jdOf(arc), planetId: p.id, sign: s });
+    for (const q of natalPlanets)
+      for (const A of LIFE_ASPECTS) {
+        const ys = A === 0 || A === 180 ? [q.longitude + A] : [q.longitude + A, q.longitude - A];
+        for (const y of ys)
+          for (const arc of arcsTo(p.longitude, y, a0, a1))
+            ev.push({ type: 'dir_aspect', jd: jdOf(arc), planetId: p.id, natalId: q.id, angle: A });
+      }
+    if (cusps) for (let c = 0; c < 12; c++)
+      for (const arc of arcsTo(p.longitude, cusps[c], a0, a1))
+        ev.push({ type: 'dir_planet_cusp', jd: jdOf(arc), planetId: p.id, cusp: c });
+  }
+  if (cusps) for (let c = 0; c < 12; c++) {
+    // смена знака — парами I/VII … VI/XII, как в таймлайне
+    if (c < 6) for (let s = 0; s < 12; s++)
+      for (const arc of arcsTo(cusps[c], s * 30, a0, a1))
+        ev.push({ type: 'dir_cusp_sign', jd: jdOf(arc), cusp: c, sign: s });
+    for (const q of natalPlanets)
+      for (const arc of arcsTo(cusps[c], q.longitude, a0, a1))
+        ev.push({ type: 'dir_cusp_planet', jd: jdOf(arc), cusp: c, natalId: q.id });
+  }
+  return ev.sort((x, y) => x.jd - y.jd);
+}
+
+// Вторичные прогрессии: те же наборы, что computeProgressedEvents (аспекты к наталу —
+// Солнце/Меркурий/Венера/Марс; прогр.↔прогр. — хотя бы одна из них, без Луны;
+// Луна — к наталу и к прогрессивным; ингрессии в знаки и дома; фазы через 45°).
+function computeProgressedLife(natalPlanets, cusps, birthJD, jdStart, jdEnd) {
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const e0 = birthJD + Math.max(0, jdStart - birthJD) / 365.25;
+  const e1 = birthJD + (jdEnd - birthJD) / 365.25;
+  if (e1 <= e0) return [];
+  const STEP = 0.02;                               // ≈ 7 реальных суток; Луна ≈ 0.26° за шаг
+  const n = Math.ceil((e1 - e0) / STEP) + 1;
+  const tAt = i => Math.min(e0 + i * STEP, e1);
+  const realJD = t => birthJD + (t - birthJD) * 365.25;
+
+  const ids = natalPlanets.filter(p => p.id >= 0).map(p => p.id);
+  const lon = new Map();
+  for (const id of ids) {
+    const a = new Float64Array(n);
+    let ok = true;
+    for (let i = 0; i < n; i++) {
+      const r = safeCalcUt(tAt(i), id, flags);
+      if (!r) { ok = false; break; }
+      a[i] = norm360(r[0]);
+    }
+    if (ok) lon.set(id, a);
+  }
+  // Долгота между отсчётами i-1 и i (доля f) — линейно по кратчайшей дуге
+  const lerp = (a, i, f) => norm360(a[i - 1] + wrap180(a[i] - a[i - 1]) * f);
+  const tFrac = (i, f) => tAt(i - 1) + (tAt(i) - tAt(i - 1)) * f;
+  // Доля f ∈ [0,1], где key(f) меняется с key(0) — бисекция без новых вызовов эфемерид
+  const bisect = keyAt => {
+    const k0 = keyAt(0); let lo = 0, hi = 1;
+    for (let q = 0; q < 24; q++) { const m = (lo + hi) / 2; if (keyAt(m) === k0) lo = m; else hi = m; }
+    return (lo + hi) / 2;
+  };
+  // Корень непрерывной g(f) на [0,1] (знак меняется) — бисекция
+  const root = g => {
+    let lo = 0, hi = 1, glo = g(0);
+    for (let q = 0; q < 24; q++) { const m = (lo + hi) / 2, gm = g(m); if (Math.sign(gm) === Math.sign(glo)) { lo = m; glo = gm; } else hi = m; }
+    return (lo + hi) / 2;
+  };
+  const ev = [];
+  const push = (i, f, e) => ev.push({ ...e, jd: realJD(tFrac(i, f)) });
+
+  // Ингрессии в знаки и натальные дома
+  for (const [id, a] of lon) {
+    for (let i = 1; i < n; i++) {
+      const retro = wrap180(a[i] - a[i - 1]) < 0;
+      const s0 = Math.floor(a[i - 1] / 30), s1 = Math.floor(a[i] / 30);
+      if (s0 !== s1) push(i, bisect(f => Math.floor(lerp(a, i, f) / 30)), { type: 'sign', planetId: id, sign: s1, retro });
+      if (cusps) {
+        const h0 = findHouse(a[i - 1], cusps), h1 = findHouse(a[i], cusps);
+        if (h0 !== h1) push(i, bisect(f => findHouse(lerp(a, i, f), cusps)), { type: 'house', planetId: id, house: h1, retro });
+      }
+    }
+  }
+
+  // Точный аспект: ноль функции «отклонение от угла A» (как в computeHoraryEvents)
+  const aspFn = (A, l1, l2) => A === 0 ? wrap180(l1 - l2)
+    : A === 180 ? wrap180(l1 - l2 - 180)
+    : Math.abs(wrap180(l1 - l2)) - A;
+  const scanAsp = (a1, a2Fixed, a2, emit) => {
+    for (const A of LIFE_ASPECTS) {
+      const g = (i, f) => aspFn(A, lerp(a1, i, f), a2 ? lerp(a2, i, f) : a2Fixed);
+      let prev = g(1, 0);
+      for (let i = 1; i < n; i++) {
+        const cur = g(i, 1);
+        if (prev !== 0 && cur !== 0 && Math.sign(prev) !== Math.sign(cur) && Math.abs(cur - prev) < 90)
+          push(i, root(f => g(i, f)), emit(A));
+        prev = cur;
+      }
+    }
+  };
+  const FAST = [0, 2, 3, 4];
+  for (const pid of FAST) {
+    const a = lon.get(pid); if (!a) continue;
+    for (const q of natalPlanets)
+      scanAsp(a, q.longitude, null, A => ({ type: 'aspect', planetId: pid, natalId: q.id, angle: A }));
+  }
+  const pids = [...lon.keys()].filter(id => id !== 1);
+  for (let x = 0; x < pids.length; x++) for (let y = x + 1; y < pids.length; y++) {
+    const p1 = pids[x], p2 = pids[y];
+    if (!FAST.includes(p1) && !FAST.includes(p2)) continue;
+    scanAsp(lon.get(p1), 0, lon.get(p2), A => ({ type: 'aspect', planetId: p1, planet2Id: p2, angle: A }));
+  }
+  const moon = lon.get(1);
+  if (moon) {
+    for (const q of natalPlanets)
+      scanAsp(moon, q.longitude, null, A => ({ type: 'moon_aspect', planetId: 1, natalId: q.id, angle: A }));
+    for (const id of pids)
+      scanAsp(moon, 0, lon.get(id), A => ({ type: 'moon_aspect', planetId: 1, planet2Id: id, angle: A }));
+    // Фазы: элонгация Луны от Солнца растёт монотонно — ловим переход через k·45°
+    const sun = lon.get(0);
+    if (sun) {
+      const el = (i, f) => norm360(lerp(moon, i, f) - lerp(sun, i, f));
+      for (let i = 1; i < n; i++) {
+        const k0 = Math.floor(el(i, 0) / 45), k1 = Math.floor(el(i, 1) / 45);
+        if (k0 !== k1) push(i, bisect(f => Math.floor(el(i, f) / 45)), { type: 'phase', planetId: 1, angle: k1 * 45 });
+      }
+    }
+  }
+  return ev.sort((x, y) => x.jd - y.jd);
+}
+
+// Транзитные ингрессии: входы планет в знаки и (если есть куспиды) в натальные дома.
+// Скан с шагом по скорости планеты, момент пересечения — бисекцией до ~минуты.
+// Ретроградный вход (планета пятится в предыдущий знак/дом) помечается retro.
+// Шаг скана по скорости: за шаг планета не успевает пересечь границу дважды
+// (у медленных разворот у границы занимает недели).
+const INGRESS_STEP = id => id === 1 ? 0.25 : [0, 2, 3, 4].includes(id) ? 2 : [5, 6].includes(id) ? 5 : 10;
+
+function computeTransitIngresses(ids, cusps, jdStart, jdEnd, { signs = true, houses = true } = {}) {
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  const lonAt = (id, jd) => { const r = safeCalcUt(jd, id, flags); return r ? norm360(r[0]) : null; };
+  const keys = [];
+  if (signs) keys.push(['sign', l => Math.floor(l / 30)]);
+  if (houses && cusps) keys.push(['house', l => findHouse(l, cusps)]);
+  const ev = [];
+  for (const id of ids) {
+    const step = INGRESS_STEP(id);
+    let jdPrev = jdStart, lonPrev = lonAt(id, jdStart);
+    if (lonPrev == null) continue;
+    for (let jd = jdStart + step; jd <= jdEnd + 1e-9; jd += step) {
+      const l = lonAt(id, jd);
+      if (l == null) break;
+      for (const [type, keyOf] of keys) {
+        const k0 = keyOf(lonPrev), k1 = keyOf(l);
+        if (k0 === k1) continue;
+        let a = jdPrev, b = jd;
+        while (b - a > 1 / 1440) {   // до минуты
+          const m = (a + b) / 2;
+          if (keyOf(lonAt(id, m)) === k0) a = m; else b = m;
+        }
+        ev.push({ type, planetId: id, jd: (a + b) / 2, [type]: k1, retro: wrap180(l - lonPrev) < 0 });
+      }
+      jdPrev = jd; lonPrev = l;
+    }
+  }
+  return ev.sort((x, y) => x.jd - y.jd);
+}
+
+export { computeDirectionLife, computeProgressedLife, computeTransitIngresses };
 export { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,

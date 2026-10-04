@@ -633,7 +633,8 @@ import { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff }
 import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
-         transitOrbFactor } from './js/timeline-calc.js?v=5';
+         transitOrbFactor, computeTransitIngresses, computeProgressedLife,
+         computeDirectionLife } from './js/timeline-calc.js?v=6';
 import { STRINGS } from './js/strings.js?v=14';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
@@ -6392,6 +6393,15 @@ const CMD_TL_ROWS = {
   lunar:   'showProgLunarPhases',
 };
 
+// Виды событий timeline.events → типы событий расчётов (findTimelineEvents)
+const EV_KIND_TYPES = {
+  sign:   ['sign', 'dir_sign'],
+  house:  ['house'],
+  aspect: ['aspect', 'moon_aspect', 'dir_aspect'],
+  cusp:   ['dir_cusp_sign', 'dir_cusp_planet', 'dir_planet_cusp'],
+  phase:  ['phase'],
+};
+
 // Аргументы даты для команд: модель НЕ переводит дату в юлианскую сама — это
 // вычисление, в котором она ошибается. Она передаёт календарные числа, JD
 // считает swe (cmdJd). Время — местное время карты (её пояс).
@@ -6500,6 +6510,41 @@ defineCommands([
         future: e.jd > jd0,
       }));
       return { forModel: { chartMoment: factDate(jd0), events } };
+    },
+  },
+  {
+    id: 'timeline.events',
+    label: 'События во времени',
+    desc: 'Найти события за период. method: transit — транзитные ингрессии планет в знаки и ' +
+          'натальные дома (Луна — только если явно указана в planets); progressed — вторичные ' +
+          'прогрессии: ингрессии в знаки и дома, аспекты к наталу и между прогрессивными, ' +
+          'лунные фазы; direction — символические дирекции 1°/год: ингрессии в знаки, аспекты ' +
+          'к наталу, куспиды (смена знака, соединения с натальными планетами и куспидами); ' +
+          'returns — возвращения Солнца, Меркурия, Венеры, Марса. Годы по умолчанию: транзиты — ' +
+          'текущий и следующий, прогрессии/дирекции — вся жизнь до 90 лет.',
+    needsChart: true,
+    args: {
+      method:   { type: 'enum', required: true, values: ['transit', 'progressed', 'direction', 'returns'] },
+      kinds:    { type: 'enum[]', values: Object.keys(EV_KIND_TYPES), desc: 'виды событий; пусто = все виды метода' },
+      planets:  { type: 'int[]', desc: 'id движущихся планет (транзитных/прогрессивных/дирекционных); пусто = все' },
+      targets:  { type: 'int[]', desc: 'id натальных планет — цель аспекта/соединения; пусто = все' },
+      fromYear: { type: 'int', min: -3000, max: 3000, desc: 'первый год периода' },
+      toYear:   { type: 'int', min: -3000, max: 3000, desc: 'последний год периода (включительно)' },
+    },
+    run: a => {
+      const { rows, y0, y1 } = findTimelineEvents(a);
+      const LIMIT = 80;
+      const dateOnly = a.method === 'progressed' || a.method === 'direction';   // точность — сутки
+      return {
+        events: rows,
+        forModel: {
+          period: `${y0}–${y1}`, found: rows.length,
+          events: rows.slice(0, LIMIT).map(r => ({
+            date: dateOnly ? factDate(r.jd).slice(0, 10) : factDate(r.jd), event: r.text })),
+          ...(rows.length > LIMIT ? { truncated: true,
+            note: `показаны первые ${LIMIT}; сузь период, виды или планеты, чтобы увидеть остальные` } : {}),
+        },
+      };
     },
   },
   {
@@ -6639,6 +6684,12 @@ const CHAT_RULES = [
 
 // Локальный разбор — та же форма ответа, что у модели.
 function chatResolveLocal(text) {
+  // «ингрессии в дирекциях / прогрессиях / транзитах» — события за период
+  if (/(ингресс|ingress)/i.test(text)) {
+    const method = /(дирекц|direction)/i.test(text) ? 'direction'
+                 : /(прогресс|progress)/i.test(text) ? 'progressed' : 'transit';
+    return { calls: [{ name: 'timeline_events', args: { method, kinds: ['sign'] } }] };
+  }
   for (const r of CHAT_RULES) {
     if (r.re.test(text)) return { calls: [r.call] };
   }
@@ -6852,6 +6903,93 @@ function factsAt(mode, jd) {
   return out;
 }
 
+/* ── События во времени (timeline.events) ─────────────────────────────────────
+   Те же наборы событий, что на таймлайне, но посчитанные быстро на окне до всей жизни
+   (computeProgressedLife / computeDirectionLife, см. timeline-calc.js); транзитные
+   ингрессии — computeTransitIngresses. Модели — готовая фраза и дата, чату — строки с JD. */
+const EV_PHASE_NAMES = { 0: 'новолуние', 45: 'полумесяц растущий', 90: 'первая четверть',
+  135: 'выпуклая растущая', 180: 'полнолуние', 225: 'выпуклая убывающая',
+  270: 'последняя четверть', 315: 'бальзамический полумесяц' };
+
+const evPlanet = id => (id === -10 ? 'Ю. Узел' : PLANETS.find(p => p.id === id)?.name ?? String(id));
+const evAsp = angle => ASPECTS.find(a => a.angle === angle)?.name.toLowerCase() ?? angle + '°';
+
+function evText(method, e) {
+  const pre = method === 'progressed' ? 'прогр. ' : method === 'direction' ? 'дир. ' : '';
+  const P = pre + evPlanet(e.planetId);
+  switch (e.type) {
+    case 'sign': case 'dir_sign':
+      return `${P} входит в ${SIGN_NAMES[e.sign]}${e.retro ? ' (ретроградно)' : ''}`;
+    case 'house':
+      return `${P} входит в ${e.house} натальный дом${e.retro ? ' (ретроградно)' : ''}`;
+    case 'aspect': case 'moon_aspect': case 'dir_aspect':
+      return e.natalId != null
+        ? `${P} ${evAsp(e.angle)} натальн. ${evPlanet(e.natalId)}`
+        : `${P} ${evAsp(e.angle)} ${pre}${evPlanet(e.planet2Id)}`;
+    case 'phase':
+      return `прогрессивная лунная фаза: ${EV_PHASE_NAMES[e.angle] ?? e.angle + '°'}`;
+    case 'dir_cusp_sign':
+      return `дир. куспиды ${e.cusp + 1}/${e.cusp + 7} домов входят в ${SIGN_NAMES[e.sign]}/${SIGN_NAMES[(e.sign + 6) % 12]}`;
+    case 'dir_cusp_planet':
+      return `дир. куспид ${e.cusp + 1} дома соединение натальн. ${evPlanet(e.natalId)}`;
+    case 'dir_planet_cusp':
+      return `${P} соединение натального куспида ${e.cusp + 1} дома`;
+    case 'return':
+      return `возвращение ${evPlanet(e.planetId)} в натальную позицию`;
+  }
+  return e.type;
+}
+
+// → { rows: [{ jd, text, mode }], jdStart, jdEnd }
+function findTimelineEvents({ method, kinds, planets, targets, fromYear, toYear }) {
+  const nat = natalData;
+  const utcOff = nat.utcOff ?? 0;
+  const yearOf = jd => new Date((jd + utcOff / 24 - 2440587.5) * 86400000).getUTCFullYear();
+  const birthYear = yearOf(nat.originalBirthJD ?? nat.birthJD);
+  const nowYear = yearOf(currentTransitJD ?? computeJDNow());
+  const withMoon = planets?.includes(1);
+
+  // Окно по умолчанию: транзиты — год выбранного момента и следующий;
+  // прогрессии/дирекции — вся жизнь до 90 лет. Потолки — чтобы не повесить вкладку.
+  let y0 = fromYear ?? (method === 'transit' || method === 'returns' ? nowYear : birthYear);
+  let y1 = toYear ?? (method === 'transit' || method === 'returns' ? nowYear + 1 : birthYear + 90);
+  if (y1 < y0) [y0, y1] = [y1, y0];
+  // Транзиты всех планет за 30 лет — ~5 с и 3000 событий: без фильтра окно короче
+  const cap = method === 'transit' ? (withMoon ? 3 : planets?.length ? 50 : 12)
+            : method === 'returns' ? 10 : 120;
+  if (y1 - y0 + 1 > cap) throw new Error(`слишком большое окно: не больше ${cap} лет` +
+    (method === 'transit' && !planets?.length ? ' (с фильтром planets — до 50)' : ''));
+  const jdStart = swe.julday(y0, 1, 1, 0) - utcOff / 24;
+  const jdEnd   = swe.julday(y1 + 1, 1, 1, 0) - utcOff / 24;
+
+  const natalPlanets = filterNatalPlanets(nat.planets);
+  const mode = method === 'returns' ? 'transit' : method;
+  let raw;
+  if (method === 'transit') {
+    const ids = planets?.length ? planets.filter(id => id >= 0)
+      : PLANETS.map(p => p.id).filter(id => id !== 1);
+    const want = k => !kinds?.length || kinds.includes(k);
+    raw = computeTransitIngresses(ids, nat.cusps, jdStart, jdEnd, { signs: want('sign'), houses: want('house') });
+  } else if (method === 'progressed') {
+    raw = computeProgressedLife(natalPlanets, nat.cusps, nat.birthJD, jdStart, jdEnd);
+  } else if (method === 'direction') {
+    raw = computeDirectionLife(natalPlanets, nat.cusps, nat.birthJD, jdStart, jdEnd);
+  } else {
+    raw = computeReturnPeriods(natalPlanets, jdStart, jdEnd)
+      .flatMap(p => p.exactJDs.map(jd => ({ type: 'return', planetId: p.tPlanet.id, jd })));
+  }
+
+  const types = kinds?.length ? new Set(kinds.flatMap(k => EV_KIND_TYPES[k] ?? [])) : null;
+  const rows = raw
+    .filter(e => e.jd >= jdStart && e.jd < jdEnd)
+    .filter(e => method === 'returns' || !types || types.has(e.type))
+    .filter(e => method === 'transit' || !planets?.length || planets.includes(e.planetId))
+    .filter(e => !targets?.length || targets.includes(e.natalId))
+    .sort((a, b) => a.jd - b.jd)
+    .map(e => ({ jd: e.jd, text: evText(method, e), mode }));
+  return { rows, y0, y1 };
+}
+
 // { year, month?, day?, hour?, minute? } | { jd } → JD; ничего не задано → выбранный момент
 function cmdJd(a) {
   if (a.year != null) {
@@ -6903,6 +7041,7 @@ const CHAT_SYSTEM = `Ты — ассистент внутри рабочего �
 - Натал, дома, аспекты, достоинства, диспозиторы — уже в «ДАННЫХ КАРТЫ», инструмент не нужен.
 - Транзиты / прогрессии / дирекции / соляр на конкретную дату — chart_positionsAt. Дату передавай числами year/month/day(/hour/minute) — НЕ переводи её в юлианскую сам. Без даты — берётся выбранный момент.
 - Даты точных транзитов медленных планет к наталу — search_aspects.
+- События за период — timeline_events: транзитные ингрессии в знаки и натальные дома, события прогрессий (ингрессии, аспекты, лунные фазы), дирекций (ингрессии, аспекты, куспиды), возвращения быстрых планет. Годы — числами fromYear/toYear.
 - События хорара (ингрессы, станции, точные аспекты септенера, дуга до события) — horary_events.
 - Перевести карту на дату — chart_goto с теми же числами.
 - Толкование — library_find (учебники А. Подводного). Инструменты вызывай сразу, не переспрашивая, когда запрос понятен.
@@ -6957,6 +7096,11 @@ function chatPushResult(log, call, res, note) {
     log.push({ role: 'bot', note,
                text: rows.length ? `${tr('asstFound')} ${rows.length}` : tr('asstNothing'),
                rows });
+  } else if (res.result?.events) {
+    const ev = res.result.events;
+    log.push({ role: 'bot', note,
+               text: ev.length ? `${tr('asstFound')} ${ev.length}` : tr('asstNothing'),
+               events: ev });
   } else if (res.result?.libHits) {
     // Источники толкования — ссылками: астролог видит, на что опирается ответ
     const hits = res.result.libHits;
@@ -7038,6 +7182,32 @@ function renderChat() {
     const t = document.createElement('div');
     t.textContent = m.text;
     bub.appendChild(t);
+    if (m.events?.length) {
+      // Прогрессии и дирекции считаются по суткам — время в дате было бы ложной точностью
+      const tbl = document.createElement('table');
+      tbl.className = 'af-table asst-table';
+      for (const r of m.events.slice(0, 60)) {
+        const row = document.createElement('tr');
+        row.className = 'asst-row' + (r.jd < jd0 ? ' asst-past' : '');
+        row.dataset.jd = r.jd;
+        row.dataset.mode = r.mode;
+        const d = document.createElement('td');
+        d.className = 'af-date';
+        d.textContent = r.mode === 'transit' ? fmtJdLocal(r.jd, utcOff) : fmtJdLocal(r.jd, utcOff).slice(0, 8);
+        const t2 = document.createElement('td');
+        t2.className = 'af-ev';
+        t2.textContent = r.text;
+        row.append(d, t2);
+        tbl.appendChild(row);
+      }
+      bub.appendChild(tbl);
+      if (m.events.length > 60) {
+        const more = document.createElement('div');
+        more.className = 'chat-more';
+        more.textContent = tr('chatMore', { n: m.events.length - 60 });
+        bub.appendChild(more);
+      }
+    }
     for (const h of m.lib ?? []) {
       const b = document.createElement('button');
       b.className = 'chat-lib';
@@ -7133,7 +7303,7 @@ document.getElementById('chat-view')?.addEventListener('click', e => {
   const ex = e.target.closest('.asst-example');
   if (ex && ex.dataset.chatex) { chatSend(ex.dataset.chatex); return; }
   const row = e.target.closest('.asst-row');
-  if (row) switchModeAndNavigate('transit', Number(row.dataset.jd));
+  if (row) switchModeAndNavigate(row.dataset.mode || 'transit', Number(row.dataset.jd));
 });
 
 function findGridAspect(lon1, lon2, id1, id2, orbMode) {

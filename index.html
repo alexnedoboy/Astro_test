@@ -635,7 +635,7 @@ import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
          transitOrbFactor, computeTransitIngresses, computeProgressedLife,
          computeDirectionLife } from './js/timeline-calc.js?v=6';
-import { STRINGS } from './js/strings.js?v=14';
+import { STRINGS } from './js/strings.js?v=15';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -1228,6 +1228,10 @@ defineSettings([
     lsKey: 'labChartNav', lsKind: 'bool01',
     labelKey: 'labChartNav', descKey: 'labChartNavDesc',
     onChange: v => applyLabChartNav(v) },
+  { id: 'labRpAccordion', section: 'lab', type: 'toggle', default: false,
+    lsKey: 'labRpAccordion', lsKind: 'bool01',
+    labelKey: 'labRpAccordion', descKey: 'labRpAccordionDesc',
+    onChange: v => applyLabRpAccordion(v) },
 ]);
 
 // Пробный вид «навигация под картой»: хедер со вкладками прячется (только на
@@ -1309,6 +1313,7 @@ elementColorsMode   = getSetting('elementColors');
 showProgLunarPhases = getSetting('showProgLunarPhases');
 document.body.classList.toggle('privacy-mode', getSetting('privacyMode'));
 applyLabChartNav(getSetting('labChartNav'));
+document.body.classList.toggle('lab-rpacc', getSetting('labRpAccordion'));   // заголовки — при первом applyRightPanelTab
 
 initSettingsUI({
   tr,
@@ -4124,6 +4129,7 @@ function applyRightPanelTab() {
   if (rightPanelTab === 'aspflow') renderAspFlow();
   if (rightPanelTab === 'assistant') renderAssistant();
   if (rightPanelTab === 'chat') renderChat();
+  syncRpAccordion();
   const addBtn = document.getElementById('rp-add-btn');
   if (addBtn) addBtn.style.display =
     Object.keys(RP_WIDGETS).some(id => !rightPanelTabs.includes(id)) ? '' : 'none';
@@ -4154,6 +4160,102 @@ function toggleRpWidget(id) {
 document.getElementById('rp-tabs')?.addEventListener('click', e => {
   const btn = e.target.closest('.panel-tab');
   if (btn) setRightPanelTab(btn.dataset.rptab);
+});
+
+// ── Лаборатория: аккордеон вместо табов (настройка labRpAccordion) ──────────
+// Как стопка панелей After Effects в режиме «соло»: раскрыта одна секция и
+// забирает всю свободную высоту, остальные схлопнуты в заголовки со сводкой.
+// Состав и раскрытая секция — те же rightPanelTabs / rightPanelTab, поэтому
+// рендер виджетов и персист не меняются. Разметку виджетов не двигаем:
+// заголовки вставляются соседями внутри #right-info-content, порядок — CSS order.
+const RP_VIEW_EL = {
+  grades: 'info-table', aspects: 'aspect-grid', dignities: 'dignities-view',
+  dispositors: 'dispositors-view', aspflow: 'aspflow-view',
+  assistant: 'assistant-view', chat: 'chat-view',
+};
+const RP_ACC_H = 30;   // высота заголовка — шаг липких отступов (= --rp-acc-h в styles.css)
+var _rpAccAspSum = '';  // сводка сетки: пишет buildAspectGrid (знает режим и орбисы)
+
+function applyLabRpAccordion(v) {
+  document.body.classList.toggle('lab-rpacc', !!v);
+  syncRpAccordion();
+}
+
+// Однострочная сводка для схлопнутого заголовка
+function rpAccSummary(id) {
+  const d = natalData;
+  if (!d?.planets) return '';
+  const pl = filterNatalPlanets(d.planets);
+  const g = pid => PLANETS.find(p => p.id === pid)?.glyph ?? '';
+  const sg = lon => SIGNS[Math.floor(factNorm(lon) / 30)];
+  if (id === 'grades') {
+    const sun = pl.find(p => p.id === 0), moon = pl.find(p => p.id === 1);
+    return [sun && g(0) + sg(sun.longitude), moon && g(1) + sg(moon.longitude),
+            d.cusps && 'As' + sg(d.cusps[0])].filter(Boolean).join('  ');
+  }
+  if (id === 'aspects') return _rpAccAspSum;
+  const seven = pl.filter(p => p.id <= 6);
+  if (id === 'dignities') {
+    const sun = seven.find(p => p.id === 0);
+    const isDay = sun && d.cusps ? findHouse(sun.longitude, d.cusps) >= 7 : true;
+    const sc = seven.map(p => ({ id: p.id, s: computeDignities(p.id, p.longitude, isDay).score }))
+      .sort((a, b) => b.s - a.s);
+    if (!sc.length) return '';
+    const fmt = x => g(x.id) + (x.s > 0 ? '+' : x.s < 0 ? '−' : '') + Math.abs(x.s);
+    return `↑ ${fmt(sc[0])}  ↓ ${fmt(sc[sc.length - 1])}`;
+  }
+  if (id === 'dispositors') {
+    const ruler = new Map(seven.map(p => [p.id, DIG_SIGN_RULERS[Math.floor(factNorm(p.longitude) / 30)]]));
+    const fin = seven.filter(p => ruler.get(p.id) === p.id).map(p => g(p.id));
+    const mut = seven.filter(p => { const q = ruler.get(p.id); return q > p.id && ruler.get(q) === p.id; })
+      .map(p => g(p.id) + '↔' + g(ruler.get(p.id)));
+    return [fin.length ? tr('rpAccFinal') + ' ' + fin.join('') : '', ...mut].filter(Boolean).join('  ')
+      || tr('rpAccNoFinal');
+  }
+  return '';
+}
+
+function syncRpAccordion() {
+  const content = document.getElementById('right-info-content');
+  if (!content) return;
+  content.querySelectorAll('.rp-acc-head').forEach(h => h.remove());
+  for (const v of content.children) v.style.order = '';
+  if (!document.body.classList.contains('lab-rpacc')) return;
+  const n = rightPanelTabs.length;
+  const ai = rightPanelTabs.indexOf(rightPanelTab);
+  rightPanelTabs.forEach((id, i) => {
+    const view = document.getElementById(RP_VIEW_EL[id]);
+    if (!view) return;
+    const open = i === ai;
+    const h = document.createElement('button');
+    h.type = 'button';
+    h.className = 'rp-acc-head' + (open ? ' open' : '') + (i === ai + 1 ? ' first-after' : '') + (i === 0 ? ' first' : '');
+    h.dataset.rptab = id;
+    h.style.order = 2 * i;
+    // липкие: заголовки до раскрытой секции держатся сверху, после — снизу
+    if (i <= ai) h.style.top = i * RP_ACC_H + 'px';
+    else h.style.bottom = (n - 1 - i) * RP_ACC_H + 'px';
+    const chev = document.createElement('span');
+    chev.className = 'rp-acc-chev';
+    chev.textContent = open ? '▾' : '▸';
+    const title = document.createElement('span');
+    title.className = 'rp-acc-title';
+    title.textContent = tr(RP_WIDGETS[id].i18n);
+    h.append(chev, title);
+    if (!open) {
+      const sum = document.createElement('span');
+      sum.className = 'rp-acc-sum';
+      sum.textContent = rpAccSummary(id);
+      h.appendChild(sum);
+    }
+    content.insertBefore(h, view);
+    view.style.order = 2 * i + 1;
+  });
+}
+
+document.getElementById('right-info-content')?.addEventListener('click', e => {
+  const h = e.target.closest('.rp-acc-head');
+  if (h) setRightPanelTab(h.dataset.rptab);
 });
 
 // Пресет хорара: предзагружены все виджеты, активны «События» (WORKSPACE_CONCEPT §7)
@@ -7331,6 +7433,7 @@ function buildAspectGrid(natalPlanets, secondPlanets = null, orbMode = 'natal') 
   const isNatal = !secondPlanets;
   const rows = isNatal ? natalPlanets.slice(1) : secondPlanets;
   const cols = natalPlanets;
+  let found = 0, tight = null;   // сводка для заголовка секции аккордеона
 
   let html = '<table id="aspect-table"><thead><tr><th></th>';
   cols.forEach(p => { html += `<th class="ag-hdr">${p.hamburgGlyph}</th>`; });
@@ -7344,6 +7447,11 @@ function buildAspectGrid(natalPlanets, secondPlanets = null, orbMode = 'natal') 
       } else {
         const m = findGridAspect(rowPlanet.longitude, colPlanet.longitude, rowPlanet.id, colPlanet.id, orbMode);
         if (m) {
+          const nodes = Math.abs(rowPlanet.id) === 10 && Math.abs(colPlanet.id) === 10;   // ☊☍☋ всегда точная
+          if (!nodes) {
+            found++;
+            if (!tight || m.orb < tight.m.orb) tight = { a: rowPlanet, b: colPlanet, m };
+          }
           html += `<td style="color:${m.asp.color}">` +
             `<span class="ag-sym">${m.asp.symbol}</span>` +
             `<span class="ag-orb">${m.orb.toFixed(1)}°</span></td>`;
@@ -7357,6 +7465,9 @@ function buildAspectGrid(natalPlanets, secondPlanets = null, orbMode = 'natal') 
 
   html += '</tbody></table>';
   container.innerHTML = html;
+  _rpAccAspSum = found
+    ? `${found} · ${tight.a.glyph}${tight.m.asp.symbol}${tight.b.glyph} ${factOrb(tight.m.orb)}` : '';
+  syncRpAccordion();
 }
 
 // ── Date navigator helpers ────────────────────────────────────────────────────

@@ -1349,6 +1349,53 @@
   #right-info-content.rp-dignities #dignities-view { display: block; }
   #right-info-content.rp-dispositors #dispositors-view { display: block; }
   #right-info-content.rp-aspflow #aspflow-view { display: block; }
+  /* ── Лаборатория: аккордеон вместо табов (labRpAccordion, body.lab-rpacc).
+     Раскрыта одна секция (соло, как стопка панелей AE): видимость виджетов — те же
+     rp-* классы выше, заголовки-соседи липнут сверху/снизу (top/bottom из JS),
+     первый заголовок после раскрытой секции прижимает хвост стопки к низу. ── */
+  .rp-acc-head { display: none; }
+  body.lab-rpacc #rp-tabs { visibility: hidden; }
+  body.lab-rpacc #v2-aspect-panel #right-info-content {
+    display: flex !important;
+    flex-direction: column;
+  }
+  body.lab-rpacc #right-info-content > * { flex: 0 0 auto; }
+  body.lab-rpacc #right-info-content.rp-chat #chat-view { flex: 1 1 0; min-height: 240px; height: auto; }
+  body.lab-rpacc .rp-acc-head {
+    --rp-acc-h: 30px;   /* = RP_ACC_H в index.html */
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: sticky;
+    z-index: 2;
+    height: var(--rp-acc-h);
+    width: 100%;
+    padding: 0 10px;
+    border: 0;
+    border-top: 1px solid var(--bd-light);
+    background: var(--bg-panel-info);
+    font: inherit;
+    font-size: 0.78em;
+    color: var(--tx-4);
+    text-align: left;
+    cursor: pointer;
+  }
+  body.lab-rpacc .rp-acc-head.first { border-top: 0; }
+  body.lab-rpacc .rp-acc-head:hover { background: var(--bg-hover); }
+  body.lab-rpacc .rp-acc-head.open { color: var(--tx); font-weight: 600; cursor: default; }
+  body.lab-rpacc .rp-acc-head.open:hover { background: var(--bg-panel-info); }
+  body.lab-rpacc .rp-acc-head.first-after { margin-top: auto; }
+  .rp-acc-chev { width: 10px; flex: 0 0 auto; color: var(--tx-6); }
+  .rp-acc-title { flex: 0 0 auto; }
+  .rp-acc-sum {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: right;
+    color: var(--tx-5);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   /* Виджет «Диспозиторы»: выбор набора планет / критерия / группировки + SVG-цепочки */
   #disp-controls {
     display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px 4px;

@@ -1385,6 +1385,48 @@
   body.lab-rpacc .rp-acc-head.open { color: var(--tx); font-weight: 600; cursor: default; }
   body.lab-rpacc .rp-acc-head.open:hover { background: var(--bg-panel-info); }
   body.lab-rpacc .rp-acc-head.first-after { margin-top: auto; }
+  /* ── Лаборатория: табы панели данных колонкой справа (labRpSideTabs, body.lab-rpside).
+     Шапка группы становится вертикальной полосой у внешнего края: подписи повёрнуты
+     (vertical-rl), табы делят высоту поровну — крупная цель под палец. ── */
+  body.lab-rpside #v2-aspect-panel {
+    --rp-side-w: var(--tab-h);   /* толщина полосы = высота обычной полосы табов */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--rp-side-w);
+    grid-template-rows: minmax(0, 1fr);
+    overflow: clip;   /* hidden прокручивается к спрятанным за край заметкам/библиотеке при фокусе таба */
+  }
+  body.lab-rpside #v2-aspect-panel > .panel-head {
+    grid-column: 2; grid-row: 1;
+    flex-direction: column;
+    justify-content: flex-start;
+    min-height: 0;
+  }
+  body.lab-rpside #v2-aspect-panel #right-info-content {
+    grid-column: 1; grid-row: 1;
+    /* полоса прокрутки теперь вплотную к табам — её дорожка читалась как тень */
+    scrollbar-width: thin;
+    scrollbar-color: var(--bd) transparent;
+  }
+  body.lab-rpside #v2-aspect-panel .panel-head-actions {
+    order: -1;
+    flex-direction: column;
+    padding: 5px 0;
+  }
+  body.lab-rpside #rp-tabs { flex-direction: column; min-height: 0; }
+  body.lab-rpside #rp-tabs .panel-tab {
+    writing-mode: vertical-rl;
+    flex: 1 1 0;
+    max-height: 220px;
+    min-height: 0;
+    padding: 10px 0;
+    border-radius: 0 6px 6px 0;
+  }
+  body.lab-rpside #rp-tabs .panel-tab:first-child { border-top-left-radius: 0; }
+  body.lab-rpside #rp-tabs .panel-tab:last-child { border-bottom-right-radius: var(--panel-radius); }
+  body.lab-rpside #rp-tabs .panel-tab:not(:first-child)::before {
+    left: 26%; top: -0.5px; width: 48%; height: 1px;
+  }
+  body.lab-rpside #rp-dropdown { top: 6px; right: calc(var(--rp-side-w) + 4px); }
   .rp-acc-chev { width: 10px; flex: 0 0 auto; color: var(--tx-6); }
   .rp-acc-title { flex: 0 0 auto; }
   .rp-acc-sum {

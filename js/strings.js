@@ -66,6 +66,8 @@ export const STRINGS = {
     navModeDate:'Дата', navModeTime:'Время',
     // Лаборатория: контроллер строкой под картой
     smLab:'Лаборатория',
+    labRpSideTabs:'Табы панели данных сбоку',
+    labRpSideTabsDesc:'Пробный вид: табы панели данных стоят вертикальной колонкой у правого края, как закладки в папке. Подписи повёрнуты, сами табы высокие — по ним легче попасть пальцем.',
     labRpAccordion:'Панель данных аккордеоном',
     labRpAccordionDesc:'Пробный вид: вместо табов — стопка секций. Раскрыта одна и занимает всю высоту, остальные свёрнуты в заголовки с краткой сводкой. Тап по заголовку — раскрыть.',
     rpAccFinal:'финальный', rpAccNoFinal:'нет финального',
@@ -253,6 +255,8 @@ export const STRINGS = {
     snapshotsTitle:'Snapshots', snapEmpty:'Crank the moment and press + to save', delete:'Delete',
     navModeDate:'Date', navModeTime:'Time',
     smLab:'Lab',
+    labRpSideTabs:'Data panel tabs on the side',
+    labRpSideTabsDesc:'Experimental view: the data panel tabs stand in a vertical column along the right edge, like folder dividers. Labels are rotated and the tabs are tall, so they are easy to hit with a finger.',
     labRpAccordion:'Data panel as accordion',
     labRpAccordionDesc:'Experimental view: a stack of sections instead of tabs. One is open and takes the full height, the rest collapse into headers with a one-line summary. Tap a header to open it.',
     rpAccFinal:'final', rpAccNoFinal:'no final',

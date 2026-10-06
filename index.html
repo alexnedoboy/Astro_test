@@ -635,7 +635,7 @@ import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
          transitOrbFactor, computeTransitIngresses, computeProgressedLife,
          computeDirectionLife } from './js/timeline-calc.js?v=6';
-import { STRINGS } from './js/strings.js?v=15';
+import { STRINGS } from './js/strings.js?v=16';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -1232,6 +1232,10 @@ defineSettings([
     lsKey: 'labRpAccordion', lsKind: 'bool01',
     labelKey: 'labRpAccordion', descKey: 'labRpAccordionDesc',
     onChange: v => applyLabRpAccordion(v) },
+  { id: 'labRpSideTabs', section: 'lab', type: 'toggle', default: false,
+    lsKey: 'labRpSideTabs', lsKind: 'bool01',
+    labelKey: 'labRpSideTabs', descKey: 'labRpSideTabsDesc',
+    onChange: v => document.body.classList.toggle('lab-rpside', !!v) },
 ]);
 
 // Пробный вид «навигация под картой»: хедер со вкладками прячется (только на
@@ -1313,7 +1317,8 @@ elementColorsMode   = getSetting('elementColors');
 showProgLunarPhases = getSetting('showProgLunarPhases');
 document.body.classList.toggle('privacy-mode', getSetting('privacyMode'));
 applyLabChartNav(getSetting('labChartNav'));
-document.body.classList.toggle('lab-rpacc', getSetting('labRpAccordion'));   // заголовки — при первом applyRightPanelTab
+document.body.classList.toggle('lab-rpacc', getSetting('labRpAccordion'));
+document.body.classList.toggle('lab-rpside', getSetting('labRpSideTabs'));   // табы панели данных — колонкой справа   // заголовки — при первом applyRightPanelTab
 
 initSettingsUI({
   tr,

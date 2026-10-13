@@ -1219,14 +1219,15 @@
   }
   #v2-chart-expand-btn:hover { opacity: 1; background: var(--bg-hover); color: var(--tx-2); }
   /* Соляр: переключатель вида + момент возврата (левый верхний угол области карты) */
-  #v2-solar-ctl {
+  #v2-solar-ctl, #v2-prog-ctl {
     display: none;
     position: absolute; top: calc(var(--tab-h) + 7px); left: 8px; z-index: 10;
   }
-  #layout-v2.mode-solar #v2-solar-ctl { display: block; }
+  #layout-v2.mode-solar #v2-solar-ctl,
+  #layout-v2.mode-progressed #v2-prog-ctl { display: block; }
   /* Иконки-кнопки в идиоме .panel-head-btn: ○ соляр отдельно, ◎ соляр с наталом */
-  #v2-solar-seg { display: flex; gap: 2px; }
-  .v2-solar-btn {
+  #v2-solar-seg, #v2-prog-seg { display: flex; gap: 2px; }
+  .v2-solar-btn, .v2-prog-btn {
     width: 22px; height: 22px;
     display: flex; align-items: center; justify-content: center;
     background: none; border: none; border-radius: 5px;
@@ -1234,9 +1235,9 @@
     color: var(--tx-6); cursor: pointer;
     transition: color 0.15s, background 0.15s;
   }
-  .v2-solar-btn.active { color: var(--tx-2); background: var(--bg-active); }
-  .v2-solar-btn:hover:not(.active) { color: var(--tx-2); background: var(--bg-input); }
-  #v2-solar-moment {
+  .v2-solar-btn.active, .v2-prog-btn.active { color: var(--tx-2); background: var(--bg-active); }
+  .v2-solar-btn:hover:not(.active), .v2-prog-btn:hover:not(.active) { color: var(--tx-2); background: var(--bg-input); }
+  #v2-solar-moment, #v2-prog-moment {
     margin-top: 3px; padding-left: 3px;
     font-size: 0.66em; color: var(--tx-7); white-space: nowrap;
   }

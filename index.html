@@ -413,6 +413,14 @@
         </div>
         <div id="v2-solar-moment"></div>
       </div>
+      <!-- Прогрессии: вид «отдельно / с наталом» + прогрессивный момент -->
+      <div id="v2-prog-ctl">
+        <div id="v2-prog-seg">
+          <button class="v2-prog-btn" data-progview="single" data-i18n-title="progViewSingle" title="Прогрессии отдельно">○</button>
+          <button class="v2-prog-btn active" data-progview="overlay" data-i18n-title="progViewOverlay" title="Прогрессии с наталом">◎</button>
+        </div>
+        <div id="v2-prog-moment"></div>
+      </div>
       <button id="v2-chart-expand-btn" title="Развернуть карту">⤢</button>
       <div id="chart-block"></div>
       <!-- Лаборатория (настройка labChartNav): контроллер времени строкой под
@@ -627,7 +635,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // Локальные модули версионируются (?v=N): index.html всегда свежий (SW network-first),
 // а модули кэшируются браузером/CDN — при изменении СОСТАВА ЭКСПОРТОВ бампните версию,
 // иначе свежий index.html слинкуется со старым кэшем модуля и приложение умрёт.
-import './js/state.js?v=4';   // леджер разделяемого состояния — до всех модулей
+import './js/state.js?v=5';   // леджер разделяемого состояния — до всех модулей
 import { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff }
   from './js/astro-core.js?v=2';
 import { computeTransits, computeFastTransits, computeReturnPeriods,
@@ -635,7 +643,7 @@ import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
          transitOrbFactor, computeTransitIngresses, computeProgressedLife,
          computeDirectionLife } from './js/timeline-calc.js?v=6';
-import { STRINGS } from './js/strings.js?v=16';
+import { STRINGS } from './js/strings.js?v=17';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -3030,6 +3038,7 @@ function captureState() {
       chartModeTabs: [...chartModeTabs],
       synView,   // вид карты синастрии
       solarView, // вид соляра: отдельно / с наталом
+      progView,  // вид прогрессий: отдельно / с наталом
       natEvRange, natEvMoon, natEvMars, // виджет «События»: диапазон и отключаемые планеты
       asstQuery, asstRange,             // виджет «Ассистент»: запрос и окно поиска
     },
@@ -3059,6 +3068,7 @@ function applyState(s) {
   chartModeTabs    = sanitizeChartModeTabs(u.chartModeTabs);
   synView          = u.synView || 'both';
   solarView        = u.solarView || 'single';
+  progView         = u.progView || 'overlay';
   natEvRange       = u.natEvRange || '1M';
   natEvMoon        = u.natEvMoon !== false;
   natEvMars        = u.natEvMars !== false;
@@ -3854,6 +3864,7 @@ function rebuildTabFromFields(t) {
   rightPanelTab = v.rightPanelTab || 'grades';
   chartModeTabs = sanitizeChartModeTabs(v.chartModeTabs);
   solarView = v.solarView || 'single';
+  progView  = v.progView || 'overlay';
   natEvRange = v.natEvRange || '1M';
   natEvMoon  = v.natEvMoon !== false;
   natEvMars  = v.natEvMars !== false;
@@ -3899,6 +3910,7 @@ function stateToView(s) {
     asstQuery: u.asstQuery,
     asstRange: u.asstRange,
     solarView: u.solarView,
+    progView: u.progView,
   };
 }
 
@@ -7767,9 +7779,29 @@ function updateSolarMomentLabel() {
 }
 
 function syncSolarCtl() {
-  document.getElementById('layout-v2')?.classList.toggle('mode-solar', currentMode === 'solar');
+  const lay = document.getElementById('layout-v2');
+  lay?.classList.toggle('mode-solar', currentMode === 'solar');
+  lay?.classList.toggle('mode-progressed', currentMode === 'progressed');
   document.querySelectorAll('.v2-solar-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.solarview === solarView));
+  document.querySelectorAll('.v2-prog-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.progview === progView));
+}
+
+// Подпись прогрессивного момента (эфемеридная дата, на которую взяты планеты)
+function updateProgMomentLabel(pJD) {
+  const box = document.getElementById('v2-prog-moment');
+  if (!box) return;
+  const p = splitNavDateTime(pJD, natalData?.utcOff ?? 0);
+  box.textContent = `${p.date} · ${p.time}`;
+}
+
+function switchProgView(view) {
+  if (!['single', 'overlay'].includes(view) || view === progView) return;
+  progView = view;
+  syncSolarCtl();
+  renderProgressedBiwheel(currentTransitJD);
+  if (activeTab >= 0 && tabs[activeTab]) { tabs[activeTab].st = captureState(); persistTabs(); }
 }
 
 function switchSolarView(view) {
@@ -8169,6 +8201,7 @@ function drawProgLunarPhaseMarkers(g, phases) {
   }
 }
 
+// Точка входа режима прогрессий: вид по progView — с наталом (биколесо) или отдельно
 function renderProgressedBiwheel(jd = null) {
   const { birthJD, planets: natal, cusps, asc } = natalData;
   // jd = real-world date for which to compute progressions (null = today)
@@ -8176,12 +8209,28 @@ function renderProgressedBiwheel(jd = null) {
   // Secondary progressions: 1 solar day after birth = 1 year of life
   const ageInYears  = (jdReal - birthJD) / 365.25;
   const progressedJD = birthJD + ageInYears;
+  updateProgMomentLabel(progressedJD);
   const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
   const progressed = PLANETS.map(p => {
     const r = safeCalcUt(progressedJD, p.id, flags);   // Хирон < 1800 недоступен — пропуск
     if (!r) return null;
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   }).filter(Boolean);
+  if (progView === 'single') {
+    // Прогрессивная карта сама по себе: дома на прогрессивный момент, место рождения
+    const hRes  = swe.houses_ex(progressedJD, flags, natalData.lat, natalData.lon, houseSysFor(tabs[activeTab]));
+    const pCusps = Array.from(hRes.cusps).slice(1, 13);
+    const ascmc = Array.from(hRes.ascmc);
+    const pAsc  = ((ascmc[0] % 360) + 360) % 360;
+    const pMc   = ((ascmc[1] % 360) + 360) % 360;
+    progressed.forEach(p => { p.house = findHouse(p.longitude, pCusps); });
+    renderChart(progressed, pCusps, pAsc, pMc);
+    buildInfoTable(progressed, pCusps);
+    setInfoTableMode('natal');
+    buildAspectGrid(addSouthNode(progressed, pCusps));
+    currentTransitJD = jd;
+    return;
+  }
   const lunarPhases = showProgLunarPhases ? calcProgressedLunarPhases(birthJD, jdReal) : null;
   renderProgressedBiwheelChart(natal, progressed, cusps, asc, lunarPhases);
   buildInfoTable(natal, cusps);
@@ -10341,6 +10390,10 @@ document.querySelectorAll('.v2-navmode-btn').forEach(btn => {
 // Соляр: вид «отдельно» ↔ «с наталом»
 document.querySelectorAll('.v2-solar-btn').forEach(btn => {
   btn.addEventListener('click', () => switchSolarView(btn.dataset.solarview));
+});
+// Прогрессии: вид «отдельно» ↔ «с наталом»
+document.querySelectorAll('.v2-prog-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchProgView(btn.dataset.progview));
 });
 
 document.getElementById('v2-edit-btn').addEventListener('click', enterEditMode);

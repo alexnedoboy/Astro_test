@@ -385,6 +385,17 @@
           <button class="v2-nav-btn" data-nav="prev-day">◀</button>
           <button class="v2-nav-btn" data-nav="next-day">▶</button>
         </div>
+        <!-- Проигрыватель: автоматическое движение момента (пока только прогрессии) -->
+        <div class="v2-nav-row play-ctl">
+          <button class="v2-nav-btn play-btn" type="button" data-i18n-title="playStart" title="Воспроизвести">▶&#xFE0E;</button>
+          <select class="play-speed" data-i18n-title="playSpeed" title="Скорость">
+            <option value="1M" data-i18n="playSpeed1M">1 мес/с</option>
+            <option value="3M" data-i18n="playSpeed3M">3 мес/с</option>
+            <option value="1Y" data-i18n="playSpeed1Y">1 год/с</option>
+            <option value="2Y" data-i18n="playSpeed2Y">2 года/с</option>
+            <option value="5Y" data-i18n="playSpeed5Y">5 лет/с</option>
+          </select>
+        </div>
       </div>
       <div id="v2-snap-panel">
         <div id="v2-snap-head">
@@ -428,6 +439,16 @@
       <div id="v2-chart-nav">
         <div class="cn-side cn-left">
           <button class="cn-lock" id="cn-lock" type="button">🔒&#xFE0E;</button>
+          <div class="play-ctl cn-play">
+            <button class="cn-btn play-btn" type="button" data-i18n-title="playStart" title="Воспроизвести">▶&#xFE0E;</button>
+            <select class="play-speed" data-i18n-title="playSpeed" title="Скорость">
+              <option value="1M" data-i18n="playSpeedS1M">1 мес</option>
+            <option value="3M" data-i18n="playSpeedS3M">3 мес</option>
+            <option value="1Y" data-i18n="playSpeedS1Y">1 год</option>
+            <option value="2Y" data-i18n="playSpeedS2Y">2 года</option>
+            <option value="5Y" data-i18n="playSpeedS5Y">5 лет</option>
+            </select>
+          </div>
         </div>
         <!-- группы «назад» и «вперёд» разделены: на узком экране строка
              раскладывается в два ряда (дата сверху, стрелки под ней) -->
@@ -643,7 +664,7 @@ import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
          transitOrbFactor, computeTransitIngresses, computeProgressedLife,
          computeDirectionLife } from './js/timeline-calc.js?v=6';
-import { STRINGS } from './js/strings.js?v=17';
+import { STRINGS } from './js/strings.js?v=19';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -3182,6 +3203,7 @@ function renderTabBar() {
 function showTab(i) {
   const t = tabs[i];
   if (!t) return;
+  stopPlay();
   activeTab = i;
   dashboardOpen = false;
   const kind = tabKind(t);
@@ -3273,6 +3295,7 @@ function openNewTabFromForm(chartId, caseType = 'natal', outcome = null, snapsho
 
 // Показать дашборд, не закрывая вкладки
 function goDashboard(push = true) {
+  stopPlay();
   if (!tabs.length) { fullExitToHome(push); return; }
   if (!dashboardOpen) snapshotActiveTab();
   dashboardOpen = true;
@@ -7534,6 +7557,7 @@ function applyNatalJD(jd) {
 }
 
 function applyNavigatedJD(jd, unit = null) {
+  stopPlay();
   currentTransitJD = jd;
   if (currentMode === 'transit') renderBiwheelAt(currentTransitJD);
   else if (currentMode === 'direction') renderDirectionBiwheel(currentTransitJD);
@@ -8241,6 +8265,7 @@ function renderProgressedBiwheel(jd = null) {
 }
 
 function switchToMode(mode) {
+  stopPlay();
   if (!natalData || !swe) return;
   currentMode = mode;
   syncV2ModeButtons();
@@ -9916,9 +9941,83 @@ document.getElementById('v2-control-panel').addEventListener('click', e => {
   if (navBtn) runNavAction(navBtn.dataset.nav);
 });
 
+// ── Проигрыватель: автоматическое движение момента ─────────────────────────────
+// Пока только прогрессии. Скорость — реальных дней (= возраста) в секунду. Кадр карты —
+// не чаще PLAY_FRAME_MS; курсор таймлайна — реже (PLAY_TL_MS) и только внутри уже
+// построенного окна: перестройка таймлайна посреди воспроизведения дорогая, она
+// выполняется один раз — на остановке. Состояние воспроизведения — UI-приватное.
+const PLAY_SPEEDS = { '1M': 365.25 / 12, '3M': 365.25 / 4, '1Y': 365.25, '2Y': 730.5, '5Y': 1826.25 };
+const PLAY_FRAME_MS = 60, PLAY_TL_MS = 400;
+let _play = null;   // { raf, last, lastTl } во время воспроизведения
+let _playSpeed = (() => { try { return localStorage.getItem('playSpeed'); } catch { return null; } })();
+if (!PLAY_SPEEDS[_playSpeed]) _playSpeed = '1Y';
+
+function playSupported() { return currentMode === 'progressed' && !!natalData && !!swe; }
+
+function startPlay() {
+  if (_play || !playSupported()) return;
+  if (currentTransitJD == null) currentTransitJD = computeJDNow();
+  _play = { raf: 0, last: performance.now(), lastTl: 0 };
+  syncPlayCtl();
+  const tick = now => {
+    if (!_play) return;
+    _play.raf = requestAnimationFrame(tick);
+    const dt = now - _play.last;
+    if (dt < PLAY_FRAME_MS) return;
+    _play.last = now;
+    currentTransitJD += PLAY_SPEEDS[_playSpeed] * dt / 1000;
+    renderProgressedBiwheel(currentTransitJD);
+    syncV2DateLabel();
+    if (now - _play.lastTl >= PLAY_TL_MS && cachedTimeline) {
+      _play.lastTl = now;
+      const { jdStart, jdEnd } = cachedTimeline;
+      if (currentTransitJD >= jdStart && currentTransitJD <= jdEnd)
+        renderTimeline({ ...cachedTimeline, jdCursor: currentTransitJD });
+    }
+  };
+  _play.raf = requestAnimationFrame(tick);
+}
+
+// Остановка: момент остаётся там, где застал; таймлайн и «События» догоняют его
+function stopPlay() {
+  if (!_play) return;
+  cancelAnimationFrame(_play.raf);
+  _play = null;
+  syncPlayCtl();
+  if (!natalData) return;
+  syncTimelineCursor();
+  refreshNatalEvents();
+  if (activeTab >= 0 && tabs[activeTab] && !tabs[activeTab].kind) tabs[activeTab].st = captureState();
+}
+
+function syncPlayCtl() {
+  const playing = !!_play;
+  document.getElementById('layout-v2')?.classList.toggle('playing', playing);
+  document.querySelectorAll('.play-btn').forEach(b => {
+    b.textContent = playing ? '❚❚' : '▶\uFE0E';
+    b.title = tr(playing ? 'playPause' : 'playStart');
+    b.classList.toggle('active', playing);
+  });
+  document.querySelectorAll('.play-speed').forEach(sel => { sel.value = _playSpeed; });
+}
+
+document.querySelectorAll('.play-btn').forEach(b =>
+  b.addEventListener('click', e => { e.stopPropagation(); _play ? stopPlay() : startPlay(); }));
+document.querySelectorAll('.play-speed').forEach(sel => {
+  sel.addEventListener('click', e => e.stopPropagation());
+  sel.addEventListener('change', () => {
+    if (!PLAY_SPEEDS[sel.value]) return;
+    _playSpeed = sel.value;
+    try { localStorage.setItem('playSpeed', _playSpeed); } catch {}
+    syncPlayCtl();   // скорость меняется на ходу, без остановки
+  });
+});
+syncPlayCtl();
+
 // Шаг контроллера времени. Одна реализация на два контроллера: левую колонну
 // и пробную строку под картой (#v2-chart-nav).
 function runNavAction(nav) {
+    stopPlay();
     if (nav === 'today') {
       if (currentCaseType === 'election') {
         applyNatalJD(computeJDNow());   // элекция: ↺ = вернуться к «сейчас»

@@ -2153,6 +2153,23 @@
   .v2-nav-row .v2-nav-btn:hover::before,
   .v2-nav-row .v2-nav-btn:hover + .v2-nav-btn::before { background: transparent; }
 
+  /* Проигрыватель (▶/❚❚ + скорость): пока только в прогрессиях */
+  #layout-v2:not(.mode-progressed) .play-ctl { display: none !important; }
+  .v2-nav-row.play-ctl { align-items: center; }
+  .v2-nav-row.play-ctl .play-btn { flex: 0 0 34px; }
+  .play-btn.active { color: var(--accent); }
+  .play-speed {
+    flex: 1; min-width: 0; height: 26px;
+    background: none; border: none; border-radius: 6px;
+    font: inherit; font-size: 0.72em; color: var(--tx-4);
+    text-align: center; text-align-last: center; cursor: pointer;
+    padding: 0 4px; outline: none;
+  }
+  .play-speed:hover { background: var(--seg-sel-bg); color: var(--tx-2); }
+  .v2-nav-row.play-ctl .play-speed { border-left: 1px solid var(--seg-divider); border-radius: 0 6px 6px 0; }
+  #v2-chart-nav .cn-play { display: flex; align-items: center; gap: 2px; }
+  #v2-chart-nav .cn-play .play-speed { flex: 0 0 auto; width: auto; height: 28px; padding: 0 2px; }
+
   /* строка с датой: крупная дата + «сейчас» справа */
   /* строка даты: дата занимает всё место, ↺ прижата справа */
   #v2-nav-date-row { display: flex; align-items: center; gap: 2px; }

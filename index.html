@@ -658,13 +658,13 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // иначе свежий index.html слинкуется со старым кэшем модуля и приложение умрёт.
 import './js/state.js?v=5';   // леджер разделяемого состояния — до всех модулей
 import { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff }
-  from './js/astro-core.js?v=2';
+  from './js/astro-core.js?v=3';
 import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
          transitOrbFactor, computeTransitIngresses, computeProgressedLife,
-         computeDirectionLife } from './js/timeline-calc.js?v=6';
-import { STRINGS } from './js/strings.js?v=19';
+         computeDirectionLife } from './js/timeline-calc.js?v=7';
+import { STRINGS } from './js/strings.js?v=20';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -672,7 +672,7 @@ import { initCommands, defineCommands, listCommands, runCommand,
          commandSchemas } from './js/commands.js?v=1';
 import { AI_PROVIDERS, askModel, aiConfigured, getAiKey, setAiKey, listModels,
          getAiProvider, setAiProvider, getAiModel, setAiModel } from './js/ai.js?v=4';
-import { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js?v=3';
+import { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, FORTUNE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js?v=4';
 
 // ┌─────────────────────────────────────────────────────────────────────────────┐
 // │  TODO: вставьте ваши данные из Supabase → Project Settings → API           │
@@ -696,7 +696,7 @@ function tr(key, vars) {
 const PLANET_KEYS = {
   0:'pl_sun',1:'pl_moon',2:'pl_mercury',3:'pl_venus',4:'pl_mars',
   5:'pl_jupiter',6:'pl_saturn',7:'pl_uranus',8:'pl_neptune',9:'pl_pluto',
-  10:'pl_nnode',12:'pl_lilith',15:'pl_chiron',[-10]:'pl_snode',
+  10:'pl_nnode',12:'pl_lilith',15:'pl_chiron',[-10]:'pl_snode',[FORTUNE_ID]:'pl_fortune',
 };
 
 function applyLang() {
@@ -723,8 +723,9 @@ function applyLang() {
   if (notesCache) renderNotesList();
   // Re-render if chart is loaded
   if (natalData) {
-    buildInfoTable(natalData.planets, natalData.cusps);
-    buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps));
+    const pl = currentMode === 'natal' ? addFortune(natalData.planets, natalData.cusps, natalData.asc) : natalData.planets;
+    buildInfoTable(pl, natalData.cusps);
+    buildAspectGrid(addSouthNode(pl, natalData.cusps));
     if (cachedTimeline) {
       const savedCenter = cachedTimeline.center;
       cachedTimeline = null; fastCache = {};
@@ -1101,7 +1102,8 @@ defineSettings([
       const wrap = document.createElement('div');
       const grid = document.createElement('div');
       grid.className = 'pf-grid';
-      PLANETS.forEach(p => {
+      // Парс Фортуны — псевдо-точка, не в PLANETS, но включается тем же фильтром
+      [...PLANETS, { id: FORTUNE_ID, glyph: '⊗\uFE0E', name: tr('pl_fortune') }].forEach(p => {
         const label = document.createElement('label');
         label.className = 'pf-item';
         const cb = document.createElement('input');
@@ -1362,7 +1364,8 @@ function setShowProgLunarPhases(v)  { setSetting('showProgLunarPhases', v); }
 function reRenderCurrentChart() {
   if (!natalData) return;
   if (currentMode === 'natal') {
-    renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
+    const pl = addFortune(natalData.planets, natalData.cusps, natalData.asc);
+    renderChart(pl, natalData.cusps, natalData.asc, natalData.mc);
   } else {
     applyNavigatedJD(currentTransitJD);
   }
@@ -1427,9 +1430,10 @@ document.getElementById('settings-dropdown').addEventListener('click', e => {
 // Полная перерисовка натала (фильтр планет живёт в настройках, раздел «Карта»)
 function rerenderNatal() {
   if (!natalData) return;
-  renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
-  buildInfoTable(natalData.planets, natalData.cusps);
-  buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps));
+  const pl = addFortune(natalData.planets, natalData.cusps, natalData.asc);
+  renderChart(pl, natalData.cusps, natalData.asc, natalData.mc);
+  buildInfoTable(pl, natalData.cusps);
+  buildAspectGrid(addSouthNode(pl, natalData.cusps));
 }
 
 // ── Charts panel ──────────────────────────────────────────────────────────────
@@ -2762,11 +2766,21 @@ function renderMarkdown(src) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
-const ALL_NATAL_IDS = PLANETS.map(p => p.id);
+const ALL_NATAL_IDS = [...PLANETS.map(p => p.id), FORTUNE_ID];
 function loadNatalFilter() {
   try {
     const saved = localStorage.getItem('natalPlanetFilter');
-    if (saved) return new Set(JSON.parse(saved));
+    if (saved) {
+      const set = new Set(JSON.parse(saved));
+      // Фильтры, сохранённые до появления Фортуны, её не знают — включаем один раз
+      // (по умолчанию она видна); дальше выбор пользователя хранится как обычно.
+      if (!localStorage.getItem('natalFilterFortune')) {
+        set.add(FORTUNE_ID);
+        localStorage.setItem('natalFilterFortune', '1');
+        localStorage.setItem('natalPlanetFilter', JSON.stringify([...set]));
+      }
+      return set;
+    }
   } catch {}
   return new Set(ALL_NATAL_IDS);
 }
@@ -4753,9 +4767,10 @@ function computeAndRenderNatal() {
     applyChartModeTabs();
     applyLayout2Classes();
 
-    renderChart(planets, cusps, asc, mc);
-    buildInfoTable(planets, cusps);
-    buildAspectGrid(addSouthNode(planets, cusps));
+    const plF = addFortune(planets, cusps, asc);
+    renderChart(plF, cusps, asc, mc);
+    buildInfoTable(plF, cusps);
+    buildAspectGrid(addSouthNode(plF, cusps));
     currentMode = 'natal';
     syncV2ModeButtons();
     syncSolarCtl();
@@ -4816,6 +4831,26 @@ function addSouthNode(planets, cusps = null) {
   };
   return [...planets, sn];
 }
+
+// Парс Фортуны — только дневная формула для любой карты: As + Луна − Солнце
+// (ночная инверсия намеренно не применяется). Псевдо-точка, как Южный узел: добавляется
+// при отрисовке натала и в natalData не пишется. Без домов (космограмма) As нет — точки нет.
+function addFortune(planets, cusps, asc) {
+  const sun = planets.find(p => p.id === 0), moon = planets.find(p => p.id === 1);
+  if (!cusps || asc == null || !sun || !moon) return planets;
+  const lon = (((asc + moon.longitude - sun.longitude) % 360) + 360) % 360;
+  return [...planets, {
+    id: FORTUNE_ID,
+    name: tr('pl_fortune'),
+    glyph: '⊗\uFE0E', hamburgGlyph: '<',   // в HamburgSymbols Фортуна сидит на «<»
+    longitude: lon,
+    retrograde: false,
+    house: findHouse(lon, cusps),
+  }];
+}
+
+// Глиф Hamburg для вставки через innerHTML («<» у Фортуны иначе ломает разметку)
+const hgHtml = s => String(s).replace(/</g, '&lt;');
 
 // ── Format helpers ────────────────────────────────────────────────────────────
 
@@ -5317,7 +5352,7 @@ function buildInfoTable(planets, cusps) {
     if (pName) { tr.dataset.libSubject = pName; tr.dataset.libSign = si; }
     // Глиф — один раз слева: он общий для обеих карт (см. .col-second в styles.css)
     tr.innerHTML =
-      `<td class="info-glyph">${p.hamburgGlyph}</td>` +
+      `<td class="info-glyph">${hgHtml(p.hamburgGlyph)}</td>` +
       `<td class="info-pos">${fmtDeg(p.longitude)}${retro} ${SIGNS[si]}</td>` +
       `<td class="info-speed info-speed-deg">${p.speed != null ? fmtSpeedDeg(p.speed) : ''}</td>` +
       `<td class="info-speed info-speed-pct">${p.speed != null ? fmtSpeed(p.speed, p.id) : ''}</td>` +
@@ -6754,7 +6789,7 @@ defineCommands([
     label: 'Показать планеты',
     desc: 'Оставить на карте только перечисленные планеты (id по списку PLANETS).',
     needsChart: true, mutates: true,
-    args: { ids: { type: 'int[]', required: true, desc: 'id планет; пустой список вернёт все' } },
+    args: { ids: { type: 'int[]', required: true, desc: 'id планет; 99 — Парс Фортуны (только натал); пустой список вернёт все' } },
     run: a => {
       natalPlanetFilter = new Set(a.ids.length ? a.ids : ALL_NATAL_IDS);
       saveNatalFilter();
@@ -7476,11 +7511,11 @@ function buildAspectGrid(natalPlanets, secondPlanets = null, orbMode = 'natal') 
   let found = 0, tight = null;   // сводка для заголовка секции аккордеона
 
   let html = '<table id="aspect-table"><thead><tr><th></th>';
-  cols.forEach(p => { html += `<th class="ag-hdr">${p.hamburgGlyph}</th>`; });
+  cols.forEach(p => { html += `<th class="ag-hdr">${hgHtml(p.hamburgGlyph)}</th>`; });
   html += '</tr></thead><tbody>';
 
   rows.forEach((rowPlanet, ri) => {
-    html += `<tr><th class="ag-hdr">${rowPlanet.hamburgGlyph}</th>`;
+    html += `<tr><th class="ag-hdr">${hgHtml(rowPlanet.hamburgGlyph)}</th>`;
     cols.forEach((colPlanet, ci) => {
       if (isNatal && ci >= ri + 1) {
         html += `<td class="${ci === ri + 1 ? 'ag-self' : 'ag-empty'}"></td>`;
@@ -7544,9 +7579,10 @@ function applyNatalJD(jd) {
   const fmtT = String(nd.getUTCHours()).padStart(2, '0') + ':' +
                String(nd.getUTCMinutes()).padStart(2, '0');
   document.getElementById('v2-chart-date').textContent = fmtD + ' · ' + fmtT;
-  renderChart(planets, cusps, asc, mc);
-  buildInfoTable(planets, cusps);
-  buildAspectGrid(addSouthNode(planets, cusps));
+  const plF = addFortune(planets, cusps, asc);
+  renderChart(plF, cusps, asc, mc);
+  buildInfoTable(plF, cusps);
+  buildAspectGrid(addSouthNode(plF, cusps));
   syncV2DateLabel();
   refreshNatalEvents();   // натал сдвинулся — цели транзитов изменились
   // Элекция: карта — это T, поэтому курсор таймлайна неба следует за моментом.
@@ -8271,10 +8307,11 @@ function switchToMode(mode) {
   syncV2ModeButtons();
   syncV2DateLabel();
   if (mode === 'natal') {
-    renderChart(natalData.planets, natalData.cusps, natalData.asc, natalData.mc);
-    buildInfoTable(natalData.planets, natalData.cusps);   // соляр/синастрия могли оставить чужую карту
+    const pl = addFortune(natalData.planets, natalData.cusps, natalData.asc);
+    renderChart(pl, natalData.cusps, natalData.asc, natalData.mc);
+    buildInfoTable(pl, natalData.cusps);   // соляр/синастрия могли оставить чужую карту
     setInfoTableMode('natal');
-    buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps));
+    buildAspectGrid(addSouthNode(pl, natalData.cusps));
   } else if (mode === 'transit') {
     if (currentTransitJD) renderBiwheelAt(currentTransitJD);
     else showTransitNow();
@@ -10724,12 +10761,12 @@ function buildSkyAspectGrid(planets) {
   // Lower-triangle table: rows[1..n-1], cols[0..n-2]
   let html = '<table><thead><tr><th></th>';
   for (let ci = 0; ci < n - 1; ci++) {
-    html += `<th class="ag-hdr">${planets[ci].hamburgGlyph}</th>`;
+    html += `<th class="ag-hdr">${hgHtml(planets[ci].hamburgGlyph)}</th>`;
   }
   html += '</tr></thead><tbody>';
   for (let ri = 1; ri < n; ri++) {
     const rp = planets[ri];
-    html += `<tr><th class="ag-hdr">${rp.hamburgGlyph}</th>`;
+    html += `<tr><th class="ag-hdr">${hgHtml(rp.hamburgGlyph)}</th>`;
     for (let ci = 0; ci < n - 1; ci++) {
       if (ci >= ri) {
         html += `<td class="${ci === ri ? 'ag-self' : 'ag-empty'}"></td>`;

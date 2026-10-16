@@ -1104,7 +1104,7 @@ defineSettings([
       grid.className = 'pf-grid';
       // Парсы Фортуны и Духа — псевдо-точки, не в PLANETS, но включаются тем же фильтром
       [...PLANETS, { id: FORTUNE_ID, glyph: '⊗\uFE0E', name: tr('pl_fortune') },
-                   { id: SPIRIT_ID,  glyph: '⊕\uFE0E', name: tr('pl_spirit') }].forEach(p => {
+                   { id: SPIRIT_ID,  glyph: '✚\uFE0E', name: tr('pl_spirit') }].forEach(p => {
         const label = document.createElement('label');
         label.className = 'pf-item';
         const cb = document.createElement('input');
@@ -4849,9 +4849,9 @@ function addLots(planets, cusps, asc) {
     longitude: lon, retrograde: false, house: findHouse(lon, cusps),
   });
   return [...planets,
-    // в HamburgSymbols Фортуна сидит на «<»; своего глифа Духа там нет — ⊕ из системного шрифта
-    lot(FORTUNE_ID, 'pl_fortune', '⊗\uFE0E', '<',      norm(asc + moon.longitude - sun.longitude)),
-    lot(SPIRIT_ID,  'pl_spirit',  '⊕\uFE0E', '⊕\uFE0E', norm(asc + sun.longitude - moon.longitude)),
+    // в HamburgSymbols Фортуна сидит на «<» (⊗), Дух — простой крест на «+»
+    lot(FORTUNE_ID, 'pl_fortune', '⊗\uFE0E', '<', norm(asc + moon.longitude - sun.longitude)),
+    lot(SPIRIT_ID,  'pl_spirit',  '✚\uFE0E', '+', norm(asc + sun.longitude - moon.longitude)),
   ];
 }
 

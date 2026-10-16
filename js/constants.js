@@ -102,7 +102,7 @@ const MAJOR_ASPECTS = ASPECTS.filter(a => a.major);
 // +1° if Sun (0) or Moon (1) is involved. Минорные: квиконс 3°/2°, полусекстиль 2°/1.5°.
 function getNatalOrb(asp, id1, id2) {
   const hasSunMoon = (id1 === 0 || id1 === 1 || id2 === 0 || id2 === 1);
-  if (id1 === FORTUNE_ID || id2 === FORTUNE_ID) {   // Фортуна — чувствительная точка, орбис ≤3°
+  if (LOT_IDS.includes(id1) || LOT_IDS.includes(id2)) {   // жребии — чувствительные точки, орбис ≤3°
     return Math.min(3, asp.angle === 150 ? 2 : asp.angle === 30 ? 1.5 : 3);
   }
   if (asp.angle === 0)   return hasSunMoon ? 8 : 6;
@@ -202,6 +202,8 @@ const SLOW_IDS = [5, 6, 7, 8, 9, 10, 12, 15]; // Jupiter, Saturn, Uranus, Neptun
 const FAST_IDS = [0, 2, 3, 4];            // Sun, Mercury, Venus, Mars
 const TL_ANGLE_ID = 100;                  // pseudo natal-target id: angular cusp row (As/Ic/Ds/Mc)
 const FORTUNE_ID  = 99;                   // псевдо-точка Парс Фортуны (только натальное отображение)
+const SPIRIT_ID   = 98;                   // псевдо-точка Парс Духа (там же)
+const LOT_IDS     = [FORTUNE_ID, SPIRIT_ID];
 
 // Orb per transiting planet (degrees)
 function getTransitOrb(planetId) {
@@ -246,4 +248,4 @@ const HOUSE_SYSTEMS = [
   ['O', 'hsysO'], ['E', 'hsysE'], ['W', 'hsysW'], ['B', 'hsysB'],
 ];
 
-export { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, FORTUNE_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL };
+export { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, FORTUNE_ID, SPIRIT_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL };

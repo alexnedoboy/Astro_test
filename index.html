@@ -5014,7 +5014,7 @@ function drawZodiacRing(g) {
   }
 }
 
-function renderChart(planets, cusps, asc, mc) {
+function renderChart(planets, cusps, asc, mc, orbMode = 'natal') {
   const svg = el('svg', { viewBox: VIEWBOX, width: '100%', style: 'display:block' });
 
   // Clip group
@@ -5053,7 +5053,7 @@ function renderChart(planets, cusps, asc, mc) {
 
   // 7. Aspects (include South Node)
   const planetsWithSN = addSouthNode(filterNatalPlanets(planets), cusps);
-  drawAspects(g, planetsWithSN, 0);
+  drawAspects(g, planetsWithSN, 0, orbMode);
 
   // 8. Planets (include South Node)
   drawPlanets(g, planetsWithSN, 0);
@@ -5168,15 +5168,17 @@ function drawHouseLabels(g, cusps, asc) {
 // ── Aspect lines ──────────────────────────────────────────────────────────────
 // Connect planet positions on the inner circle boundary.
 
-function drawAspects(g, planets, asc) {
+// orbMode — как у findGridAspect: 'natal' (состав и орбисы натала) | 'progressed' (мажоры,
+// орбисы прогрессий — одиночная карта прогрессий) | прочее (мажоры, 3°)
+function drawAspects(g, planets, asc, orbMode = 'natal') {
   for (let i = 0; i < planets.length; i++) {
     for (let j = i + 1; j < planets.length; j++) {
       // Skip trivial N.Node ↔ S.Node opposition (always exact by definition)
       const ids = [planets[i].id, planets[j].id];
       if (ids.includes(10) && ids.includes(-10)) continue;
       const diff = angDiff(planets[i].longitude, planets[j].longitude);
-      for (const asp of activeNatalAspects()) {
-        const orb = getNatalOrb(asp, planets[i].id, planets[j].id) * natalOrbFactor();
+      for (const asp of orbMode === 'natal' ? activeNatalAspects() : MAJOR_ASPECTS) {
+        const orb = aspectOrbLimit(asp, planets[i].id, planets[j].id, orbMode);
         const actualOrb = Math.abs(diff - asp.angle);
         if (actualOrb <= orb) {
           const tipText = `${planets[i].glyph} ${asp.name} ${planets[j].glyph}  ${fmtOrb(actualOrb)}`;
@@ -7489,18 +7491,19 @@ document.getElementById('chat-view')?.addEventListener('click', e => {
   if (row) switchModeAndNavigate(row.dataset.mode || 'transit', Number(row.dataset.jd));
 });
 
+// Предельный орбис аспекта по режиму — общий для сетки и линий карты (drawAspects).
+// Прогрессии: 2° с Солнцем/Луной, иначе 1° — как в биколесе (drawProgressedAspects).
+function aspectOrbLimit(asp, id1, id2, orbMode) {
+  if (orbMode === 'natal') return getNatalOrb(asp, id1, id2) * natalOrbFactor();
+  if (orbMode === 'progressed') return (id1 === 0 || id1 === 1 || id2 === 0 || id2 === 1) ? 2 : 1;
+  return 3;
+}
+
 function findGridAspect(lon1, lon2, id1, id2, orbMode) {
   const diff = angDiff(lon1, lon2);
   const list = orbMode === 'natal' ? activeNatalAspects() : MAJOR_ASPECTS;
   for (const asp of list) {
-    let maxOrb;
-    if (orbMode === 'natal') {
-      maxOrb = getNatalOrb(asp, id1, id2) * natalOrbFactor();
-    } else if (orbMode === 'progressed') {
-      maxOrb = (id1 === 0 || id1 === 1 || id2 === 0 || id2 === 1) ? 2 : 1;
-    } else {
-      maxOrb = 3;
-    }
+    const maxOrb = aspectOrbLimit(asp, id1, id2, orbMode);
     const orb = Math.abs(diff - asp.angle);
     if (orb <= maxOrb) return { asp, orb };
   }
@@ -8283,17 +8286,13 @@ function renderProgressedBiwheel(jd = null) {
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   }).filter(Boolean);
   if (progView === 'single') {
-    // Прогрессивная карта сама по себе: дома на прогрессивный момент, место рождения
-    const hRes  = swe.houses_ex(progressedJD, flags, natalData.lat, natalData.lon, houseSysFor(tabs[activeTab]));
-    const pCusps = Array.from(hRes.cusps).slice(1, 13);
-    const ascmc = Array.from(hRes.ascmc);
-    const pAsc  = ((ascmc[0] % 360) + 360) % 360;
-    const pMc   = ((ascmc[1] % 360) + 360) % 360;
-    progressed.forEach(p => { p.house = findHouse(p.longitude, pCusps); });
-    renderChart(progressed, pCusps, pAsc, pMc);
-    buildInfoTable(progressed, pCusps);
+    // Прогрессивная карта сама по себе. Дома — натальная сетка (выбранной системы):
+    // куспиды не прогрессируем. Аспекты прогрессий между собой — с орбисами прогрессий.
+    progressed.forEach(p => { p.house = cusps ? findHouse(p.longitude, cusps) : undefined; });
+    renderChart(progressed, cusps, asc, natalData.mc, 'progressed');
+    buildInfoTable(progressed, cusps);
     setInfoTableMode('natal');
-    buildAspectGrid(addSouthNode(progressed, pCusps));
+    buildAspectGrid(addSouthNode(progressed, cusps), null, 'progressed');
     currentTransitJD = jd;
     return;
   }

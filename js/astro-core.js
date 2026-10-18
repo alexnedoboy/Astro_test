@@ -1,7 +1,7 @@
 // js/astro-core.js — чистое расчётное ядро (фаза 1 распила).
 // Без DOM и без UI-состояния; swe читается из леджера (js/state.js).
 
-import { PLANETS, CX, CY } from './constants.js?v=5';
+import { PLANETS, CX, CY } from './constants.js?v=7';
 
 // Ecliptic longitude → SVG angle (ASC at 9 o'clock, CCW = increasing lon)
 function lonToRad(lon, asc) { return (180 - (lon - asc)) * Math.PI / 180; }

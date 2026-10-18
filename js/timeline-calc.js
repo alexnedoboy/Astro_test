@@ -6,7 +6,7 @@
 // (computeAndRenderTimeline, renderTimeline) остаются в index.html.
 
 import { PLANETS, SIGNS, ROMAN, COLORS, T_ASPECTS, TL,
-         SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb } from './constants.js?v=5';
+         SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb } from './constants.js?v=7';
 import { safeCalcUt, findHouse, angDiff } from './astro-core.js?v=1';
 import { getSetting } from './settings.js?v=3';
 

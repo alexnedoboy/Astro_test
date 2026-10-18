@@ -210,6 +210,7 @@ function getTransitOrb(planetId) {
   if (planetId === 7 || planetId === 8 || planetId === 9) return 1;              // Uranus, Neptune, Pluto
   if (planetId === 5 || planetId === 6 || planetId === 15) return 3;             // Jupiter, Saturn, Chiron
   if (planetId === 10 || planetId === 12 || planetId === -10) return 3;          // Node, Lilith, S.Node
+  if (LOT_IDS.includes(planetId)) return 3;                                     // парсы во внешнем кольце (соляр, синастрия)
   return 5;  // Sun, Mercury, Venus, Mars
 }
 
@@ -248,4 +249,4 @@ const HOUSE_SYSTEMS = [
   ['O', 'hsysO'], ['E', 'hsysE'], ['W', 'hsysW'], ['B', 'hsysB'],
 ];
 
-export { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, FORTUNE_ID, SPIRIT_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL };
+export { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, FORTUNE_ID, SPIRIT_ID, LOT_IDS, getTransitOrb, T_ASPECTS, D_ASPECTS, TL };

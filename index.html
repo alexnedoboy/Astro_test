@@ -658,12 +658,12 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // иначе свежий index.html слинкуется со старым кэшем модуля и приложение умрёт.
 import './js/state.js?v=5';   // леджер разделяемого состояния — до всех модулей
 import { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff }
-  from './js/astro-core.js?v=4';
+  from './js/astro-core.js?v=6';
 import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
          transitOrbFactor, computeTransitIngresses, computeProgressedLife,
-         computeDirectionLife } from './js/timeline-calc.js?v=8';
+         computeDirectionLife } from './js/timeline-calc.js?v=10';
 import { STRINGS } from './js/strings.js?v=21';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
@@ -672,7 +672,7 @@ import { initCommands, defineCommands, listCommands, runCommand,
          commandSchemas } from './js/commands.js?v=1';
 import { AI_PROVIDERS, askModel, aiConfigured, getAiKey, setAiKey, listModels,
          getAiProvider, setAiProvider, getAiModel, setAiModel } from './js/ai.js?v=4';
-import { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, FORTUNE_ID, SPIRIT_ID, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js?v=5';
+import { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, FORTUNE_ID, SPIRIT_ID, LOT_IDS, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js?v=7';
 
 // ┌─────────────────────────────────────────────────────────────────────────────┐
 // │  TODO: вставьте ваши данные из Supabase → Project Settings → API           │
@@ -723,7 +723,7 @@ function applyLang() {
   if (notesCache) renderNotesList();
   // Re-render if chart is loaded
   if (natalData) {
-    const pl = currentMode === 'natal' ? addLots(natalData.planets, natalData.cusps, natalData.asc) : natalData.planets;
+    const pl = addLots(natalData.planets, natalData.cusps, natalData.asc);   // натальное кольцо всегда с парсами
     buildInfoTable(pl, natalData.cusps);
     buildAspectGrid(addSouthNode(pl, natalData.cusps));
     if (cachedTimeline) {
@@ -4839,8 +4839,11 @@ function addSouthNode(planets, cusps = null) {
 // Парсы (жребии) Фортуны и Духа — только дневные формулы для любой карты (ночная
 // инверсия намеренно не применяется): Фортуна = As + Луна − Солнце, Дух = As + Солнце − Луна.
 // Псевдо-точки, как Южный узел: добавляются при отрисовке натала и в natalData не пишутся.
-// Без домов (космограмма) As нет — точек нет. Видимость — общим фильтром планет.
-function addLots(planets, cusps, asc) {
+// Без домов (космограмма) As нет — точек нет. Видимость — общим фильтром планет (скрытый
+// парс не добавляется вовсе: биколёса фильтр планет не применяют). Правило: что видно в
+// натале, видно и в натальном кольце любого наложения. ids — какие парсы считать
+// (прогрессии: только Фортуна — натальный As + прогрессивные ☉/☽).
+function addLots(planets, cusps, asc, ids = LOT_IDS) {
   const sun = planets.find(p => p.id === 0), moon = planets.find(p => p.id === 1);
   if (!cusps || asc == null || !sun || !moon) return planets;
   const norm = x => ((x % 360) + 360) % 360;
@@ -4852,7 +4855,7 @@ function addLots(planets, cusps, asc) {
     // в HamburgSymbols Фортуна сидит на «<» (⊗), Дух — простой крест на «+»
     lot(FORTUNE_ID, 'pl_fortune', '⊗\uFE0E', '<', norm(asc + moon.longitude - sun.longitude)),
     lot(SPIRIT_ID,  'pl_spirit',  '✚\uFE0E', '+', norm(asc + sun.longitude - moon.longitude)),
-  ];
+  ].filter(p => !LOT_IDS.includes(p.id) || (ids.includes(p.id) && natalPlanetFilter.has(p.id)));
 }
 
 // Глиф Hamburg для вставки через innerHTML («<» у Фортуны иначе ломает разметку)
@@ -7695,12 +7698,13 @@ function renderDirectionBiwheel(jd = null) {
     retrograde: false,
   }));
   const directedCusps = natalCusps ? natalCusps.map(c => ((c + ageInYears) % 360 + 360) % 360) : null;
-  renderBiwheelDirected(natal, directed, natalCusps, directedCusps, asc);
-  buildInfoTable(natal, natalCusps);
+  const nl = addLots(natal, natalCusps, asc);   // натальное кольцо — с парсами; дирекции — без
+  renderBiwheelDirected(nl, directed, natalCusps, directedCusps, asc);
+  buildInfoTable(nl, natalCusps);
   updateSecondColumn(directed, { speed: false });
   updateSecondHouses(directedCusps);
   setInfoTableMode('biwheel-houses');
-  buildAspectGrid(addSouthNode(natal, natalCusps), addSouthNode(directed), 'direction');
+  buildAspectGrid(addSouthNode(nl, natalCusps), addSouthNode(directed), 'direction');
   currentTransitJD = jd;
 }
 
@@ -7822,19 +7826,21 @@ function renderSolarChart(jd = null) {
   updateSolarMomentLabel();
   if (srJD == null) return;
   const sol = computeSolarChart(srJD);
+  const sl = addLots(sol.planets, sol.cusps, sol.asc);   // парсы соляра — от его As и светил
   if (solarView === 'overlay') {
     // Соляр снаружи (его куспиды — короткими линиями), натал внутри с каркасом домов
-    renderBiwheelDirected(natalData.planets, sol.planets, natalData.cusps, sol.cusps, 0, drawTransitAspects);
-    buildInfoTable(natalData.planets, natalData.cusps);
-    updateSecondColumn(sol.planets);
+    const nl = addLots(natalData.planets, natalData.cusps, natalData.asc);
+    renderBiwheelDirected(nl, sl, natalData.cusps, sol.cusps, 0, drawTransitAspects);
+    buildInfoTable(nl, natalData.cusps);
+    updateSecondColumn(sl);
     updateSecondHouses(sol.cusps);
     setInfoTableMode('biwheel-houses');
-    buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps), addSouthNode(sol.planets), 'transit');
+    buildAspectGrid(addSouthNode(nl, natalData.cusps), addSouthNode(sl), 'transit');
   } else {
-    renderChart(sol.planets, sol.cusps, sol.asc, sol.mc);
-    buildInfoTable(sol.planets, sol.cusps);
+    renderChart(sl, sol.cusps, sol.asc, sol.mc);
+    buildInfoTable(sl, sol.cusps);
     setInfoTableMode('natal');
-    buildAspectGrid(addSouthNode(sol.planets, sol.cusps));
+    buildAspectGrid(addSouthNode(sl, sol.cusps));
   }
 }
 
@@ -7890,20 +7896,22 @@ function renderSynastry() {
   if (synView === 'a') { renderSynastrySingle(natalData); return; }
   if (synView === 'b') { renderSynastrySingle(synastryB); return; }
   const A = natalData, B = synastryB;
-  renderSynastryBiwheel(A.planets, B.planets, A.cusps, B.cusps);
-  buildInfoTable(A.planets, A.cusps);   // сперва строим таблицу (создаёт вторые ячейки)
-  updateSecondColumn(B.planets);
+  const al = addLots(A.planets, A.cusps, A.asc), bl = addLots(B.planets, B.cusps, B.asc);   // оба — наталы
+  renderSynastryBiwheel(al, bl, A.cusps, B.cusps);
+  buildInfoTable(al, A.cusps);   // сперва строим таблицу (создаёт вторые ячейки)
+  updateSecondColumn(bl);
   updateSecondHouses(B.cusps);
   setInfoTableMode('biwheel-houses');
-  buildAspectGrid(addSouthNode(A.planets, A.cusps), addSouthNode(B.planets), 'natal');
+  buildAspectGrid(addSouthNode(al, A.cusps), addSouthNode(bl), 'natal');
 }
 
 // Одиночная карта субъекта (вид «Карта А» / «Карта Б») — обычное натальное колесо
 function renderSynastrySingle(chart) {
-  renderChart(chart.planets, chart.cusps, chart.asc, chart.mc);
-  buildInfoTable(chart.planets, chart.cusps);
+  const pl = addLots(chart.planets, chart.cusps, chart.asc);
+  renderChart(pl, chart.cusps, chart.asc, chart.mc);
+  buildInfoTable(pl, chart.cusps);
   setInfoTableMode('natal');
-  buildAspectGrid(addSouthNode(chart.planets, chart.cusps));
+  buildAspectGrid(addSouthNode(pl, chart.cusps));
 }
 
 // Переключение вкладок карты в синастрии
@@ -8055,11 +8063,12 @@ function showTransitNow() {
     if (!r) return null;
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   }).filter(Boolean);
-  renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
-  buildInfoTable(natalData.planets, natalData.cusps);   // первая колонка всегда — карта под колесом
+  const nl = addLots(natalData.planets, natalData.cusps, natalData.asc);
+  renderBiwheel(nl, transit, natalData.cusps, natalData.asc);
+  buildInfoTable(nl, natalData.cusps);   // первая колонка всегда — карта под колесом
   updateSecondColumn(transit);
   setInfoTableMode('biwheel');
-  buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps), addSouthNode(transit), 'transit');
+  buildAspectGrid(addSouthNode(nl, natalData.cusps), addSouthNode(transit), 'transit');
   currentTransitJD = null;
 }
 
@@ -8285,23 +8294,26 @@ function renderProgressedBiwheel(jd = null) {
     if (!r) return null;
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   }).filter(Boolean);
+  // Прогрессивная Фортуна: натальный As + прогрессивные Луна − Солнце (только она, без Духа)
+  const progLots = addLots(progressed, cusps, asc, [FORTUNE_ID]);
   if (progView === 'single') {
     // Прогрессивная карта сама по себе. Дома — натальная сетка (выбранной системы):
     // куспиды не прогрессируем. Аспекты прогрессий между собой — с орбисами прогрессий.
-    progressed.forEach(p => { p.house = cusps ? findHouse(p.longitude, cusps) : undefined; });
-    renderChart(progressed, cusps, asc, natalData.mc, 'progressed');
-    buildInfoTable(progressed, cusps);
+    progLots.forEach(p => { p.house = cusps ? findHouse(p.longitude, cusps) : undefined; });
+    renderChart(progLots, cusps, asc, natalData.mc, 'progressed');
+    buildInfoTable(progLots, cusps);
     setInfoTableMode('natal');
-    buildAspectGrid(addSouthNode(progressed, cusps), null, 'progressed');
+    buildAspectGrid(addSouthNode(progLots, cusps), null, 'progressed');
     currentTransitJD = jd;
     return;
   }
   const lunarPhases = showProgLunarPhases ? calcProgressedLunarPhases(birthJD, jdReal) : null;
-  renderProgressedBiwheelChart(natal, progressed, cusps, asc, lunarPhases);
-  buildInfoTable(natal, cusps);
-  updateSecondColumn(progressed);
+  const nl = addLots(natal, cusps, asc);
+  renderProgressedBiwheelChart(nl, progLots, cusps, asc, lunarPhases);
+  buildInfoTable(nl, cusps);
+  updateSecondColumn(progLots);   // прогрессивная Фортуна — во второй колонке строки ⊗
   setInfoTableMode('biwheel');
-  buildAspectGrid(addSouthNode(natal, cusps), addSouthNode(progressed), 'progressed');
+  buildAspectGrid(addSouthNode(nl, cusps), addSouthNode(progLots), 'progressed');
   currentTransitJD = jd;
 }
 
@@ -8340,11 +8352,12 @@ function renderBiwheelAt(jd) {
     if (!r) return null;
     return { ...p, longitude: ((r[0] % 360) + 360) % 360, speed: r[3], retrograde: r[3] < 0 && p.id !== 10 && p.id !== 12 };
   }).filter(Boolean);
-  renderBiwheel(natalData.planets, transit, natalData.cusps, natalData.asc);
-  buildInfoTable(natalData.planets, natalData.cusps);
+  const nl = addLots(natalData.planets, natalData.cusps, natalData.asc);
+  renderBiwheel(nl, transit, natalData.cusps, natalData.asc);
+  buildInfoTable(nl, natalData.cusps);
   updateSecondColumn(transit);
   setInfoTableMode('biwheel');
-  buildAspectGrid(addSouthNode(natalData.planets, natalData.cusps), addSouthNode(transit), 'transit');
+  buildAspectGrid(addSouthNode(nl, natalData.cusps), addSouthNode(transit), 'transit');
   currentTransitJD = jd;
 }
 

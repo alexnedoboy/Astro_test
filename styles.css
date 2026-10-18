@@ -2193,9 +2193,11 @@
   @media (max-width: 1100px) {
     #v2-nav-date-lbl { font-size: 0.95em; }
   }
-  #nav-date-input {
+  /* поле даты — только якорь для showPicker(): клики идут в подпись, не в поле */
+  .nav-date-input {
     position: absolute; inset: 0; width: 100%; height: 100%;
-    opacity: 0; cursor: pointer; border: none; padding: 0; margin: 0;
+    opacity: 0; border: none; padding: 0; margin: 0;
+    pointer-events: none;
   }
   #v2-bottom-row { display: none; }
   #v2-bottom-row .v2-icon-btn {
@@ -2371,10 +2373,15 @@
   /* без min-width: ширина даты и так стабильна (tabular-nums, формат
      фиксированный) — лишний запас только выталкивал строку за панель */
   #v2-chart-nav .cn-date {
+    position: relative;
     display: flex; align-items: baseline; justify-content: center; gap: 5px;
     padding: 0 7px;
     white-space: nowrap;
+    cursor: pointer;
   }
+  #v2-chart-nav .cn-date:hover #cn-date-text { color: var(--accent); }
+  #v2-chart-nav.cn-locked .cn-date { cursor: default; }
+  #v2-chart-nav.cn-locked .cn-date:hover #cn-date-text { color: var(--tx-2); }
   #cn-date-text {
     font-size: 0.84em; font-weight: 600; color: var(--tx-2);
     font-variant-numeric: tabular-nums;

@@ -364,7 +364,7 @@
         <div id="v2-nav-date-row">
           <button id="v2-nav-date-lbl" style="display:none">
             <span id="v2-nav-date-text"></span>
-            <input type="date" id="nav-date-input" tabindex="-1">
+            <input type="date" class="nav-date-input" id="nav-date-input" tabindex="-1">
           </button>
           <button class="v2-nav-btn v2-today-btn" data-nav="today" title="Сейчас">↺</button>
         </div>
@@ -457,9 +457,10 @@
           <button class="cn-btn" data-nav="prev-month">◀◀</button>
           <button class="cn-btn" data-nav="prev-day">◀</button>
         </div>
-        <div class="cn-date">
+        <div class="cn-date" id="cn-date" data-i18n-title="pickDate" title="Выбрать дату">
           <span id="cn-date-text"></span>
           <span id="cn-time-text"></span>
+          <input type="date" class="nav-date-input" id="cn-date-input" tabindex="-1">
         </div>
         <div class="cn-group cn-next">
           <button class="cn-btn" data-nav="next-day">▶</button>
@@ -664,7 +665,7 @@ import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
          transitOrbFactor, computeTransitIngresses, computeProgressedLife,
          computeDirectionLife } from './js/timeline-calc.js?v=10';
-import { STRINGS } from './js/strings.js?v=21';
+import { STRINGS } from './js/strings.js?v=22';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -7678,13 +7679,40 @@ function navigateDateBy(unit, delta) {
   applyNavigatedJD(newJD, unit);
 }
 
-document.getElementById('nav-date-input').addEventListener('change', () => {
-  const val = document.getElementById('nav-date-input').value;
-  if (!val) return;
-  const [y, m, d] = val.split('-').map(Number);
-  const jd = new Date(Date.UTC(y, m - 1, d)).getTime() / 86400000 + 2440587.5;
+// Выбор даты кликом по подписи контроллера (колонна и строка под картой).
+// Прозрачный <input type=date> поверх подписи сам календарь не открывает (в Chrome —
+// только невидимый значок у края), поэтому поле — лишь якорь, а открываем showPicker().
+// Дата в поле — местная (utcOff карты); при выборе меняется только день, время суток
+// сохраняется (иначе натал терял бы время рождения).
+function navBaseJD() {
+  return currentMode === 'natal' ? natalData?.birthJD : (currentTransitJD ?? computeJDNow());
+}
+function localDateStr(jd) {
+  const d = new Date((jd - 2440587.5) * 86400000 + (natalData?.utcOff ?? 0) * 3600000);
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getUTCDate()).padStart(2, '0');
+}
+function openNavDatePicker(inp) {
+  if (!natalData || !inp) return;
+  stopPlay();
+  try { inp.showPicker(); } catch { inp.focus(); inp.click(); }
+}
+function onNavDatePicked(inp) {
+  const val = inp.value, baseJD = navBaseJD();
+  if (!val || baseJD == null) return;
+  const dayNum = str => { const [y, m, d] = str.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; };
+  const jd = baseJD + (dayNum(val) - dayNum(localDateStr(baseJD)));
   if (currentMode === 'natal') applyNatalJD(jd);
   else applyNavigatedJD(jd);
+}
+document.querySelectorAll('.nav-date-input').forEach(inp =>
+  inp.addEventListener('change', () => onNavDatePicked(inp)));
+document.getElementById('v2-nav-date-lbl').addEventListener('click', () =>
+  openNavDatePicker(document.getElementById('nav-date-input')));
+document.getElementById('cn-date').addEventListener('click', () => {
+  // замок натала держит и выбор даты, как стрелки
+  if (document.getElementById('v2-chart-nav').classList.contains('cn-locked')) return;
+  openNavDatePicker(document.getElementById('cn-date-input'));
 });
 
 function renderDirectionBiwheel(jd = null) {
@@ -9905,13 +9933,11 @@ function syncV2DateLabel() {
   };
   syncChartNavLock();
 
+  const setInputs = jd => document.querySelectorAll('.nav-date-input').forEach(i => { i.value = localDateStr(jd); });
   if (currentMode === 'natal') {
     const baseJD = natalData?.birthJD;
     if (baseJD && inp) {
-      const d = new Date((baseJD - 2440587.5) * 86400000);
-      inp.value = d.getUTCFullYear() + '-' +
-        String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
-        String(d.getUTCDate()).padStart(2, '0');
+      setInputs(baseJD);
       paint(baseJD);
     }
     const atOrigin = natalData?.originalBirthJD == null || Math.abs((natalData?.birthJD ?? 0) - (natalData?.originalBirthJD ?? 0)) < 0.001;
@@ -9920,12 +9946,7 @@ function syncV2DateLabel() {
   }
 
   const baseJD = currentTransitJD ?? computeJDNow();
-  if (baseJD && inp) {
-    const d = new Date((baseJD - 2440587.5) * 86400000);
-    inp.value = d.getUTCFullYear() + '-' +
-      String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
-      String(d.getUTCDate()).padStart(2, '0');
-  }
+  if (baseJD && inp) setInputs(baseJD);
   paint(baseJD);
   markShifted(currentTransitJD !== null);
 }

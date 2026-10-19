@@ -746,11 +746,17 @@ function applyLang() {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 
+// getSession и onAuthStateChange (INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED…)
+// зовут updateAuthUI многократно — дозапись кейсов только на смене пользователя
+let _authUserId = null;
+
 // Restore session on page load (handles OAuth redirect)
 sb.auth.getSession().then(({ data: { session } }) => updateAuthUI(session?.user ?? null));
 sb.auth.onAuthStateChange((_evt, session) => updateAuthUI(session?.user ?? null));
 
 function updateAuthUI(user) {
+  const signedIn = !!user && user.id !== _authUserId;
+  _authUserId = user?.id ?? null;
   currentUser = user;
   document.body.classList.toggle('home-dash', !!user);
   const loginBtn   = document.getElementById('loginBtn');
@@ -762,7 +768,7 @@ function updateAuthUI(user) {
     emailEl.textContent = user.email ?? user.user_metadata?.full_name ?? '';
     loadHomeCharts();
     loadChartFromHash();
-    persistUnsavedTabs();   // кейсы, построенные до логина, дозаписываются
+    if (signedIn) persistUnsavedTabs();   // кейсы, построенные до логина, дозаписываются
     // Настройки из Supabase user metadata побеждают localStorage
     syncSettingsFromUser(user);
     if (libraryPanelOpen) libPanel.refresh();   // панель ждала логина — теперь можно грузить
@@ -1861,7 +1867,9 @@ async function saveCurrentChartToDb(extra = {}, targetTab = null, fields = null)
     timezone:   f.timezone ?? null,
   };
   const tt = targetTab ?? ((activeTab >= 0 && tabs[activeTab]) ? tabs[activeTab] : null);
-  const existingId = tt?.chartId ?? currentChartId ?? null;
+  // У вкладки свой id — currentChartId (другой, открытой карты) не подставляем:
+  // иначе несохранённый кейс перезаписал бы чужую строку
+  const existingId = tt ? (tt.chartId ?? null) : (currentChartId ?? null);
 
   const write = row => existingId
     ? sb.from('charts').update(row).eq('id', existingId).select().single()
@@ -1895,14 +1903,19 @@ async function saveCurrentChartToDb(extra = {}, targetTab = null, fields = null)
 // Авто-запись кейса (Obsidian-модель: создание/правка = запись, отдельного
 // «сохранить» не нужно). Sky — transient (§14: 💾 превращает его в элекцию),
 // синастрия — свой путь (saveSynastryToDb), палитра — не кейс.
+// Записи одной вкладки идут цепочкой (t._saving): пока первый insert не
+// вернул id, повторный вызов ждёт его и уходит уже update'ом — без дублей.
 function persistCaseToDb(t, fields = null) {
   if (!currentUser || !t || t.kind || t.type === 'sky' || t.type === 'synastry') return;
   const f = fields ?? t.fields ?? null;
-  saveCurrentChartToDb(caseExtraColumns(t, f), t, f).then(({ error }) => {
+  const prev = t._saving ?? Promise.resolve();
+  const job = prev.then(() => saveCurrentChartToDb(caseExtraColumns(t, f), t, f)).then(({ error }) => {
     if (error) { showSaveConfirm(tr('saveError'), true); return; }
     showSaveConfirm(tr('saved'));
     loadHomeCharts();   // список на главной, в библиотеке и палитре
-  });
+  }).catch(e => { console.warn('case save:', e); showSaveConfirm(tr('saveError'), true); })
+    .finally(() => { if (t._saving === job) t._saving = null; });
+  t._saving = job;
 }
 
 // Дозапись кейсов, построенных до логина: сохранения нет — есть отложенная
@@ -1910,7 +1923,7 @@ function persistCaseToDb(t, fields = null) {
 function persistUnsavedTabs() {
   if (!currentUser || !Array.isArray(tabs)) return;
   for (const t of tabs) {
-    if (t?.chartId || !t?.fields) continue;
+    if (t?.chartId || t?._saving || !t?.fields) continue;
     persistCaseToDb(t, t.fields);
   }
 }

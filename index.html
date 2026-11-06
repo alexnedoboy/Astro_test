@@ -3747,7 +3747,7 @@ function computeSynastryIntoTab() {
   renderTabBar();
 
   // Автосохранение в папку «Синастрии» (толерантно к отсутствию колонок)
-  if (currentUser) saveSynastryToDb(t);
+  if (currentUser) queueSynastrySave(t);
 }
 
 // Сохранить синастрию: композитная строка + refs (источник истины).
@@ -3795,7 +3795,17 @@ function saveSynastryComposite() {
   if (!currentUser) { openModal(); return; }
   const t = tabs[activeTab];
   if (!t || t.type !== 'synastry') return;
-  if (t.chartId) updateSynastryRefs(t); else saveSynastryToDb(t);
+  queueSynastrySave(t);
+}
+
+// Как persistCaseToDb: записи синастрии идут цепочкой (t._saving) — 💾 до ответа
+// на автосохранение ждёт его и уходит update'ом, а не вторым insert'ом
+function queueSynastrySave(t) {
+  const prev = t._saving ?? Promise.resolve();
+  const job = prev.then(() => (t.chartId ? updateSynastryRefs(t) : saveSynastryToDb(t)))
+    .catch(e => console.warn('synastry save:', e))
+    .finally(() => { if (t._saving === job) t._saving = null; });
+  t._saving = job;
 }
 
 function showSynSaveConfirm(msg, isErr) {
@@ -3843,7 +3853,7 @@ function finishSynSubjectEdit() {
   t.st     = captureState();
   persistTabs();
   renderTabBar();
-  if (currentUser && t.chartId) updateSynastryRefs(t);
+  if (currentUser && (t.chartId || t._saving)) queueSynastrySave(t);
 }
 
 document.getElementById('v2-syn-subjects').addEventListener('click', e => {

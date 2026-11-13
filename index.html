@@ -4690,22 +4690,66 @@ function setFormMode(mode) {
 
 // Предзаполнение хорара: момент = сейчас, место = место астролога (skyPlace).
 // Всё редактируемое — астролог может вбить момент получения вопроса.
-function prefillHoraryForm() {
-  const now = new Date();
+// IANA-зона по координатам (timeapi.io). null — не удалось определить.
+async function fetchZoneByCoord(lat, lon) {
+  try {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 6000);
+    const r = await fetch(`https://timeapi.io/api/timezone/coordinate?latitude=${(+lat).toFixed(4)}&longitude=${(+lon).toFixed(4)}`, { signal: ctrl.signal });
+    clearTimeout(tid);
+    return (await r.json()).timeZone || null;
+  } catch { return null; }
+}
+
+// «Сейчас» по часам зоны места: { date:'YYYY-MM-DD', time:'HH:MM' }
+function nowInZone(zone) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en', {
+    timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date()).map(x => [x.type, x.value]));
+  return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour % 24 === 0 ? '00' : p.hour}:${p.minute}` };
+}
+
+// Предзаполнение хорара/элекции: момент = сейчас, место = место астролога (skyPlace).
+// Время ВСЕГДА местное для места: «сейчас» берётся по часам зоны места, смещение —
+// по этой же зоне на эту дату. Часы устройства — только запасной вариант, если
+// зону определить не удалось (и тогда об этом говорит статус).
+async function prefillHoraryForm() {
   document.getElementById('chartName').value = '';
-  document.getElementById('birthDate').value = now.getFullYear() + '-'
-    + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-  document.getElementById('birthTime').value =
-    String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  detectedTimezone = null;
   let sp = null;
   try { sp = JSON.parse(localStorage.getItem('skyPlace')); } catch {}
-  if (sp?.lat != null) {
-    document.getElementById('birthPlace').value = sp.name ?? '';
-    document.getElementById('lat').value = sp.lat;
-    document.getElementById('lonVal').value = sp.lon;
+  const dateEl = document.getElementById('birthDate');
+  const timeEl = document.getElementById('birthTime');
+  const utcEl  = document.getElementById('utcOff');
+
+  const deviceFill = () => {
+    const now = new Date();
+    dateEl.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    timeEl.value = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    utcEl.value = -now.getTimezoneOffset() / 60;
+  };
+
+  if (sp?.lat == null) { deviceFill(); return; }
+  document.getElementById('birthPlace').value = sp.name ?? '';
+  document.getElementById('lat').value = sp.lat;
+  document.getElementById('lonVal').value = sp.lon;
+
+  let zone = sp.timezone || null;
+  if (!zone) {
+    utcEl.classList.add('tz-pending');
+    zone = await fetchZoneByCoord(sp.lat, sp.lon);
+    utcEl.classList.remove('tz-pending');
+    if (zone) try { localStorage.setItem('skyPlace', JSON.stringify({ ...sp, timezone: zone })); } catch {}
   }
-  document.getElementById('utcOff').value = -now.getTimezoneOffset() / 60;
-  detectedTimezone = null;
+  if (!zone) { deviceFill(); setStatus(`${sp.name ?? ''} (${tr('timezoneNotDetected')})`); return; }
+
+  detectedTimezone = zone;
+  const n = nowInZone(zone);
+  dateEl.value = n.date;
+  timeEl.value = n.time;
+  utcEl.value = getUTCOffsetHours(zone, new Date());
+  setStatus(`${sp.name ?? ''}  •  ${zone}`);
 }
 
 function enterEditMode() {
@@ -8615,14 +8659,36 @@ function drawTransitAspects(g, natal, transit, asc) {
 //        directed-cusp ☌ natal-planet, directed-planet ☌ natal-cusp.
 
 
+// Расчёт таймлайна тяжёлый (на планшете — секунды), поэтому:
+//  • выполняется только последний запрос (_tlGen): при открытии карты вызовов бывает
+//    несколько подряд, и раньше каждый считал всё заново;
+//  • стартует после отрисовки карты (кадр + таймер) — глифы видны сразу;
+//  • этапы (транзиты → прогрессии/возвраты → дирекции) разделены паузами, чтобы
+//    интерфейс откликался между ними; устаревший расчёт бросается на ближайшей паузе.
+let _tlGen = 0;
+const tlYield = () => new Promise(r => setTimeout(r, 0));
+// кадр, а не только таймер: иначе на медленном устройстве карта не успевает попасть на экран.
+// Кадров может не быть вовсе (фоновая вкладка, скрытый WebView) — тогда не дольше 50 мс.
+const tlAfterPaint = () => new Promise(r => {
+  let done = false;
+  const go = () => { if (!done) { done = true; setTimeout(r, 0); } };
+  requestAnimationFrame(go);
+  setTimeout(go, 50);
+});
+
 function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
   const tl = document.getElementById('right-timeline-content');
+  const gen = ++_tlGen;   // любой новый запрос отменяет идущий расчёт
   if (cachedTimeline) {
     renderTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() });
     return;
   }
   tl.innerHTML = `<div class="tl-status">${tr('computingTransits')}</div>`;
-  setTimeout(() => {
+  const nd = natalData;
+  const stale = () => gen !== _tlGen || natalData !== nd;
+  (async () => {
+    await tlAfterPaint();
+    if (stale()) return;
     try {
       const now     = new Date();
       const jdToday = swe.julday(now.getUTCFullYear(), now.getUTCMonth() + 1,
@@ -8650,6 +8716,7 @@ function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
           }))
         : [];
       const transitData = computeTransits(natalPlanets, jdStart, jdEnd, angleTargets);
+      await tlYield(); if (stale()) return;
       if (getSetting('tlReturns')) {
         transitData.periods.push(...computeReturnPeriods(natalPlanets, transitData.jdStart, transitData.jdEnd));
       }
@@ -8658,15 +8725,17 @@ function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
         : []
       ).filter(e => (e.type !== 'sign'  || getSetting('tlProgIngress'))
                  && (e.type !== 'house' || getSetting('tlProgHouses')));
+      await tlYield(); if (stale()) return;
       const dirEvents   = natalData?.birthJD
         ? computeDirectionEvents(natalPlanets, natalData.cusps, natalData.birthJD, transitData.jdStart, transitData.jdEnd)
         : [];
+      await tlYield(); if (stale()) return;
       cachedTimeline = { ...transitData, progEvents, dirEvents, center, jdCoreStart, jdCoreEnd };
       renderTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? jdToday });
     } catch (e) {
-      tl.innerHTML = `<div class="tl-status">${tr('error')}${e.message}</div>`;
+      if (!stale()) tl.innerHTML = `<div class="tl-status">${tr('error')}${e.message}</div>`;
     }
-  }, 30);
+  })();
 }
 
 function shiftTimelineBy(days) {
@@ -11805,7 +11874,17 @@ function wirePlacePicker({ btnId, geoId, inputId, ddId, onApply }) {
 
   const apply = item => {
     const name = item.display_name.split(',')[0].trim();
-    localStorage.setItem('skyPlace', JSON.stringify({ name, lat: parseFloat(item.lat), lon: parseFloat(item.lon) }));
+    const place = { name, lat: parseFloat(item.lat), lon: parseFloat(item.lon) };
+    localStorage.setItem('skyPlace', JSON.stringify(place));
+    // зона места нужна формам хорара/элекции (местное время); дописываем, когда придёт
+    fetchZoneByCoord(place.lat, place.lon).then(zone => {
+      if (!zone) return;
+      try {
+        const cur = JSON.parse(localStorage.getItem('skyPlace'));
+        if (cur && cur.lat === place.lat && cur.lon === place.lon)
+          localStorage.setItem('skyPlace', JSON.stringify({ ...cur, timezone: zone }));
+      } catch {}
+    });
     geo.classList.remove('open');
     dd.style.display = 'none';
     input.value = '';

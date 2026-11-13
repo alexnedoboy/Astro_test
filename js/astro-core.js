@@ -37,7 +37,12 @@ function computeChartData(fields, houseSys = 'P') {
   const [y, m, d] = fields.birthDate.split('-').map(Number);
   const [hr, mn]  = (fields.birthTime || '12:00').split(':').map(Number);
   const jd        = swe.julday(y, m, d, hr + mn / 60 - utcOff);
-  const flags     = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  return computeChartAt(jd, lat, lon, houseSys, noHouses, utcOff);
+}
+
+// Карта на момент jd (UT) и место — общее ядро computeChartData и карты Дэвисона.
+function computeChartAt(jd, lat, lon, houseSys = 'P', noHouses = false, utcOff = 0) {
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
 
   const planets = PLANETS.map(p => {
     const r = safeCalcUt(jd, p.id, flags);   // вне диапазона астероидных файлов (Хирон < 1800) — пропуск
@@ -61,4 +66,58 @@ function computeChartData(fields, houseSys = 'P') {
   return { planets, cusps, asc, mc, birthJD: jd, lat, lon, originalBirthJD: jd, utcOff, noHouses: false };
 }
 
-export { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff };
+const norm360 = x => ((x % 360) + 360) % 360;
+const D2R = Math.PI / 180;
+
+// Середина двух долгот по короткой дуге (350° и 10° → 0°, а не 180°).
+// При почти точной оппозиции выбор стороны условен — особенность метода, не баг.
+function midLon(a, b) {
+  const d = ((b - a) % 360 + 540) % 360 - 180;   // (−180, 180]
+  return norm360(a + d / 2);
+}
+
+// Географическая середина (по большому кругу, через 3D-векторы)
+function geoMidpoint(lat1, lon1, lat2, lon2) {
+  const v = (la, lo) => [Math.cos(la * D2R) * Math.cos(lo * D2R), Math.cos(la * D2R) * Math.sin(lo * D2R), Math.sin(la * D2R)];
+  const a = v(lat1, lon1), b = v(lat2, lon2);
+  const x = a[0] + b[0], y = a[1] + b[1], z = a[2] + b[2];
+  if (Math.hypot(x, y, z) < 1e-9) return { lat: (lat1 + lat2) / 2, lon: lon1 };   // антиподы
+  return { lat: Math.atan2(z, Math.hypot(x, y)) / D2R, lon: Math.atan2(y, x) / D2R };
+}
+
+// Композит по мидпойнтам: планеты — середины пар по короткой дуге; MC — середина MC,
+// остальные дома строятся от композитного MC на средней широте (метод «опорного места»).
+// Скорости у композита нет — speed 0, без ретроградности. Нет времени у кого-то → без домов.
+function computeComposite(A, B, houseSys = 'P') {
+  if (!A || !B) return null;
+  const byId = new Map(B.planets.map(p => [p.id, p]));
+  const planets = A.planets.filter(p => byId.has(p.id)).map(p => ({
+    ...p, longitude: midLon(p.longitude, byId.get(p.id).longitude), speed: 0, retrograde: false,
+  }));
+  const jd  = (A.birthJD + B.birthJD) / 2;
+  const lat = (A.lat + B.lat) / 2, lon = geoMidpoint(A.lat, A.lon, B.lat, B.lon).lon;
+  const base = { planets, birthJD: jd, originalBirthJD: jd, lat, lon, utcOff: 0, composite: true };
+  if (A.noHouses || B.noHouses) return { ...base, cusps: null, asc: 0, mc: 0, noHouses: true };
+
+  const mc  = midLon(A.mc, B.mc);
+  const eps = safeCalcUt(jd, swe.SE_ECL_NUT ?? -1, 0)?.[0] ?? 23.4393;   // истинный наклон эклиптики
+  const armc = norm360(Math.atan2(Math.sin(mc * D2R) * Math.cos(eps * D2R), Math.cos(mc * D2R)) / D2R);
+  const h = swe.houses_armc(armc, lat, eps, houseSys);
+  const cusps = Array.from(h.cusps).slice(1, 13).map(norm360);
+  const asc = norm360(h.ascmc[0]);
+  planets.forEach(p => { p.house = findHouse(p.longitude, cusps); });
+  return { ...base, cusps, asc, mc: norm360(h.ascmc[1]), noHouses: false };
+}
+
+// Карта Дэвисона: реальная карта на середину времени (по UT) и середину места.
+function computeDavison(A, B, houseSys = 'P') {
+  if (!A || !B) return null;
+  const jd = (A.birthJD + B.birthJD) / 2;
+  const g  = geoMidpoint(A.lat, A.lon, B.lat, B.lon);
+  const D  = computeChartAt(jd, g.lat, g.lon, houseSys, !!(A.noHouses || B.noHouses), 0);
+  D.davison = true;
+  return D;
+}
+
+export { safeCalcUt, computeChartData, computeChartAt, computeComposite, computeDavison,
+         midLon, geoMidpoint, findHouse, lonToRad, polar, angDiff };

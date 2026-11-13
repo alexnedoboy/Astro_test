@@ -13,7 +13,7 @@
 - **`index.html`** (~9500 строк) — разметка + основной module-скрипт (UI, рендеринг, вкладки)
 - **`styles.css`** — весь CSS (палитра UI-цветов `:root` — в начале файла)
 - **`js/state.js`** — **леджер разделяемого мутабельного состояния** (фаза 1): все ключевые глобалы (`swe`, `natalData`, `tabs`, `currentTransitJD`, `currentMode`, sky-группа и т.д.) объявлены свойствами `globalThis` — bare-идентификаторы во всех модулях резолвятся в них, call-sites не меняются, новые модули видят то же состояние. Новое разделяемое состояние объявлять ЗДЕСЬ (не `let` в index.html — модульный `let` невидим другим модулям и затенит леджер). UI-приватное (`_`-префиксы) остаётся в своих модулях
-- **`js/astro-core.js`** — чистое расчётное ядро без DOM: `computeChartData`, `safeCalcUt`, `findHouse`, `lonToRad`/`polar`/`angDiff`; читает `swe` из леджера
+- **`js/astro-core.js`** — чистое расчётное ядро без DOM: `computeChartData` (+ `computeChartAt` на JD), `computeComposite`/`computeDavison`, `safeCalcUt`, `findHouse`, `lonToRad`/`polar`/`angDiff`; читает `swe` из леджера
 - **`js/timeline-calc.js`** — расчёты таймлайна без DOM: `computeTransits` (+ `refineExactAspects`), `computeFastTransits`, `computeReturnPeriods` (`RETURN_ASP`), `computeProgressedEvents`, `computeDirectionEvents`, `computeTlLayout`, `transitOrbFactor`. Оркестрация и рендер (`computeAndRenderTimeline`, `renderTimeline`) — в index.html
 - **`js/constants.js`** — чистые константы: `PLANETS`, `SIGNS`, `COLORS`, `ASPECTS`/`MAJOR_ASPECTS`, `T_ASPECTS`, `D_ASPECTS`, `CHART` (+ производные `CX`/`CY`/`R_*`), `TL`, `HOUSE_SYSTEMS`, `SLOW_IDS`/`FAST_IDS`, орбисы (`getNatalOrb`, `getTransitOrb`), рулерство. Мутабельного состояния здесь нет и быть не должно
 - **`js/commands.js`** — **реестр команд** (поверхность действий): каркас `defineCommands` / `runCommand` / `commandSchemas`, типизация и валидация аргументов, снимок для undo перед изменяющей командой. Знаний о конкретных командах нет — их регистрирует index.html (блок «Реестр команд»), как настройки регистрируются через `defineSettings`. Из одного реестра растут три потребителя: чат-ассистент (JSON-схемы инструментов **генерируются** из `args`, поэтому не расходятся с кодом), будущая командная палитра для человека и программные вызовы
@@ -158,11 +158,20 @@
 - Конструктор — отдельная модалка `#syn-form` (два слота A/B), запускается из палитры
   (`openSynForm`). Каждый слот: поиск по `_homeCharts` (`synPickFiltered`, только `case_type='natal'`)
   **или** ручной ввод; место — автокомплит `geoSearch` + timeapi → utc (`synApplyGeo`). Wiring — `wireSynForm`.
-- **Табы панели карты** (`#chart-mode-tabs`, синастрия-ветка `applyChartModeTabs`): «Карта А /
-  Карта Б / Синастрия». Вид — глобал `synView` (`'a'|'b'|'both'`, дефолт `both`), персист в
-  `context.ui`/view. Переключение — `switchSynView` → `renderSynastry` (диспетчер): `both` —
-  совмещённое биколесо (`renderSynastryBiwheel`), `a`/`b` — одиночное натальное колесо субъекта
-  (`renderSynastrySingle`).
+- **Табы панели карты** (`#chart-mode-tabs`, синастрия-ветка `applyChartModeTabs`, список
+  `SYN_VIEW_TABS`): «Карта А / Карта Б / Синастрия / Композит / Дэвисон». Вид — глобал `synView`
+  (`'a'|'b'|'both'|'composite'|'davison'`, дефолт `both`), персист в `context.ui`/view. Переключение —
+  `switchSynView` → `renderSynastry` (диспетчер): `both` — совмещённое биколесо
+  (`renderSynastryBiwheel`), остальные — одиночное натальное колесо (`renderSynastrySingle`).
+- **Производные карты пары** — `synDerivedChart(view)`, считаются на лету из `natalData`/`synastryB`,
+  нигде не хранятся (astro-core.js):
+  - `computeComposite` — мидпойнты по короткой дуге (`midLon`; у почти точной оппозиции сторона
+    условна — особенность метода). Дома — метод «опорного места»: MC = середина MC, ARMC из него,
+    `swe.houses_armc` на средней широте, As — из расчёта домов, не середина Асцендентов. speed 0,
+    ретроградности нет, момента нет (`composite: true`, в фактах чата без `moment`).
+  - `computeDavison` — настоящая карта (`computeChartAt`) на середину UT и географическую середину
+    по большому кругу (`geoMidpoint`; Москва–Нью-Йорк → ~63° с.ш., у Плацидуса там дома растянуты).
+  - Нет времени рождения у кого-то из пары → обе без домов. Чат получает обе (`ctx.composite`/`ctx.davison`).
 - Совмещённое биколесо: A внутри (дом-каркас), B снаружи (куспиды короткими линиями, синие точки),
   кросс-аспекты A↔B. `renderSynastryBiwheel` — зеркало `renderBiwheelDirected`, переиспользует
   `drawDirectedCusps`/`drawTransitAspects`/`drawBiwheelPlanets`. Инфо-таблица — `biwheel-houses`
@@ -183,7 +192,7 @@
   + `name='A × B'`/`folder`/`refs`); миграция — `supabase_synastry.sql` (`refs jsonb`); код толерантен
   к отсутствию колонки (retry без `refs`).
 - Follow-up: перечитывание субъектов по `chartId`, тонкие синастрические орбисы,
-  композит/мидпойнт-виджеты.
+  транзиты/прогрессии к композиту и Дэвисону (таймлайн в синастрии пока скрыт).
 
 ### Правая группа виджетов (`#v2-aspect-panel`)
 Группа переключаемых виджетов-табов (см. WORKSPACE_CONCEPT.md §6, §13):

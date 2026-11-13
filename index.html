@@ -658,14 +658,15 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 // а модули кэшируются браузером/CDN — при изменении СОСТАВА ЭКСПОРТОВ бампните версию,
 // иначе свежий index.html слинкуется со старым кэшем модуля и приложение умрёт.
 import './js/state.js?v=5';   // леджер разделяемого состояния — до всех модулей
-import { safeCalcUt, computeChartData, findHouse, lonToRad, polar, angDiff }
-  from './js/astro-core.js?v=6';
+import { safeCalcUt, computeChartData, computeComposite, computeDavison,
+         findHouse, lonToRad, polar, angDiff }
+  from './js/astro-core.js?v=7';
 import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
          transitOrbFactor, computeTransitIngresses, computeProgressedLife,
          computeDirectionLife } from './js/timeline-calc.js?v=10';
-import { STRINGS } from './js/strings.js?v=22';
+import { STRINGS } from './js/strings.js?v=23';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -4534,6 +4535,8 @@ const SYN_VIEW_TABS = [
   { key: 'a',    i18n: 'synViewA' },
   { key: 'b',    i18n: 'synViewB' },
   { key: 'both', i18n: 'synViewBoth' },
+  { key: 'composite', i18n: 'synViewComposite' },
+  { key: 'davison',   i18n: 'synViewDavison' },
 ];
 
 function applyChartModeTabs() {
@@ -7061,7 +7064,7 @@ function chartFacts(data, { title, houseSys } = {}) {
   const withSN  = addSouthNode(planets, data.cusps);
   const f = {
     ...(title ? { chart: title } : {}),
-    moment: factDate(data.birthJD, data.utcOff ?? 0),
+    ...(data.composite ? {} : { moment: factDate(data.birthJD, data.utcOff ?? 0) }),   // у композита момента нет
     planets: factPlanets(withSN, data.cusps),
   };
   if (data.cusps) {
@@ -7234,6 +7237,9 @@ function chatContext() {
       addSouthNode(filterNatalPlanets(natalData.planets), natalData.cusps).map(p => ({ ...p, speed: 0 })),
       addSouthNode(filterNatalPlanets(synastryB.planets)).map(p => ({ ...p, speed: 0 })),
       'natal', ['B', 'A']);
+    // производные карты пары: композит (мидпойнты, без скоростей) и Дэвисон (середина времени и места)
+    ctx.composite = chartFacts(synDerivedChart('composite'), { title: 'Composite (midpoints)' });
+    ctx.davison   = chartFacts(synDerivedChart('davison'),   { title: 'Davison (time/space midpoint)' });
   } else {
     ctx.chart = chartFacts(natalData, { title: t?.header?.name });
     if (currentCaseType === 'horary' && t?.question) ctx.question = t.question;
@@ -7946,6 +7952,7 @@ function renderSynastry() {
   if (!natalData || !synastryB) return;
   if (synView === 'a') { renderSynastrySingle(natalData); return; }
   if (synView === 'b') { renderSynastrySingle(synastryB); return; }
+  if (synView === 'composite' || synView === 'davison') { renderSynastrySingle(synDerivedChart(synView)); return; }
   const A = natalData, B = synastryB;
   const al = addLots(A.planets, A.cusps, A.asc), bl = addLots(B.planets, B.cusps, B.asc);   // оба — наталы
   renderSynastryBiwheel(al, bl, A.cusps, B.cusps);
@@ -7965,9 +7972,16 @@ function renderSynastrySingle(chart) {
   buildAspectGrid(addSouthNode(pl, chart.cusps));
 }
 
+// Производные карты пары — считаются на лету из natalData (A) и synastryB (B), не хранятся
+function synDerivedChart(view) {
+  const hs = houseSysForType('natal');
+  return view === 'davison' ? computeDavison(natalData, synastryB, hs)
+                            : computeComposite(natalData, synastryB, hs);
+}
+
 // Переключение вкладок карты в синастрии
 function switchSynView(view) {
-  if (!['a', 'b', 'both'].includes(view)) return;
+  if (!SYN_VIEW_TABS.some(v => v.key === view)) return;
   synView = view;
   applyChartModeTabs();
   renderSynastry();

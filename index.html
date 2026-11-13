@@ -660,13 +660,13 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import './js/state.js?v=5';   // леджер разделяемого состояния — до всех модулей
 import { safeCalcUt, computeChartData, computeComposite, computeDavison,
          findHouse, lonToRad, polar, angDiff }
-  from './js/astro-core.js?v=7';
+  from './js/astro-core.js?v=9';
 import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
          transitOrbFactor, computeTransitIngresses, computeProgressedLife,
          computeDirectionLife } from './js/timeline-calc.js?v=10';
-import { STRINGS } from './js/strings.js?v=23';
+import { STRINGS } from './js/strings.js?v=24';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -1059,6 +1059,15 @@ defineSettings([
   { id: 'houseSysElection', section: 'calc', type: 'select', options: HOUSE_SYSTEMS,
     default: 'P', lsKey: 'houseSysElection', lsKind: 'string', labelKey: 'hsElection',
     onChange: () => onHouseDefaultChange('election') },
+  // Дома композита (синастрия): метод и широта опорного места — см. computeComposite
+  { id: 'compositeHouses', section: 'calc', type: 'select',
+    options: [['mc', 'compHousesMc'], ['midpoint', 'compHousesMid']],
+    default: 'mc', lsKey: 'compositeHouses', lsKind: 'string', labelKey: 'compHouses',
+    onChange: () => refreshSynDerived() },
+  { id: 'compositeLat', section: 'calc', type: 'select',
+    options: [['mean', 'compLatMean'], ['sky', 'compLatSky']],
+    default: 'mean', lsKey: 'compositeLat', lsKind: 'string', labelKey: 'compLat',
+    onChange: () => refreshSynDerived() },
   { id: 'natalAspects', section: 'aspects', type: 'custom', wide: true, labelKey: 'natalAspectsLabel',
     render: () => {
       const grid = document.createElement('div');
@@ -7282,7 +7291,10 @@ function chatContext() {
       addSouthNode(filterNatalPlanets(synastryB.planets)).map(p => ({ ...p, speed: 0 })),
       'natal', ['B', 'A']);
     // производные карты пары: композит (мидпойнты, без скоростей) и Дэвисон (середина времени и места)
-    ctx.composite = chartFacts(synDerivedChart('composite'), { title: 'Composite (midpoints)' });
+    const comp = synDerivedChart('composite');
+    ctx.composite = chartFacts(comp, { title: comp.houseMethod === 'midpoint'
+      ? 'Composite (midpoints; houses: midpoint of each cusp)'
+      : 'Composite (midpoints; houses derived from composite MC at reference latitude)' });
     ctx.davison   = chartFacts(synDerivedChart('davison'),   { title: 'Davison (time/space midpoint)' });
   } else {
     ctx.chart = chartFacts(natalData, { title: t?.header?.name });
@@ -8019,8 +8031,22 @@ function renderSynastrySingle(chart) {
 // Производные карты пары — считаются на лету из natalData (A) и synastryB (B), не хранятся
 function synDerivedChart(view) {
   const hs = houseSysForType('natal');
-  return view === 'davison' ? computeDavison(natalData, synastryB, hs)
-                            : computeComposite(natalData, synastryB, hs);
+  if (view === 'davison') return computeDavison(natalData, synastryB, hs);
+  return computeComposite(natalData, synastryB, hs, {
+    method: getSetting('compositeHouses'),
+    lat: getSetting('compositeLat') === 'sky' ? skyPlaceLat() : undefined,   // нет места → средняя широта
+  });
+}
+
+// Широта места астролога (skyPlace) или undefined
+function skyPlaceLat() {
+  try { const v = parseFloat(JSON.parse(localStorage.getItem('skyPlace'))?.lat); return Number.isFinite(v) ? v : undefined; }
+  catch { return undefined; }
+}
+
+// Смена метода домов композита — перерисовать, если композит на экране
+function refreshSynDerived() {
+  if (currentCaseType === 'synastry' && synView === 'composite' && natalData && synastryB) renderSynastry();
 }
 
 // Переключение вкладок карты в синастрии

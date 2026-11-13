@@ -85,28 +85,51 @@ function geoMidpoint(lat1, lon1, lat2, lon2) {
   return { lat: Math.atan2(z, Math.hypot(x, y)) / D2R, lon: Math.atan2(y, x) / D2R };
 }
 
-// Композит по мидпойнтам: планеты — середины пар по короткой дуге; MC — середина MC,
-// остальные дома строятся от композитного MC на средней широте (метод «опорного места»).
+// Композит по мидпойнтам. Планеты — середины пар по короткой дуге.
+// Дома — два метода (opts.method):
+//  • 'mc' (опорное место, дефолт): MC = середина MC, остальные дома строятся от него
+//    (houses_armc) на широте opts.lat (по умолчанию — средняя широта рождений);
+//    As — из расчёта домов, не середина Асцендентов.
+//  • 'midpoint': каждый куспид — середина пары. Наивное «каждый по короткой дуге» в
+//    ~14% пар ломает порядок домов (соседние куспиды прыгают на 180°), поэтому
+//    по короткой дуге берётся только As, а остальные куспиды — согласованно:
+//    As_mid + среднее расстояний куспида от своего As у A и B. Порядок гарантирован;
+//    MC при этом может отличаться от середины MC по короткой дуге на 180°.
 // Скорости у композита нет — speed 0, без ретроградности. Нет времени у кого-то → без домов.
-function computeComposite(A, B, houseSys = 'P') {
+function computeComposite(A, B, houseSys = 'P', opts = {}) {
   if (!A || !B) return null;
   const byId = new Map(B.planets.map(p => [p.id, p]));
   const planets = A.planets.filter(p => byId.has(p.id)).map(p => ({
     ...p, longitude: midLon(p.longitude, byId.get(p.id).longitude), speed: 0, retrograde: false,
   }));
   const jd  = (A.birthJD + B.birthJD) / 2;
-  const lat = (A.lat + B.lat) / 2, lon = geoMidpoint(A.lat, A.lon, B.lat, B.lon).lon;
-  const base = { planets, birthJD: jd, originalBirthJD: jd, lat, lon, utcOff: 0, composite: true };
+  const lat = Number.isFinite(opts.lat) ? opts.lat : (A.lat + B.lat) / 2;
+  const lon = geoMidpoint(A.lat, A.lon, B.lat, B.lon).lon;
+  const method = opts.method === 'midpoint' ? 'midpoint' : 'mc';
+  const base = { planets, birthJD: jd, originalBirthJD: jd, lat, lon, utcOff: 0, composite: true, houseMethod: method };
   if (A.noHouses || B.noHouses) return { ...base, cusps: null, asc: 0, mc: 0, noHouses: true };
 
-  const mc  = midLon(A.mc, B.mc);
-  const eps = safeCalcUt(jd, swe.SE_ECL_NUT ?? -1, 0)?.[0] ?? 23.4393;   // истинный наклон эклиптики
-  const armc = norm360(Math.atan2(Math.sin(mc * D2R) * Math.cos(eps * D2R), Math.cos(mc * D2R)) / D2R);
-  const h = swe.houses_armc(armc, lat, eps, houseSys);
-  const cusps = Array.from(h.cusps).slice(1, 13).map(norm360);
-  const asc = norm360(h.ascmc[0]);
+  let cusps, asc, mc;
+  if (method === 'midpoint') {
+    // якорь — 1-й куспид по короткой дуге; всё остальное — согласованно от него
+    const anchor = midLon(A.cusps[0], B.cusps[0]);
+    // смещение от 1-го куспида вперёд; «−1e-9» (As ≈ куспид с погрешностью float) — это 0, а не 360
+    const off = (x, c0) => { const d = norm360(x - c0); return d > 360 - 1e-6 ? d - 360 : d; };
+    const mid = (a, b) => norm360(anchor + (off(a, A.cusps[0]) + off(b, B.cusps[0])) / 2);
+    cusps = A.cusps.map((c, i) => mid(c, B.cusps[i]));
+    asc = mid(A.asc, B.asc);   // у равнодомных/целознаковых систем As и MC — не куспиды
+    mc  = mid(A.mc, B.mc);
+  } else {
+    const mcMid = midLon(A.mc, B.mc);
+    const eps = safeCalcUt(jd, swe.SE_ECL_NUT ?? -1, 0)?.[0] ?? 23.4393;   // истинный наклон эклиптики
+    const armc = norm360(Math.atan2(Math.sin(mcMid * D2R) * Math.cos(eps * D2R), Math.cos(mcMid * D2R)) / D2R);
+    const h = swe.houses_armc(armc, lat, eps, houseSys);
+    cusps = Array.from(h.cusps).slice(1, 13).map(norm360);
+    asc = norm360(h.ascmc[0]);
+    mc  = norm360(h.ascmc[1]);
+  }
   planets.forEach(p => { p.house = findHouse(p.longitude, cusps); });
-  return { ...base, cusps, asc, mc: norm360(h.ascmc[1]), noHouses: false };
+  return { ...base, cusps, asc, mc, noHouses: false };
 }
 
 // Карта Дэвисона: реальная карта на середину времени (по UT) и середину места.

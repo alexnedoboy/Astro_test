@@ -8685,36 +8685,14 @@ function drawTransitAspects(g, natal, transit, asc) {
 //        directed-cusp ☌ natal-planet, directed-planet ☌ natal-cusp.
 
 
-// Расчёт таймлайна тяжёлый (на планшете — секунды), поэтому:
-//  • выполняется только последний запрос (_tlGen): при открытии карты вызовов бывает
-//    несколько подряд, и раньше каждый считал всё заново;
-//  • стартует после отрисовки карты (кадр + таймер) — глифы видны сразу;
-//  • этапы (транзиты → прогрессии/возвраты → дирекции) разделены паузами, чтобы
-//    интерфейс откликался между ними; устаревший расчёт бросается на ближайшей паузе.
-let _tlGen = 0;
-const tlYield = () => new Promise(r => setTimeout(r, 0));
-// кадр, а не только таймер: иначе на медленном устройстве карта не успевает попасть на экран.
-// Кадров может не быть вовсе (фоновая вкладка, скрытый WebView) — тогда не дольше 50 мс.
-const tlAfterPaint = () => new Promise(r => {
-  let done = false;
-  const go = () => { if (!done) { done = true; setTimeout(r, 0); } };
-  requestAnimationFrame(go);
-  setTimeout(go, 50);
-});
-
 function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
   const tl = document.getElementById('right-timeline-content');
-  const gen = ++_tlGen;   // любой новый запрос отменяет идущий расчёт
   if (cachedTimeline) {
     renderTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? computeJDNow() });
     return;
   }
   tl.innerHTML = `<div class="tl-status">${tr('computingTransits')}</div>`;
-  const nd = natalData;
-  const stale = () => gen !== _tlGen || natalData !== nd;
-  (async () => {
-    await tlAfterPaint();
-    if (stale()) return;
+  setTimeout(() => {
     try {
       const now     = new Date();
       const jdToday = swe.julday(now.getUTCFullYear(), now.getUTCMonth() + 1,
@@ -8742,7 +8720,6 @@ function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
           }))
         : [];
       const transitData = computeTransits(natalPlanets, jdStart, jdEnd, angleTargets);
-      await tlYield(); if (stale()) return;
       if (getSetting('tlReturns')) {
         transitData.periods.push(...computeReturnPeriods(natalPlanets, transitData.jdStart, transitData.jdEnd));
       }
@@ -8751,17 +8728,15 @@ function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
         : []
       ).filter(e => (e.type !== 'sign'  || getSetting('tlProgIngress'))
                  && (e.type !== 'house' || getSetting('tlProgHouses')));
-      await tlYield(); if (stale()) return;
       const dirEvents   = natalData?.birthJD
         ? computeDirectionEvents(natalPlanets, natalData.cusps, natalData.birthJD, transitData.jdStart, transitData.jdEnd)
         : [];
-      await tlYield(); if (stale()) return;
       cachedTimeline = { ...transitData, progEvents, dirEvents, center, jdCoreStart, jdCoreEnd };
       renderTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? jdToday });
     } catch (e) {
-      if (!stale()) tl.innerHTML = `<div class="tl-status">${tr('error')}${e.message}</div>`;
+      tl.innerHTML = `<div class="tl-status">${tr('error')}${e.message}</div>`;
     }
-  })();
+  }, 30);
 }
 
 function shiftTimelineBy(days) {

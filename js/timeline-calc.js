@@ -343,6 +343,10 @@ function computeDirectionEvents(natalPlanets, natalCusps, birthJD, jdStart, jdEn
 // opts.sourceIds / opts.aspectAngles — необязательное сужение расчёта (виджет
 // «Ассистент»: запрос про один транзит не должен считать все восемь медленных).
 // Пусто/не задано — прежнее поведение таймлайна.
+// Орбис «почти аспекта»: транзит без точного касания показывается на таймлайне
+// (бледной полосой), если планета подошла ближе этого и развернулась.
+const NEAR_MISS_ORB = 1;
+
 function computeTransits(natalPlanets, jdWindowStart, jdWindowEnd, angleTargets = [], opts = {}) {
   const now     = new Date();
   const jdToday = swe.julday(now.getUTCFullYear(), now.getUTCMonth() + 1,
@@ -411,8 +415,19 @@ function computeTransits(natalPlanets, jdWindowStart, jdWindowEnd, angleTargets 
           if (exactJDs.length > 1)
             for (let ei = 0; ei < exactJDs.length - 1; ei++)
               stations.push(...stationsBetween(lons, exactJDs[ei], exactJDs[ei + 1]));
+          // Несостоявшийся аспект: медленная планета развернулась (станция) в пределах
+          // NEAR_MISS_ORB, не дойдя до точности. Минимум у края окна не считается —
+          // там точность может быть просто за окном.
+          let nearMiss = null;
+          if (!exactJDs.length && SLOW_IDS.includes(id)) {
+            for (const m of localMinima)
+              if (m.day > 0 && m.day < DAYS - 1 && m.diff <= NEAR_MISS_ORB
+                  && (!nearMiss || m.diff < nearMiss.orb))
+                nearMiss = { jd: jdStart + m.day, orb: m.diff };
+          }
           periods.push({ tPlanet, na, asp,
-            startJD: jdStart + pStart, endJD: jdStart + endIdx, exactJDs, stations });
+            startJD: jdStart + pStart, endJD: jdStart + endIdx, exactJDs, stations,
+            ...(nearMiss && { nearMiss }) });
           inPeriod = false; prevDiff = Infinity; wasDecreasing = false;
           curMinDay = -1; curMinDiff = Infinity; localMinima = [];
         };
@@ -612,7 +627,7 @@ function computeTlLayout(periods, progEvents, dirEvents) {
   // ── Filter and group transit periods by natal planet ────────────────────
   const byNatal = {};
   for (const p of periods) {
-    if (!p.exactJDs?.length) continue;
+    if (!p.exactJDs?.length && !p.nearMiss) continue;
     if (hiddenTPlants.has(p.tPlanet.id)) continue;
     if (tlYearScale && p.asp.type === 'return' && [0,2,3,4].includes(p.tPlanet.id)) continue;
     if (tlYearScale && p.na.isAngle && p.tPlanet.id === 4) continue;

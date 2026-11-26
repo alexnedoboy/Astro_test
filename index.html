@@ -665,8 +665,8 @@ import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
          transitOrbFactor, computeTransitIngresses, computeProgressedLife,
-         computeDirectionLife } from './js/timeline-calc.js?v=10';
-import { STRINGS } from './js/strings.js?v=24';
+         computeDirectionLife } from './js/timeline-calc.js?v=11';
+import { STRINGS } from './js/strings.js?v=25';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -9232,9 +9232,11 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
       const barH = isReturn ? 6 : BAR_H;
       const barY = baseY + 10 + p.sub * SUB_H + (SUB_H - barH) / 2;
 
+      // Почти аспект (разворот в пределах 1° без точности) — бледнее, без точки.
+      const nm = !p.exactJDs?.length ? p.nearMiss : null;
       const bar = el('rect', {
         x: x1, y: barY, width: Math.max(barW, isReturn ? 4 : 2), height: barH,
-        fill: p.asp.color, rx: 1, opacity,
+        fill: p.asp.color, rx: 1, opacity: nm ? String(opacity * 0.4) : opacity,
       });
 
       // Floating tooltip on hover
@@ -9242,7 +9244,8 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
         ? p.exactJDs.reduce((b, j) => Math.abs(j - jdToday) < Math.abs(b - jdToday) ? j : b)
         : null;
       const tipText = `${p.na.glyph} ${p.asp.symbol} ${p.tPlanet.glyph}` +
-        (nearest ? `  ·  ${fmtDate(nearest)}` : '');
+        (nearest ? `  ·  ${fmtDate(nearest)}` : '') +
+        (nm ? `  ·  ${tr('tlNearMiss')} ${fmtOrb(nm.orb)} · ${fmtDate(nm.jd)}` : '');
       bar.addEventListener('mouseover', () => {
         tooltip.textContent = tipText;
         tooltip.style.display = 'block';
@@ -9279,6 +9282,7 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
             'font-size': isReturn ? 12 : 10, fill: p.asp.color,
             'text-anchor': 'middle', 'dominant-baseline': 'auto',
             'font-weight': isReturn ? 'bold' : 'normal',
+            ...(nm && { opacity: '0.55' }),
           }));
         }
       }

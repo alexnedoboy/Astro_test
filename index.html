@@ -665,7 +665,7 @@ import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
          computeNatalEvents, natEvWindow, NAT_EV_TOGGLE, computeSkyBackground,
          transitOrbFactor, computeTransitIngresses, computeProgressedLife,
-         computeDirectionLife } from './js/timeline-calc.js?v=12';
+         computeDirectionLife } from './js/timeline-calc.js?v=13';
 import { STRINGS } from './js/strings.js?v=26';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
@@ -5023,6 +5023,32 @@ function moveChartTip(e) {
 }
 function hideChartTip() { _ctEl().style.display = 'none'; }
 
+// Плашки-подсказки на тач-устройствах. Тап синтезирует mouseover, а mouseout не
+// приходит, пока не тапнешь другой элемент с подсказкой, — плашка «залипала».
+// Решено в одном месте для обеих плашек (таймлайн и карта), а не в каждом обработчике:
+// любое касание или прокрутка прячет плашку, а показанная тапом уходит сама.
+{
+  const TIP_IDS = ['tl-tooltip', 'chart-tooltip'];
+  const TAP_TIP_MS = 2500;
+  let lastTouch = 0;
+  const hideTips = () => TIP_IDS.forEach(id => {
+    const t = document.getElementById(id); if (t) t.style.display = 'none';
+  });
+  document.addEventListener('touchstart', () => { lastTouch = Date.now(); hideTips(); },
+    { capture: true, passive: true });
+  document.addEventListener('scroll', hideTips, { capture: true, passive: true });
+  for (const id of TIP_IDS) {
+    const t = document.getElementById(id);
+    if (!t) continue;
+    let timer = 0;
+    new MutationObserver(() => {
+      clearTimeout(timer);
+      if (t.style.display === 'block' && Date.now() - lastTouch < 1500)
+        timer = setTimeout(() => { t.style.display = 'none'; }, TAP_TIP_MS);
+    }).observe(t, { attributes: true, attributeFilter: ['style'] });
+  }
+}
+
 // ── SVG factory ───────────────────────────────────────────────────────────────
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -9194,40 +9220,59 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
         const retro  = el('rect', { x: rx1, y: barY, width: Math.max(rx2 - rx1, 2), height: 4, fill: COLORS.tlRetro, rx: 1, opacity: '0.85' });
         addTip(shadow, tip); addTip(retro, tip);
         svgR.append(shadow, retro);
-        if (rx2 - rx1 >= 16) {
+        // Подпись: планета + R + знаки; узкой полосе — только планета с R.
+        if (rx2 - rx1 >= 10) {
           const signs = rp.signR === rp.signD ? signLbl(rp.signR) : `${signLbl(rp.signR)}→${signLbl(rp.signD)}`;
-          svgR.appendChild(txt((rx1 + rx2) / 2, barY - 2, `R ${signs}`, {
-            'font-size': 9, fill: COLORS.tlRetro, 'text-anchor': 'middle', 'dominant-baseline': 'auto',
+          svgR.appendChild(txt((rx1 + rx2) / 2, barY - 2, rx2 - rx1 >= 34 ? `${pl.glyph}R ${signs}` : `${pl.glyph}R`, {
+            'font-size': 10, fill: COLORS.tlRetro, 'text-anchor': 'middle', 'dominant-baseline': 'auto',
           }));
         }
       }
     });
     if (SKY_ECL_H > 0) {
       const eclY = SKY_Y + 2 + skyLanes.length * SKY_LANE_H;
-      const cy = eclY + 7;
-      // Затмения идут парами через ~2 недели: у первого из близкой пары подпись слева.
-      const exs = sky.eclipses.map(ec => xOf(ec.jd));
-      sky.eclipses.forEach((ec, ei) => {
-        const xE = exs[ei];
-        const lblLeft = ei + 1 < exs.length && exs[ei + 1] - xE < 70;
+      const cy = eclY + 7, R = 4.5;
+      // Иконка — тип затмения: полное — залитый диск, кольцеобразное/гибридное — кольцо,
+      // частное — половина диска, полутеневое — пунктирный контур. Цвет — вид: солнечное
+      // тёмное, лунное коричневое; вид ещё и назван в подписи (☉/☽). Касание натала —
+      // внешний ободок и жирная подпись.
+      const drawEclIcon = (x, ec, color) => {
+        const g = el('g');
+        if (ec.type === 'total') g.appendChild(circ(x, cy, R, { fill: color }));
+        else if (ec.type === 'annular' || ec.type === 'hybrid')
+          g.appendChild(circ(x, cy, R - 1, { fill: '#fff', stroke: color, 'stroke-width': 2.2 }));
+        else if (ec.type === 'partial') {
+          g.appendChild(circ(x, cy, R, { fill: '#fff', stroke: color, 'stroke-width': 1 }));
+          g.appendChild(el('path', { d: `M${x},${cy - R} A${R},${R} 0 0 0 ${x},${cy + R} Z`, fill: color }));
+        } else g.appendChild(circ(x, cy, R, { fill: '#fff', stroke: color, 'stroke-width': 1, 'stroke-dasharray': '1.6,1.4' }));
+        if (ec.hits.length) g.appendChild(circ(x, cy, R + 2.6, { fill: 'none', stroke: color, 'stroke-width': 1 }));
+        return g;
+      };
+      // Подписи — под иконками, в две строки: следующая, если в текущей нет места.
+      const lblW = s => [...s.replace(/\uFE0E/g, '')].reduce((w, ch) => w + (/[\x20-\x7E°]/.test(ch) ? 5.2 : 8.5), 0) + 3;
+      const levelEnd = [-Infinity, -Infinity];
+      for (const ec of sky.eclipses) {
+        const xE = xOf(ec.jd);
         const hit = ec.hits.length > 0;
         const color = ec.kind === 'solar' ? COLORS.tlEclSolar : COLORS.tlEclLunar;
-        const rr = hit ? 5 : 3.5;
-        const pen = ec.type === 'penumbral';
-        svgR.appendChild(circ(xE, cy, rr, {
-          fill: pen ? '#fff' : color, stroke: color, 'stroke-width': hit ? 1.6 : 1, opacity: pen ? '0.7' : '1',
-        }));
+        svgR.appendChild(drawEclIcon(xE, ec, color));
         if (!ctx.isYearScale()) {
-          const lbl = degLbl(ec.lon) + (hit ? ' ' + ec.hits.map(h => (h.asp ? '☍' : '☌') + h.glyph).join('') : '');
-          svgR.appendChild(txt(lblLeft ? xE - rr - 2 : xE + rr + 2, cy, lbl, {
+          const lbl = `${ec.kind === 'solar' ? '☉' : '☽'}\uFE0E ${degLbl(ec.lon)}`
+            + (hit ? ' ' + ec.hits.map(h => (h.asp ? '☍' : '☌') + h.glyph).join('') : '');
+          const w = lblW(lbl);
+          let x0 = xE - R;
+          if (x0 + w > BARS_W) x0 = BARS_W - w;
+          let lv = levelEnd.findIndex(e => x0 > e + 4);
+          if (lv < 0) lv = levelEnd[0] <= levelEnd[1] ? 0 : 1;
+          levelEnd[lv] = x0 + w;
+          svgR.appendChild(txt(x0, eclY + 19 + lv * 11, lbl, {
             'font-size': 9, fill: color, 'dominant-baseline': 'central', 'font-weight': hit ? 'bold' : 'normal',
-            'text-anchor': lblLeft ? 'end' : 'start',
           }));
         }
         const tip = `${tr(ec.kind === 'solar' ? 'tlEclSolar' : 'tlEclLunar')} (${tr('tlEcl_' + ec.type)})  ·  ${fmtDate(ec.jd)}  ·  ${degLbl(ec.lon)}`
           + (hit ? '  ·  ' + ec.hits.map(h => `${h.asp ? '☍' : '☌'} ${h.glyph} ${tr('tlEclNatal')} ${fmtOrb(h.orb)}`).join(', ') : '');
         svgR.appendChild(addTip(makeNavHit(circ(xE, cy, 9, { fill: 'transparent', style: 'cursor:pointer' }), () => ctx.onBarClick(ec.jd)), tip));
-      });
+      }
     }
   }
 

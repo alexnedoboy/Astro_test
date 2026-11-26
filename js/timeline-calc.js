@@ -826,7 +826,7 @@ function computeTlLayout(periods, progEvents, dirEvents, sky = null) {
 
   // «Небо»: дорожка на каждую из ☿♀♂, у которой в окне есть ретро, + ряд затмений.
   const skyLanes = sky ? SKY_RETRO_IDS.filter(id => sky.retros.some(r => r.pid === id)) : [];
-  const SKY_LANE_H = 17, SKY_ECL_H = sky?.eclipses.length ? 16 : 0;
+  const SKY_LANE_H = 17, SKY_ECL_H = sky?.eclipses.length ? (tlYearScale ? 16 : 38) : 0;   // на 10Y без подписей
   const SKY_H = (skyLanes.length || SKY_ECL_H) ? skyLanes.length * SKY_LANE_H + SKY_ECL_H + 4 : 0;
   const SKY_Y = HDR_H + PROG_SECTION_H + DIR_TICK_H;
 

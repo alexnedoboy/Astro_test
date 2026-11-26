@@ -663,10 +663,10 @@ import { safeCalcUt, computeChartData, computeComposite, computeDavison,
   from './js/astro-core.js?v=9';
 import { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
-         computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
+         computeNatalEvents, natEvWindow, NAT_EV_TOGGLE, computeSkyBackground,
          transitOrbFactor, computeTransitIngresses, computeProgressedLife,
-         computeDirectionLife } from './js/timeline-calc.js?v=11';
-import { STRINGS } from './js/strings.js?v=25';
+         computeDirectionLife } from './js/timeline-calc.js?v=12';
+import { STRINGS } from './js/strings.js?v=26';
 import { defineSettings, getSetting, setSetting, initSettingsUI, initSettingsSync,
          syncSettingsFromUser, openSettingsModal, closeSettingsModal,
          refreshSettingsModal } from './js/settings.js?v=3';
@@ -674,7 +674,7 @@ import { initCommands, defineCommands, listCommands, runCommand,
          commandSchemas } from './js/commands.js?v=1';
 import { AI_PROVIDERS, askModel, aiConfigured, getAiKey, setAiKey, listModels,
          getAiProvider, setAiProvider, getAiModel, setAiModel } from './js/ai.js?v=4';
-import { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, FORTUNE_ID, SPIRIT_ID, LOT_IDS, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js?v=7';
+import { HOUSE_SYSTEMS, MAJOR_ASPECTS, PLANETS, SIGNS, SIGN_NAMES, ROMAN, ANGULAR, COLORS, SIGN_ELEM_COLORS, ANGULAR_COLORS, ASPECTS, getNatalOrb, SIGN_RULERS, getHouseRulerPlanets, CHART, W, H, CX, CY, VB_CROP, VIEWBOX, R_RING, RING_W, R_ZOD_OUT, R_ZOD_IN, R_INNER, R_PLANET, R_LABEL, R_BW_INNER, R_DIVIDER, R_T_PLANET, R_N_PLANET, SLOW_IDS, FAST_IDS, TL_ANGLE_ID, FORTUNE_ID, SPIRIT_ID, LOT_IDS, getTransitOrb, T_ASPECTS, D_ASPECTS, TL } from './js/constants.js?v=8';
 
 // ┌─────────────────────────────────────────────────────────────────────────────┐
 // │  TODO: вставьте ваши данные из Supabase → Project Settings → API           │
@@ -1175,6 +1175,9 @@ defineSettings([
   { id: 'tlAngles', section: 'timeline', type: 'toggle', default: true,
     lsKey: 'tlAngles', lsKind: 'bool01', labelKey: 'tlAnglesRow',
     onChange: refreshTimelineFromSettings },
+  { id: 'tlSky', section: 'timeline', type: 'toggle', default: true,
+    lsKey: 'tlSky', lsKind: 'bool01', labelKey: 'tlSky',
+    onChange: refreshTimelineFromSettings },
   /* ── Ассистент: свой ключ провайдера (BYOK) ────────────────────────────────
      Ключ намеренно НЕ значение реестра: значения реестра уезжают в Supabase
      user_metadata, а личный ключ должен остаться в этом браузере. Запись
@@ -1322,6 +1325,7 @@ const TL_MENU_ITEMS = [   // [id настройки, ключ подписи]
   ['showProgLunarPhases', 'progLunarPhases'],
   ['tlReturns', 'tlReturns'],
   ['tlAngles', 'tlAnglesRow'],
+  ['tlSky', 'tlSky'],
 ];
 
 function closeTlSettingsMenu() { document.getElementById('tl-settings-menu')?.remove(); }
@@ -8731,7 +8735,15 @@ function computeAndRenderTimeline(natalPlanets, centerOverride = null) {
       const dirEvents   = natalData?.birthJD
         ? computeDirectionEvents(natalPlanets, natalData.cusps, natalData.birthJD, transitData.jdStart, transitData.jdEnd)
         : [];
-      cachedTimeline = { ...transitData, progEvents, dirEvents, center, jdCoreStart, jdCoreEnd };
+      // «Небо»: ретро ☿♀♂ и затмения; касания затмений — к планетам натала и углам
+      const sky = getSetting('tlSky')
+        ? computeSkyBackground(transitData.jdStart, transitData.jdEnd, [
+            ...natalPlanets.map(p => ({ id: p.id, glyph: p.glyph, longitude: p.longitude })),
+            ...(natalData?.cusps ? [0, 3, 6, 9].map(i => ({
+              id: TL_ANGLE_ID, isAngle: true, glyph: ANGULAR[i], longitude: natalData.cusps[i] })) : []),
+          ])
+        : null;
+      cachedTimeline = { ...transitData, progEvents, dirEvents, sky, center, jdCoreStart, jdCoreEnd };
       renderTimeline({ ...cachedTimeline, jdCursor: currentTransitJD ?? jdToday });
     } catch (e) {
       tl.innerHTML = `<div class="tl-status">${tr('error')}${e.message}</div>`;
@@ -8770,7 +8782,7 @@ function drillDownToYear(yr) {
 
 
 
-function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, jdCoreEnd = null, progEvents = [], dirEvents = [], jdCursor = null, tlCtx = null }) {
+function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, jdCoreEnd = null, progEvents = [], dirEvents = [], sky = null, jdCursor = null, tlCtx = null }) {
   const ctx = tlCtx ?? {
     get container()       { return document.getElementById('right-timeline-content'); },
     get filterContainer() { return document.getElementById('v2-timeline-wrap'); },
@@ -8830,7 +8842,8 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
     progAspects, progMoonAsps, progPoints,
     PROG_ASP_H, PROG_MOON_H, PROG_TICK_H, PROG_SECTION_H,
     DIR_TICK_H, moonBandY,
-  } = computeTlLayout(periods, progEvents, dirEvents);
+    SKY_Y, SKY_H, SKY_LANE_H, SKY_ECL_H, skyLanes,
+  } = computeTlLayout(periods, progEvents, dirEvents, sky);
 
   // ── Timeline range label ────────────────────────────────────────────────────
   const hel = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
@@ -8961,6 +8974,18 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
     svgL.appendChild(ln(0, dirY + DIR_TICK_H, LABEL_W, dirY + DIR_TICK_H,
       { stroke: '#bbb', 'stroke-width': 1 }));
   }
+  if (SKY_H > 0) {
+    skyLanes.forEach((pid, k) => {
+      svgL.appendChild(txt(LABEL_W / 2, SKY_Y + 2 + k * SKY_LANE_H + SKY_LANE_H / 2, PLANETS.find(p => p.id === pid).glyph, {
+        'font-size': 11, fill: COLORS.tlRetro, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+      }));
+    });
+    if (SKY_ECL_H > 0)
+      svgL.appendChild(txt(LABEL_W / 2, SKY_Y + 2 + skyLanes.length * SKY_LANE_H + SKY_ECL_H / 2, tr('tlEclShort'), {
+        'font-size': 9, fill: '#aaa', 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-style': 'italic',
+      }));
+    svgL.appendChild(ln(0, SKY_Y + SKY_H, LABEL_W, SKY_Y + SKY_H, { stroke: '#bbb', 'stroke-width': 1 }));
+  }
   rows.forEach((r, i) => {
     if (i % 2 === 0)
       svgL.appendChild(el('rect', { x:0, y:r.y, width:LABEL_W, height:r.h, fill:COLORS.tlRowAlt }));
@@ -9009,6 +9034,27 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
     if (i % 2 === 0)
       svgR.appendChild(el('rect', { x:0, y:r.y, width:BARS_W, height:r.h, fill:COLORS.tlRowAlt }));
   });
+  // Эхо «Неба» в натальных строках: ретро транзитной ☿/♀/♂ — лёгкая заливка строки
+  // своей натальной планеты (тень ещё легче); затмение на оси натальной точки —
+  // вертикальная метка в её строке.
+  if (sky) {
+    for (const r of rows) {
+      for (const rp of sky.retros) {
+        if (rp.pid !== r.pl.id) continue;
+        const sx1 = xOf(rp.shStart), sx2 = xOf(rp.shEnd), rx1 = xOf(rp.rStart), rx2 = xOf(rp.rEnd);
+        svgR.appendChild(el('rect', { x: sx1, y: r.y, width: Math.max(sx2 - sx1, 0), height: r.h, fill: COLORS.tlRetro, opacity: '0.05' }));
+        svgR.appendChild(el('rect', { x: rx1, y: r.y, width: Math.max(rx2 - rx1, 0), height: r.h, fill: COLORS.tlRetro, opacity: '0.09' }));
+      }
+      for (const ec of sky.eclipses) {
+        if (!ec.hits.some(h => h.id === r.pl.id)) continue;
+        const xE = xOf(ec.jd);
+        svgR.appendChild(ln(xE, r.y + 1, xE, r.y + r.h - 1, {
+          stroke: ec.kind === 'solar' ? COLORS.tlEclSolar : COLORS.tlEclLunar,
+          'stroke-width': 1.2, 'stroke-dasharray': '2,2', opacity: '0.7',
+        }));
+      }
+    }
+  }
   // Helper: attach click + touch navigation to any SVG element
   const makeNavHit = (elem, cb) => {
     let _tsx = 0, _tsy = 0;
@@ -9127,6 +9173,61 @@ function renderTimeline({ periods, jdStart, jdEnd, jdToday, jdCoreStart = null, 
       const dHit = makeNavHit(circ(xE, dotY, 8, { fill: 'transparent', style: 'cursor:pointer' }), () => switchModeAndNavigate('direction', ev.jd));
       addTip(dHit, `${tr('dirPrefix')}${ev.label}  ·  ${fmtDate(ev.jd)}`);
       svgR.appendChild(dHit);
+    }
+  }
+
+  // ── «Небо»: ретро ☿♀♂ (с тенями) и затмения ─────────────────────────────────
+  if (SKY_H > 0) {
+    svgR.appendChild(ln(0, SKY_Y + SKY_H, BARS_W, SKY_Y + SKY_H, { stroke: '#bbb', 'stroke-width': 1 }));
+    const signLbl = i => SIGNS[i];
+    const degLbl = lon => `${Math.floor(lon % 30)}°${signLbl(Math.floor(lon / 30))}`;
+    skyLanes.forEach((pid, k) => {
+      const pl = PLANETS.find(p => p.id === pid);
+      const laneY = SKY_Y + 2 + k * SKY_LANE_H;
+      const barY = laneY + 10;
+      for (const rp of sky.retros) {
+        if (rp.pid !== pid) continue;
+        const sx1 = xOf(rp.shStart), sx2 = xOf(rp.shEnd), rx1 = xOf(rp.rStart), rx2 = xOf(rp.rEnd);
+        const tip = `${pl.glyph} ${tr('tlSkyRetro')}  ${degLbl(rp.lonR)} → ${degLbl(rp.lonD)}  ·  `
+          + `${fmtDate(rp.rStart)} – ${fmtDate(rp.rEnd)}  ·  ${tr('tlSkyShadow')} ${fmtDate(rp.shStart)} – ${fmtDate(rp.shEnd)}`;
+        const shadow = el('rect', { x: sx1, y: barY + 1, width: Math.max(sx2 - sx1, 1), height: 2, fill: COLORS.tlRetro, opacity: '0.35' });
+        const retro  = el('rect', { x: rx1, y: barY, width: Math.max(rx2 - rx1, 2), height: 4, fill: COLORS.tlRetro, rx: 1, opacity: '0.85' });
+        addTip(shadow, tip); addTip(retro, tip);
+        svgR.append(shadow, retro);
+        if (rx2 - rx1 >= 16) {
+          const signs = rp.signR === rp.signD ? signLbl(rp.signR) : `${signLbl(rp.signR)}→${signLbl(rp.signD)}`;
+          svgR.appendChild(txt((rx1 + rx2) / 2, barY - 2, `R ${signs}`, {
+            'font-size': 9, fill: COLORS.tlRetro, 'text-anchor': 'middle', 'dominant-baseline': 'auto',
+          }));
+        }
+      }
+    });
+    if (SKY_ECL_H > 0) {
+      const eclY = SKY_Y + 2 + skyLanes.length * SKY_LANE_H;
+      const cy = eclY + 7;
+      // Затмения идут парами через ~2 недели: у первого из близкой пары подпись слева.
+      const exs = sky.eclipses.map(ec => xOf(ec.jd));
+      sky.eclipses.forEach((ec, ei) => {
+        const xE = exs[ei];
+        const lblLeft = ei + 1 < exs.length && exs[ei + 1] - xE < 70;
+        const hit = ec.hits.length > 0;
+        const color = ec.kind === 'solar' ? COLORS.tlEclSolar : COLORS.tlEclLunar;
+        const rr = hit ? 5 : 3.5;
+        const pen = ec.type === 'penumbral';
+        svgR.appendChild(circ(xE, cy, rr, {
+          fill: pen ? '#fff' : color, stroke: color, 'stroke-width': hit ? 1.6 : 1, opacity: pen ? '0.7' : '1',
+        }));
+        if (!ctx.isYearScale()) {
+          const lbl = degLbl(ec.lon) + (hit ? ' ' + ec.hits.map(h => (h.asp ? '☍' : '☌') + h.glyph).join('') : '');
+          svgR.appendChild(txt(lblLeft ? xE - rr - 2 : xE + rr + 2, cy, lbl, {
+            'font-size': 9, fill: color, 'dominant-baseline': 'central', 'font-weight': hit ? 'bold' : 'normal',
+            'text-anchor': lblLeft ? 'end' : 'start',
+          }));
+        }
+        const tip = `${tr(ec.kind === 'solar' ? 'tlEclSolar' : 'tlEclLunar')} (${tr('tlEcl_' + ec.type)})  ·  ${fmtDate(ec.jd)}  ·  ${degLbl(ec.lon)}`
+          + (hit ? '  ·  ' + ec.hits.map(h => `${h.asp ? '☍' : '☌'} ${h.glyph} ${tr('tlEclNatal')} ${fmtOrb(h.orb)}`).join(', ') : '');
+        svgR.appendChild(addTip(makeNavHit(circ(xE, cy, 9, { fill: 'transparent', style: 'cursor:pointer' }), () => ctx.onBarClick(ec.jd)), tip));
+      });
     }
   }
 

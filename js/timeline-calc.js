@@ -6,7 +6,7 @@
 // (computeAndRenderTimeline, renderTimeline) остаются в index.html.
 
 import { PLANETS, SIGNS, ROMAN, COLORS, T_ASPECTS, TL,
-         SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb } from './constants.js?v=7';
+         SLOW_IDS, FAST_IDS, TL_ANGLE_ID, getTransitOrb } from './constants.js?v=8';
 import { safeCalcUt, findHouse, angDiff } from './astro-core.js?v=1';
 import { getSetting } from './settings.js?v=3';
 
@@ -462,6 +462,93 @@ function computeTransits(natalPlanets, jdWindowStart, jdWindowEnd, angleTargets 
   return { periods, jdStart, jdEnd, jdToday };
 }
 
+// ── «Небо»: общий фон таймлайна ───────────────────────────────────────────────
+// Ретроградность ☿♀♂ с теневыми периодами и затмения — мунданные события, одни для
+// всех; на таймлайне это фон для личных транзитов. Затмение «касается» натала,
+// если натальная точка на его оси (☌ или ☍ точке затмения) в пределах ECL_ORB.
+const SKY_RETRO_IDS = [2, 3, 4];
+const ECL_ORB = 3;
+
+function computeSkyBackground(jdWindowStart, jdWindowEnd, natalPoints = []) {
+  const flags = (swe.SEFLG_SWIEPH ?? 2) | (swe.SEFLG_SPEED ?? 256);
+  // Запас по краям: у Марса тень + ретро + тень ≈ 7 месяцев.
+  const PAD = 220;
+  const j0 = jdWindowStart - PAD;
+  const N  = Math.ceil(jdWindowEnd - jdWindowStart) + 2 * PAD;
+  const signOf = lon => Math.floor((((lon % 360) + 360) % 360) / 30);
+
+  const retros = [];
+  for (const pid of SKY_RETRO_IDS) {
+    const U = new Float64Array(N), V = new Float64Array(N);   // развёрнутая долгота, скорость
+    for (let i = 0; i < N; i++) {
+      const r = safeCalcUt(j0 + i, pid, flags);
+      if (!r) return { retros: [], eclipses: [] };
+      let lon = r[0];
+      if (i) { const prev = U[i - 1]; lon += Math.round((prev - lon) / 360) * 360; }
+      U[i] = lon; V[i] = r[3];
+    }
+    // точка смены знака скорости между i-1 и i (линейная интерполяция)
+    const cross = i => (i - 1) + V[i - 1] / (V[i - 1] - V[i]);
+    const at = t => { const i = Math.floor(t), f = t - i; return U[i] + (U[Math.min(i + 1, N - 1)] - U[i]) * f; };
+    let iR = -1;
+    for (let i = 1; i < N; i++) {
+      if (V[i - 1] > 0 && V[i] <= 0) iR = i;
+      else if (V[i - 1] < 0 && V[i] >= 0 && iR > 0) {
+        const tR = cross(iR), tD = cross(i);
+        const lonR = at(tR), lonD = at(tD);
+        // Тень до: с момента, когда планета впервые проходит градус будущей станции D.
+        let tS = null;
+        for (let k = iR; k > 0; k--)
+          if (U[k - 1] <= lonD) { tS = (k - 1) + (lonD - U[k - 1]) / (U[k] - U[k - 1]); break; }
+        // Тень после: пока не выйдет за градус станции R.
+        let tE = null;
+        for (let k = i; k < N; k++)
+          if (U[k] >= lonR) { tE = (k - 1) + (lonR - U[k - 1]) / (U[k] - U[k - 1]); break; }
+        iR = -1;
+        if (tS == null || tE == null) continue;
+        const rec = { pid,
+          rStart: j0 + tR, rEnd: j0 + tD, shStart: j0 + tS, shEnd: j0 + tE,
+          lonR: ((lonR % 360) + 360) % 360, lonD: ((lonD % 360) + 360) % 360,
+          signR: signOf(lonR), signD: signOf(lonD) };
+        if (rec.shEnd >= jdWindowStart && rec.shStart <= jdWindowEnd) retros.push(rec);
+      }
+    }
+  }
+
+  const eclipses = [];
+  const hitsOf = lon => {
+    const hits = [];
+    for (const np of natalPoints) {
+      const d = angDiff(lon, np.longitude);
+      if (d <= ECL_ORB) hits.push({ ...np, asp: 0, orb: d });
+      else if (180 - d <= ECL_ORB) hits.push({ ...np, asp: 180, orb: 180 - d });
+    }
+    return hits.sort((a, b) => a.orb - b.orb);
+  };
+  const scan = (kind, find, typeOf) => {
+    let t = jdWindowStart;
+    for (let guard = 0; guard < 200; guard++) {
+      const r = find(t);
+      if (!r || !r.tret?.[0] || r.tret[0] > jdWindowEnd) break;
+      const jd = r.tret[0];
+      const sun = safeCalcUt(jd, 0, flags);
+      if (sun) {
+        const lon = kind === 'solar' ? sun[0] : (sun[0] + 180) % 360;
+        eclipses.push({ kind, type: typeOf(r.retFlag), jd, lon, hits: hitsOf(lon) });
+      }
+      t = jd + 20;
+    }
+  };
+  const ECL = { TOTAL: 4, ANNULAR: 8, PARTIAL: 16, HYBRID: 32, PENUMBRAL: 64 };
+  scan('solar', t => swe.sol_eclipse_when_glob(t, 2, 0, 0),
+    f => f & ECL.HYBRID ? 'hybrid' : f & ECL.TOTAL ? 'total' : f & ECL.ANNULAR ? 'annular' : 'partial');
+  scan('lunar', t => swe.lun_eclipse_when(t, 2, 0, 0),
+    f => f & ECL.TOTAL ? 'total' : f & ECL.PARTIAL ? 'partial' : 'penumbral');
+  eclipses.sort((a, b) => a.jd - b.jd);
+
+  return { retros, eclipses };
+}
+
 // Refine each daily local minimum to sub-day precision and filter non-perfecting aspects.
 // Returns array of Julian Dates where the aspect truly perfects (diff < EXACT_THRESH).
 function refineExactAspects(localMinima, planetId, natalLon, aspAngle, jdStart, flags) {
@@ -621,7 +708,7 @@ function computeReturnPeriods(natalPlanets, jdStart, jdEnd) {
 // ── computeTlLayout ───────────────────────────────────────────────────────────
 // Pure layout computation: distributes periods into rows/lanes and calculates
 // section heights. Returns layout data used by renderTimeline.
-function computeTlLayout(periods, progEvents, dirEvents) {
+function computeTlLayout(periods, progEvents, dirEvents, sky = null) {
   const { HDR_H, SUB_H } = TL;
 
   // ── Filter and group transit periods by natal planet ────────────────────
@@ -737,8 +824,14 @@ function computeTlLayout(periods, progEvents, dirEvents) {
   const PROG_SECTION_H   = PROG_ASP_H + PROG_MOON_H + PROG_TICK_H;
   const DIR_TICK_H       = dirEvents.length > 0 ? 48 : 0;
 
+  // «Небо»: дорожка на каждую из ☿♀♂, у которой в окне есть ретро, + ряд затмений.
+  const skyLanes = sky ? SKY_RETRO_IDS.filter(id => sky.retros.some(r => r.pid === id)) : [];
+  const SKY_LANE_H = 17, SKY_ECL_H = sky?.eclipses.length ? 16 : 0;
+  const SKY_H = (skyLanes.length || SKY_ECL_H) ? skyLanes.length * SKY_LANE_H + SKY_ECL_H + 4 : 0;
+  const SKY_Y = HDR_H + PROG_SECTION_H + DIR_TICK_H;
+
   // Assign y-positions to each transit row
-  let y = HDR_H + PROG_SECTION_H + DIR_TICK_H;
+  let y = SKY_Y + SKY_H;
   for (const r of rows) { r.y = y; y += r.h; }
   const TL_H = y + 4;
 
@@ -748,6 +841,7 @@ function computeTlLayout(periods, progEvents, dirEvents) {
     PROG_ASP_H, PROG_MOON_H, PROG_TICK_H, PROG_SECTION_H,
     DIR_TICK_H,
     moonBandY: HDR_H + PROG_ASP_H,
+    SKY_Y, SKY_H, SKY_LANE_H, SKY_ECL_H, skyLanes,
   };
 }
 
@@ -1082,5 +1176,5 @@ function computeTransitIngresses(ids, cusps, jdStart, jdEnd, { signs = true, hou
 export { computeDirectionLife, computeProgressedLife, computeTransitIngresses };
 export { computeTransits, computeFastTransits, computeReturnPeriods,
          computeProgressedEvents, computeDirectionEvents, computeTlLayout,
-         computeNatalEvents, natEvWindow, NAT_EV_TOGGLE,
+         computeNatalEvents, natEvWindow, NAT_EV_TOGGLE, computeSkyBackground,
          transitOrbFactor };

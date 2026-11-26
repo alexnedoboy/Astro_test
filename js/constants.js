@@ -69,6 +69,11 @@ const COLORS = {
   tlLabel:     '#B0A8A4',  // month / year header labels
   tlRowBd:     '#ECE6E2',  // row separator line
   tlSectionBd: '#D4CBC6',  // section bottom border
+
+  // ── Timeline «Небо» (общий фон: ретро ☿♀♂, затмения) ─────────────────────
+  tlRetro:     '#8E6BB8',  // retrograde bar + echo tint in natal row
+  tlEclSolar:  '#2D2420',  // solar eclipse marker
+  tlEclLunar:  '#A0522D',  // lunar eclipse marker
 };
 
 // ── Element color arrays (derived from COLORS) ────────────────────────────────
